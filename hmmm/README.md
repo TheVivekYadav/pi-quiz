@@ -16,6 +16,37 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    npx expo start
    ```
 
+## Android APK build and publish
+
+This project is configured with EAS build profiles in [hmmm/eas.json](eas.json).
+
+- Build APK (internal/testing):
+
+   ```bash
+   npm run build:android:apk
+   ```
+
+- Build AAB (Play Store):
+
+   ```bash
+   npm run build:android:aab
+   ```
+
+- Build + publish APK to web download URL:
+
+   ```bash
+   npm run publish:apk
+   ```
+
+Published APK URL:
+
+- https://pit.engineer/downloads/pi-quiz.apk
+
+Notes:
+
+- First time, login to Expo account: `npx eas-cli login`
+- `publish:apk` downloads the latest EAS APK artifact and pushes it to the server via git (`azure` remote).
+
 In the output, you'll find options to open the app in a
 
 - [development build](https://docs.expo.dev/develop/development-builds/introduction/)
