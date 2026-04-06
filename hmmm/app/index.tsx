@@ -1,7 +1,8 @@
 import { useTheme } from "@/hook/theme";
+import { ANDROID_APK_URL } from "@/constants/links";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { Button, StyleSheet, View } from "react-native";
+import { Button, Linking, Platform, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 
@@ -27,6 +28,15 @@ export default function Index() {
       <Button title="Create Form" onPress={() => router.push('/create')} />
       <View style={styles.spacer} />
       <Button title="Fill Form" onPress={() => router.push('/forms')} />
+      {Platform.OS === "web" && (
+        <>
+          <View style={styles.spacer} />
+          <Button
+            title="Download Android APK"
+            onPress={() => Linking.openURL(ANDROID_APK_URL)}
+          />
+        </>
+      )}
 
     </View>
   );

@@ -1,6 +1,11 @@
 pit.engineer {
   encode gzip zstd
 
+  handle_path /downloads/* {
+    root * /srv/downloads
+    file_server
+  }
+
   @api path /api /api/*
   handle @api {
     uri strip_prefix /api
