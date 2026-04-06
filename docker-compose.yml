@@ -19,12 +19,22 @@ services:
       postgres:
         condition: service_healthy
 
+  web:
+    build:
+      context: ./hmmm
+      dockerfile: Dockerfile.web
+    container_name: pi-quiz-web
+    expose:
+      - "80"
+    restart: unless-stopped
+
   caddy:
     image: caddy:2.8-alpine
     container_name: pi-quiz-caddy
     restart: unless-stopped
     depends_on:
       - api
+      - web
     ports:
       - "80:80"
       - "443:443"

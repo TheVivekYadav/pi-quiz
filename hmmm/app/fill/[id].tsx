@@ -1,4 +1,5 @@
 import { useTheme } from "@/hook/theme";
+import { apiUrl } from "@/constants/api";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -48,7 +49,7 @@ export default function FillFormScreen() {
 
         const fetchForm = async () => {
             try {
-                const res = await fetch(`http://10.41.53.22:3000/forms/${formId}`);
+                const res = await fetch(apiUrl(`/forms/${formId}`));
                 const data = await res.json();
 
                 if (!data?.id) {
@@ -87,7 +88,7 @@ export default function FillFormScreen() {
 
         setSubmitting(true);
         try {
-            await fetch("http://10.41.53.22:3000/responses", {
+            await fetch(apiUrl("/responses"), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({

@@ -1,4 +1,5 @@
 import { useTheme } from "@/hook/theme";
+import { apiUrl } from "@/constants/api";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
@@ -27,7 +28,7 @@ export default function FormsList() {
 
   const shareFillUrl = async (formId: string) => {
     const appUrl = `hmmm://fill/${formId}`;
-    const webUrl = `https://hmmm.expo.app/fill/${formId}`;
+    const webUrl = `https://pit.engineer/fill/${formId}`;
 
     await Share.share({
       message: `Fill form\n\nApp: ${appUrl}\nWeb fallback: ${webUrl}`,
@@ -38,7 +39,7 @@ export default function FormsList() {
   useEffect(() => {
     const fetchForms = async () => {
       try {
-        const res = await fetch("http://10.41.53.22:3000/forms");
+        const res = await fetch(apiUrl("/forms"));
         const data = await res.json();
         setForms(data);
       } catch (err) {

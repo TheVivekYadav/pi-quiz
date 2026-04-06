@@ -1,4 +1,5 @@
 import { useTheme } from "@/hook/theme";
+import { apiUrl } from "@/constants/api";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
@@ -52,7 +53,7 @@ export default function CreateForm() {
         }
 
         try {
-            const res = await fetch("http://10.41.53.22:3000/forms", {
+            const res = await fetch(apiUrl("/forms"), {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
