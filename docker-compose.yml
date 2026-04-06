@@ -1,0 +1,59 @@
+version: "3.9"
+
+services:
+  api:
+    build:
+      context: ./hmm
+      dockerfile: Dockerfile
+    container_name: pi-quiz-api
+    env_file:
+      - ./hmm/.env
+    environment:
+      PORT: 3000
+      CORS_ORIGIN: https://pit.engineer
+      DATABASE_URL: postgresql://pi_quiz:pi_quiz_password@postgres:5432/pi_quiz
+      DB_POOL_MAX: 50
+      DB_IDLE_TIMEOUT_MS: 30000
+    expose:
+      - "3000"
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: pi-quiz-caddy
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: pi-quiz-postgres
+    environment:
+      POSTGRES_DB: pi_quiz
+      POSTGRES_USER: pi_quiz
+      POSTGRES_PASSWORD: pi_quiz_password
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pi_quiz -d pi_quiz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  pg_data:
+  caddy_data:
+  caddy_config:
