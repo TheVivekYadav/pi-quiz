@@ -7,7 +7,7 @@ export default function RootLayout() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    loadPersistedAuth().finally(() => setReady(true));
+    loadPersistedAuth().catch((err) => console.error('Auth load error:', err)).finally(() => setReady(true));
   }, []);
 
   if (!ready) {
