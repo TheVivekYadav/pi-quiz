@@ -1,21 +1,23 @@
 import { apiUrl } from "@/constants/api";
 import { useTheme } from "@/hook/theme";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Pressable,
   ScrollView,
   Share,
   StyleSheet,
   Text,
-  TouchableOpacity
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Form = {
   id: string;
   title: string;
-  fields: any[];
+  fields: unknown[];
 };
 
 export default function FormsList() {
@@ -35,13 +37,12 @@ export default function FormsList() {
     });
   };
 
-  // ✅ Fetch all forms
   useEffect(() => {
     const fetchForms = async () => {
       try {
         const res = await fetch(apiUrl("/forms"));
         const data = await res.json();
-        setForms(data);
+        setForms(Array.isArray(data) ? data : []);
       } catch (err) {
         console.error("Failed to fetch forms", err);
       } finally {
@@ -54,77 +55,113 @@ export default function FormsList() {
 
   return (
     <ScrollView
-      style={[
-        styles.container,
-        {
-          paddingTop: insets.top,
-          paddingHorizontal: 10,
-          backgroundColor: theme.background,
-        },
-      ]}
+      style={[styles.container, { backgroundColor: theme.background }]}
+      contentContainerStyle={{
+        paddingTop: insets.top + 10,
+        paddingBottom: insets.bottom + 24,
+        paddingHorizontal: 16,
+      }}
     >
-      <Text style={styles.title}>My Forms</Text>
+      <Text style={[styles.eyebrow, { color: theme.primary }]}>WORKSPACE</Text>
+      <Text style={[styles.title, { color: theme.textPrimary }]}>My Forms</Text>
+      <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Manage all active forms, copy links, and view submissions.</Text>
 
-      {/* Loading */}
-      {loading && <ActivityIndicator size="large" />}
+      {loading && <ActivityIndicator size="large" color={theme.primary} />}
 
-      {/* Empty state */}
       {!loading && forms.length === 0 && (
-        <Text>No forms created yet</Text>
+        <View style={[styles.emptyState, { backgroundColor: theme.surfaceLight, borderColor: theme.border }]}>
+          <Ionicons name="documents-outline" size={28} color={theme.primary} />
+          <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>No forms yet</Text>
+          <Text style={[styles.emptyMeta, { color: theme.textMuted }]}>Create your first form and start collecting responses.</Text>
+        </View>
       )}
 
-      {/* Forms List */}
       {forms.map((form) => (
-        <TouchableOpacity
+        <Pressable
           key={form.id}
-          style={styles.card}
-          activeOpacity={0.85}
+          style={({ pressed }) => [
+            styles.card,
+            {
+              backgroundColor: theme.surfaceLight,
+              borderColor: theme.border,
+              shadowColor: theme.shadow,
+              opacity: pressed ? 0.9 : 1,
+            },
+          ]}
           onPress={() => router.push(`/fill/${form.id}`)}
         >
-          <Text style={styles.formTitle}>{form.title}</Text>
-          <Text style={styles.meta}>
-            {form.fields.length} fields
-          </Text>
+          <View style={styles.cardHeader}>
+            <Text style={[styles.formTitle, { color: theme.textPrimary }]}>{form.title}</Text>
+            <View style={[styles.badge, { backgroundColor: theme.primaryMuted }]}>
+              <Text style={[styles.badgeText, { color: theme.primary }]}>LIVE</Text>
+            </View>
+          </View>
+          <Text style={[styles.meta, { color: theme.textMuted }]}>{form.fields.length} fields</Text>
 
-          <TouchableOpacity
-            style={styles.fillBtn}
-            onPress={(e) => {
-              e.stopPropagation?.();
-              router.push(`/fill/${form.id}`);
-            }}
-          >
-            <Text style={styles.fillBtnText}>Fill Form</Text>
-          </TouchableOpacity>
+          <View style={styles.actionGrid}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.actionPrimary,
+                { backgroundColor: theme.buttonPrimary, opacity: pressed ? 0.9 : 1 },
+              ]}
+              onPress={(e) => {
+                e.stopPropagation?.();
+                router.push(`/fill/${form.id}`);
+              }}
+            >
+              <Ionicons name="pencil-outline" size={14} color={theme.textInverse} />
+              <Text style={[styles.actionPrimaryText, { color: theme.textInverse }]}>Fill</Text>
+            </Pressable>
 
-          <TouchableOpacity
-            style={styles.linkBtn}
-            onPress={(e) => {
-              e.stopPropagation?.();
-              shareFillUrl(form.id);
-            }}
-          >
-            <Text style={styles.linkBtnText}>Get URL</Text>
-          </TouchableOpacity>
+            <Pressable
+              style={({ pressed }) => [
+                styles.actionSecondary,
+                {
+                  borderColor: theme.border,
+                  backgroundColor: theme.surface,
+                  opacity: pressed ? 0.88 : 1,
+                },
+              ]}
+              onPress={(e) => {
+                e.stopPropagation?.();
+                shareFillUrl(form.id);
+              }}
+            >
+              <Ionicons name="share-social-outline" size={14} color={theme.textSecondary} />
+              <Text style={[styles.actionSecondaryText, { color: theme.textSecondary }]}>Share</Text>
+            </Pressable>
 
-          <TouchableOpacity
-            style={styles.responsesBtn}
-            onPress={(e) => {
-              e.stopPropagation?.();
-              router.push(`/responses/${form.id}`);
-            }}
-          >
-            <Text style={styles.responsesBtnText}>View Responses</Text>
-          </TouchableOpacity>
-        </TouchableOpacity>
+            <Pressable
+              style={({ pressed }) => [
+                styles.actionSecondary,
+                {
+                  borderColor: theme.border,
+                  backgroundColor: theme.surface,
+                  opacity: pressed ? 0.88 : 1,
+                },
+              ]}
+              onPress={(e) => {
+                e.stopPropagation?.();
+                router.push(`/responses/${form.id}`);
+              }}
+            >
+              <Ionicons name="bar-chart-outline" size={14} color={theme.textSecondary} />
+              <Text style={[styles.actionSecondaryText, { color: theme.textSecondary }]}>Responses</Text>
+            </Pressable>
+          </View>
+        </Pressable>
       ))}
 
-      {/* Create Button */}
-      <TouchableOpacity
-        style={styles.createBtn}
+      <Pressable
+        style={({ pressed }) => [
+          styles.createBtn,
+          { backgroundColor: theme.buttonPrimary, opacity: pressed ? 0.9 : 1 },
+        ]}
         onPress={() => router.push("/create")}
       >
-        <Text style={{ color: "white" }}>+ Create New Form</Text>
-      </TouchableOpacity>
+        <Ionicons name="add" size={18} color={theme.textInverse} />
+        <Text style={[styles.createBtnText, { color: theme.textInverse }]}>Create New Form</Text>
+      </Pressable>
     </ScrollView>
   );
 }
@@ -133,64 +170,117 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  eyebrow: {
+    fontSize: 12,
+    letterSpacing: 2,
+    fontWeight: "700",
+  },
   title: {
-    fontSize: 22,
-    fontWeight: "bold",
-    marginBottom: 20,
+    fontSize: 32,
+    fontWeight: "800",
+    marginTop: 8,
+  },
+  subtitle: {
+    marginTop: 4,
+    marginBottom: 16,
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  emptyState: {
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 20,
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  emptyTitle: {
+    marginTop: 8,
+    fontSize: 20,
+    fontWeight: "700",
+  },
+  emptyMeta: {
+    marginTop: 4,
+    textAlign: "center",
+    fontSize: 14,
   },
   card: {
     borderWidth: 1,
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 10,
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 12,
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 8,
   },
   formTitle: {
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 18,
+    fontWeight: "700",
+    flex: 1,
+  },
+  badge: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  badgeText: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1,
   },
   meta: {
-    marginTop: 5,
-    color: "gray",
+    marginTop: 8,
+    marginBottom: 12,
+    fontSize: 13,
+  },
+  actionGrid: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  actionPrimary: {
+    borderRadius: 10,
+    paddingVertical: 10,
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 6,
+  },
+  actionPrimaryText: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  actionSecondary: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 6,
+  },
+  actionSecondaryText: {
+    fontSize: 12,
+    fontWeight: "600",
   },
   createBtn: {
-    backgroundColor: "black",
-    padding: 15,
-    alignItems: "center",
-    borderRadius: 8,
-    marginTop: 20,
-  },
-  fillBtn: {
-    marginTop: 12,
-    backgroundColor: "black",
-    paddingVertical: 10,
-    borderRadius: 6,
-    alignItems: "center",
-  },
-  fillBtnText: {
-    color: "white",
-    fontWeight: "600",
-  },
-  linkBtn: {
     marginTop: 8,
-    borderWidth: 1,
-    borderColor: "#333",
-    paddingVertical: 10,
-    borderRadius: 6,
+    borderRadius: 14,
+    paddingVertical: 14,
     alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
   },
-  linkBtnText: {
-    color: "#111",
-    fontWeight: "600",
-  },
-  responsesBtn: {
-    marginTop: 8,
-    backgroundColor: "#1f2937",
-    paddingVertical: 10,
-    borderRadius: 6,
-    alignItems: "center",
-  },
-  responsesBtnText: {
-    color: "white",
-    fontWeight: "600",
+  createBtnText: {
+    fontSize: 16,
+    fontWeight: "700",
   },
 });

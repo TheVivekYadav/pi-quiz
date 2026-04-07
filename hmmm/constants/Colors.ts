@@ -1,100 +1,82 @@
 const Colors = {
   light: {
-    // 🌕 Base
-    background: "#ffffff",
-    surface: "#f9fafb",
-    surfaceLight: "#f3f4f6",
-    border: "#e5e7eb",
-    divider: "#d4d4d8",
+    background: "#eeebf7",
+    surface: "#f6f4fd",
+    surfaceLight: "#ffffff",
+    border: "#dcd7f2",
+    divider: "#d4cef0",
 
-    // 🍑 Primary (Peach)
-    primary: "#ff8a61",
-    primaryHover: "#ff7043",
-    primaryMuted: "rgba(255, 138, 97, 0.15)",
+    primary: "#3f51b5",
+    primaryHover: "#3344a5",
+    primaryMuted: "rgba(63, 81, 181, 0.14)",
 
-    // 💎 Accent (Emerald)
-    accent: "#059669",
-    accentMuted: "rgba(5, 150, 105, 0.15)",
+    accent: "#00bcd4",
+    accentMuted: "rgba(0, 188, 212, 0.16)",
 
-    // 🌿 Success (Green)
-    success: "#16a34a",
-    successMuted: "rgba(22, 163, 74, 0.15)",
+    success: "#0c8f73",
+    successMuted: "rgba(12, 143, 115, 0.14)",
 
-    // ❌ Error
-    error: "#dc2626",
-    errorMuted: "rgba(220, 38, 38, 0.15)",
+    error: "#d93c67",
+    errorMuted: "rgba(217, 60, 103, 0.14)",
 
-    // ⚠️ Warning
-    warning: "#d97706",
-    warningMuted: "rgba(217, 119, 6, 0.15)",
+    warning: "#f5c518",
+    warningMuted: "rgba(245, 197, 24, 0.2)",
 
-    // 📝 Text
-    textPrimary: "#111827",
-    textSecondary: "#374151",
-    textMuted: "#6b7280",
+    textPrimary: "#171748",
+    textSecondary: "#3f3f73",
+    textMuted: "#7a7aa4",
     textInverse: "#ffffff",
 
-    // 🎯 Quiz states
-    optionDefault: "#f3f4f6",
-    optionSelected: "#059669",
-    optionCorrect: "#16a34a",
-    optionWrong: "#dc2626",
+    optionDefault: "#dfdaf4",
+    optionSelected: "#00bcd4",
+    optionCorrect: "#0c8f73",
+    optionWrong: "#d93c67",
 
-    // 🔘 Buttons
-    buttonPrimary: "#ff8a61",
-    buttonSecondary: "#e5e7eb",
-    buttonDisabled: "#d1d5db",
+    buttonPrimary: "#3f51b5",
+    buttonSecondary: "#e4e0f4",
+    buttonDisabled: "#c7c2df",
 
-    shadow: "rgba(0,0,0,0.1)",
+    shadow: "rgba(35, 29, 84, 0.16)",
   },
 
   dark: {
-    // 🌑 Base
-    background: "#0b0b0c",
-    surface: "#121214",
-    surfaceLight: "#1c1c1f",
-    border: "#2a2a2e",
-    divider: "#3a3a3f",
+    background: "#111128",
+    surface: "#1a1a3d",
+    surfaceLight: "#242451",
+    border: "#35356f",
+    divider: "#3d3d7f",
 
-    // 🍑 Primary
-    primary: "#ff9e7a",
-    primaryHover: "#ff8a61",
-    primaryMuted: "rgba(255, 158, 122, 0.15)",
+    primary: "#7f90ff",
+    primaryHover: "#6e81fa",
+    primaryMuted: "rgba(127, 144, 255, 0.2)",
 
-    // 💎 Accent
-    accent: "#10b981",
-    accentMuted: "rgba(16, 185, 129, 0.15)",
+    accent: "#3dd5eb",
+    accentMuted: "rgba(61, 213, 235, 0.2)",
 
-    // 🌿 Success
-    success: "#22c55e",
-    successMuted: "rgba(34, 197, 94, 0.15)",
+    success: "#48c2a6",
+    successMuted: "rgba(72, 194, 166, 0.2)",
 
-    // ❌ Error
-    error: "#ef4444",
-    errorMuted: "rgba(239, 68, 68, 0.15)",
+    error: "#ff6f98",
+    errorMuted: "rgba(255, 111, 152, 0.2)",
 
-    // ⚠️ Warning
-    warning: "#f59e0b",
-    warningMuted: "rgba(245, 158, 11, 0.15)",
+    warning: "#ffe066",
+    warningMuted: "rgba(255, 224, 102, 0.2)",
 
-    // 📝 Text
-    textPrimary: "#f4f4f5",
-    textSecondary: "#a1a1aa",
-    textMuted: "#71717a",
-    textInverse: "#09090b",
+    textPrimary: "#f0efff",
+    textSecondary: "#cbc8ec",
+    textMuted: "#a19cc7",
+    textInverse: "#0f0e26",
 
-    // 🎯 Quiz states
-    optionDefault: "#1c1c1f",
-    optionSelected: "#10b981",
-    optionCorrect: "#22c55e",
-    optionWrong: "#ef4444",
+    optionDefault: "#29295b",
+    optionSelected: "#3dd5eb",
+    optionCorrect: "#48c2a6",
+    optionWrong: "#ff6f98",
 
-    // 🔘 Buttons
-    buttonPrimary: "#ff9e7a",
-    buttonSecondary: "#27272a",
-    buttonDisabled: "#3f3f46",
+    buttonPrimary: "#7f90ff",
+    buttonSecondary: "#2f2f64",
+    buttonDisabled: "#44447c",
 
-    shadow: "rgba(0,0,0,0.5)",
+    shadow: "rgba(0,0,0,0.45)",
   },
 } as const;
 

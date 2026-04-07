@@ -1,5 +1,6 @@
 import { apiUrl } from "@/constants/api";
 import { useTheme } from "@/hook/theme";
+import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -53,36 +54,45 @@ export default function ResponsesScreen() {
 
     return (
         <ScrollView
-            style={[
-                styles.container,
-                {
-                    paddingTop: insets.top,
-                    paddingHorizontal: 10,
-                    backgroundColor: theme.background,
-                },
-            ]}
+            style={[styles.container, { backgroundColor: theme.background }]}
+            contentContainerStyle={{
+                paddingTop: insets.top + 10,
+                paddingBottom: insets.bottom + 24,
+                paddingHorizontal: 16,
+            }}
         >
-            <Text style={styles.title}>Responses</Text>
+            <Text style={[styles.eyebrow, { color: theme.primary }]}>ANALYTICS</Text>
+            <Text style={[styles.title, { color: theme.textPrimary }]}>Responses</Text>
+            <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Review every submission received for this form.</Text>
 
-            {loading && <ActivityIndicator size="large" />}
+            {loading && <ActivityIndicator size="large" color={theme.primary} />}
 
-            {!loading && !!error && <Text style={styles.error}>{error}</Text>}
+            {!loading && !!error && <Text style={[styles.error, { color: theme.error }]}>{error}</Text>}
 
             {!loading && !error && responses.length === 0 && (
-                <Text>No responses yet for this form.</Text>
+                <View style={[styles.empty, { backgroundColor: theme.surfaceLight, borderColor: theme.border }]}>
+                    <Ionicons name="mail-open-outline" size={26} color={theme.primary} />
+                    <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>No responses yet</Text>
+                    <Text style={[styles.emptyMeta, { color: theme.textMuted }]}>Share your form URL to start collecting answers.</Text>
+                </View>
             )}
 
             {!loading && !error && responses.map((response, index) => (
-                <View key={response.id} style={styles.card}>
-                    <Text style={styles.cardTitle}>Response #{index + 1}</Text>
-                    <Text style={styles.dateText}>
+                <View key={response.id} style={[styles.card, { backgroundColor: theme.surfaceLight, borderColor: theme.border, shadowColor: theme.shadow }]}>
+                    <View style={styles.cardHead}>
+                        <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Response #{index + 1}</Text>
+                        <View style={[styles.pill, { backgroundColor: theme.primaryMuted }]}>
+                            <Text style={[styles.pillText, { color: theme.primary }]}>RECEIVED</Text>
+                        </View>
+                    </View>
+                    <Text style={[styles.dateText, { color: theme.textMuted }]}>
                         {new Date(response.submittedAt).toLocaleString()}
                     </Text>
 
                     {Object.entries(response.answers ?? {}).map(([key, value]) => (
-                        <View key={key} style={styles.answerRow}>
-                            <Text style={styles.answerKey}>{key}</Text>
-                            <Text>{String(value)}</Text>
+                        <View key={key} style={[styles.answerRow, { borderColor: theme.border, backgroundColor: theme.surface }]}>
+                            <Text style={[styles.answerKey, { color: theme.textSecondary }]}>{key}</Text>
+                            <Text style={[styles.answerValue, { color: theme.textPrimary }]}>{String(value)}</Text>
                         </View>
                     ))}
                 </View>
@@ -96,31 +106,87 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     title: {
-        fontSize: 22,
-        fontWeight: "bold",
-        marginBottom: 20,
+        fontSize: 32,
+        fontWeight: "800",
+        marginTop: 8,
+    },
+    eyebrow: {
+        fontSize: 12,
+        fontWeight: "700",
+        letterSpacing: 2,
+    },
+    subtitle: {
+        marginTop: 5,
+        marginBottom: 14,
+        fontSize: 15,
+        lineHeight: 22,
     },
     error: {
-        color: "#b91c1c",
+        fontSize: 14,
+        marginBottom: 8,
+    },
+    empty: {
+        borderWidth: 1,
+        borderRadius: 18,
+        padding: 18,
+        alignItems: "center",
+    },
+    emptyTitle: {
+        marginTop: 8,
+        fontSize: 20,
+        fontWeight: "700",
+    },
+    emptyMeta: {
+        marginTop: 4,
+        fontSize: 14,
+        textAlign: "center",
     },
     card: {
         borderWidth: 1,
-        borderRadius: 8,
-        padding: 12,
-        marginBottom: 10,
+        borderRadius: 18,
+        padding: 14,
+        marginBottom: 12,
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 6 },
+        elevation: 2,
+    },
+    cardHead: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: 8,
     },
     cardTitle: {
-        fontWeight: "700",
+        fontWeight: "800",
+        fontSize: 16,
+    },
+    pill: {
+        borderRadius: 999,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+    },
+    pillText: {
+        fontSize: 11,
+        fontWeight: "800",
+        letterSpacing: 1,
         marginBottom: 4,
     },
     dateText: {
-        color: "gray",
-        marginBottom: 8,
+        marginBottom: 10,
+        fontSize: 12,
     },
     answerRow: {
-        marginBottom: 6,
+        marginBottom: 8,
+        borderWidth: 1,
+        borderRadius: 12,
+        padding: 10,
     },
     answerKey: {
         fontWeight: "600",
+        marginBottom: 4,
+    },
+    answerValue: {
+        fontSize: 15,
     },
 });

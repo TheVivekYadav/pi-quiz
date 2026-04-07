@@ -1,11 +1,12 @@
 import { apiUrl } from "@/constants/api";
 import { useTheme } from "@/hook/theme";
+import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
-    Button,
+    Pressable,
     ScrollView,
     StyleSheet,
     Text,
@@ -119,29 +120,48 @@ export default function FillFormScreen() {
 
     return (
         <ScrollView
-            style={[
-                styles.container,
-                {
-                    paddingTop: insets.top,
-                    paddingHorizontal: 10,
-                    backgroundColor: theme.background,
-                },
-            ]}
+            style={[styles.container, { backgroundColor: theme.background }]}
+            contentContainerStyle={{
+                paddingTop: insets.top + 10,
+                paddingBottom: insets.bottom + 24,
+                paddingHorizontal: 16,
+            }}
         >
             {loading ? (
-                <ActivityIndicator size="large" />
+                <ActivityIndicator size="large" color={theme.primary} />
             ) : !form ? (
-                <View>
-                    <Text style={styles.title}>Form not found</Text>
-                    <Button title="Back to Forms" onPress={() => router.push("/forms")} />
+                <View style={[styles.notFound, { backgroundColor: theme.surfaceLight, borderColor: theme.border }]}>
+                    <Ionicons name="alert-circle-outline" size={26} color={theme.warning} />
+                    <Text style={[styles.title, { color: theme.textPrimary }]}>Form not found</Text>
+                    <Pressable
+                        onPress={() => router.push("/forms")}
+                        style={({ pressed }) => [
+                            styles.backBtn,
+                            { backgroundColor: theme.buttonPrimary, opacity: pressed ? 0.9 : 1 },
+                        ]}
+                    >
+                        <Text style={[styles.backBtnText, { color: theme.textInverse }]}>Back to Forms</Text>
+                    </Pressable>
                 </View>
             ) : (
                 <View>
-                    <Text style={styles.title}>{form.title}</Text>
+                    <Text style={[styles.eyebrow, { color: theme.primary }]}>SUBMISSION</Text>
+                    <Text style={[styles.title, { color: theme.textPrimary }]}>{form.title}</Text>
+                    <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Fill all fields to submit your response.</Text>
 
                     {form.fields.map((field) => (
-                        <View key={field.id} style={styles.fieldBlock}>
-                            <Text style={styles.label}>{field.label || "Untitled field"}</Text>
+                        <View
+                            key={field.id}
+                            style={[
+                                styles.fieldBlock,
+                                {
+                                    backgroundColor: theme.surfaceLight,
+                                    borderColor: theme.border,
+                                    shadowColor: theme.shadow,
+                                },
+                            ]}
+                        >
+                            <Text style={[styles.label, { color: theme.textSecondary }]}>{field.label || "Untitled field"}</Text>
                             <TextInput
                                 value={answers[field.id] ?? ""}
                                 onChangeText={(text) =>
@@ -155,16 +175,33 @@ export default function FillFormScreen() {
                                     field.type === "email" ? "email-address" : "default"
                                 }
                                 autoCapitalize="none"
-                                style={styles.input}
+                                placeholderTextColor={theme.textMuted}
+                                style={[
+                                    styles.input,
+                                    {
+                                        backgroundColor: theme.surface,
+                                        borderColor: theme.border,
+                                        color: theme.textPrimary,
+                                    },
+                                ]}
                             />
                         </View>
                     ))}
 
-                    <Button
-                        title={submitting ? "Submitting..." : "Submit"}
+                    <Pressable
                         onPress={submitResponse}
                         disabled={submitting}
-                    />
+                        style={({ pressed }) => [
+                            styles.submit,
+                            {
+                                backgroundColor: submitting ? theme.buttonDisabled : theme.buttonPrimary,
+                                opacity: pressed ? 0.9 : 1,
+                            },
+                        ]}
+                    >
+                        <Text style={[styles.submitText, { color: theme.textInverse }]}>{submitting ? "Submitting..." : "Submit"}</Text>
+                        {!submitting && <Ionicons name="arrow-forward" size={18} color={theme.textInverse} />}
+                    </Pressable>
                 </View>
             )}
         </ScrollView>
@@ -176,20 +213,69 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     title: {
-        fontSize: 22,
-        fontWeight: "bold",
-        marginBottom: 20,
+        fontSize: 31,
+        fontWeight: "800",
+        marginTop: 8,
+    },
+    eyebrow: {
+        fontSize: 12,
+        letterSpacing: 2,
+        fontWeight: "700",
+    },
+    subtitle: {
+        marginTop: 6,
+        marginBottom: 14,
+        fontSize: 15,
+        lineHeight: 22,
+    },
+    notFound: {
+        borderWidth: 1,
+        borderRadius: 18,
+        padding: 18,
+        alignItems: "center",
     },
     fieldBlock: {
-        marginBottom: 16,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderRadius: 16,
+        padding: 14,
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 6 },
+        elevation: 2,
     },
     label: {
         marginBottom: 6,
         fontWeight: "600",
+        fontSize: 14,
     },
     input: {
         borderWidth: 1,
-        borderRadius: 8,
-        padding: 10,
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        paddingVertical: 11,
+        fontSize: 15,
+    },
+    submit: {
+        marginTop: 8,
+        borderRadius: 14,
+        paddingVertical: 14,
+        alignItems: "center",
+        justifyContent: "center",
+        flexDirection: "row",
+        gap: 8,
+    },
+    submitText: {
+        fontSize: 16,
+        fontWeight: "700",
+    },
+    backBtn: {
+        marginTop: 12,
+        borderRadius: 12,
+        paddingVertical: 11,
+        paddingHorizontal: 14,
+    },
+    backBtnText: {
+        fontWeight: "700",
     },
 });
