@@ -1,3 +1,5 @@
+version: "3.9"
+
 services:
   api:
     build:
@@ -18,6 +20,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - shared-net
 
   web:
     build:
@@ -27,8 +31,8 @@ services:
     expose:
       - "80"
     restart: unless-stopped
-
-  
+    networks:
+      - shared-net
 
   postgres:
     image: postgres:16-alpine
@@ -47,8 +51,12 @@ services:
     volumes:
       - pg_data:/var/lib/postgresql/data
     restart: unless-stopped
+    networks:
+      - shared-net
 
 volumes:
   pg_data:
-  caddy_data:
-  caddy_config:
+
+networks:
+  shared-net:
+    external: true
