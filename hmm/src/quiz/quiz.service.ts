@@ -1,283 +1,414 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
+import { DatabaseService } from '../database/database.service.js';
 
-type QuizQuestion = {
+export interface QuizQuestion {
   id: string;
   text: string;
   imageUrl?: string;
   options: { id: string; label: string }[];
-  correctOptionId: string;
   points: number;
-};
+}
 
-type QuizDefinition = {
+export interface QuizDetail {
   id: string;
   title: string;
   topic: string;
   category: string;
-  level: 'Beginner' | 'Intermediate' | 'Expert';
+  level: string;
   durationMinutes: number;
   startsAtIso: string;
-  description: string;
-  expectations: string[];
-  curatorNote: string;
-  questions: QuizQuestion[];
-};
+  description?: string;
+  expectations?: string;
+  curatorNote?: string;
+}
+
+export interface QuizListItem {
+  id: string;
+  title: string;
+  category: string;
+  startsAtIso: string;
+  durationMinutes: number;
+  level: string;
+}
+
+export interface QuizQuestionPayload {
+  question: QuizQuestion;
+  current: number;
+  total: number;
+  timerSeconds: number;
+  highPoints: boolean;
+}
+
+export interface QuizSubmitPayload {
+  attemptId: string;
+  score: number;
+  total: number;
+  accuracyRate: number;
+  breakdown: {
+    correct: number;
+    incorrect: number;
+    timeTaken: string;
+  };
+  badge: string;
+  percentile: number;
+}
 
 @Injectable()
 export class QuizService {
-  private readonly quizzes: QuizDefinition[] = [
-    {
-      id: 'renaissance-masters',
-      title: 'General Knowledge Masters',
-      topic: 'Modern History',
-      category: 'Universal Trivia',
-      level: 'Expert',
-      durationMinutes: 45,
-      startsAtIso: '2026-10-24T18:00:00.000Z',
-      description:
-        "Join an elite circle of curious minds in the most comprehensive general knowledge challenge.",
-      expectations: [
-        '50 dynamic questions',
-        'Real-time global leaderboard',
-        'Exclusive digital certificate',
-      ],
-      curatorNote:
-        'Designed for those who find wonder in the mundane and beauty in the complex.',
-      questions: [
-        {
-          id: 'q1',
-          text: 'Which artist is credited with painting the ceiling of the Sistine Chapel?',
-          imageUrl:
-            'https://images.unsplash.com/photo-1524492412937-b28074a5d7da?q=80&w=1200&auto=format&fit=crop',
-          options: [
-            { id: 'a', label: 'Michelangelo Buonarroti' },
-            { id: 'b', label: 'Leonardo da Vinci' },
-            { id: 'c', label: 'Raphael Sanzio' },
-            { id: 'd', label: 'Donatello' },
-          ],
-          correctOptionId: 'a',
-          points: 10,
-        },
-        {
-          id: 'q2',
-          text: 'What year did the Berlin Wall fall?',
-          options: [
-            { id: 'a', label: '1987' },
-            { id: 'b', label: '1989' },
-            { id: 'c', label: '1991' },
-            { id: 'd', label: '1993' },
-          ],
-          correctOptionId: 'b',
-          points: 10,
-        },
-      ],
-    },
-    {
-      id: 'quantum-basics',
-      title: 'Quantum Physics Basics',
-      topic: 'Quantum Mechanics',
-      category: 'Science',
-      level: 'Intermediate',
-      durationMinutes: 25,
-      startsAtIso: '2026-05-12T15:30:00.000Z',
-      description: 'Test your understanding of foundational quantum concepts.',
-      expectations: ['20 conceptual questions', 'Peer ranking', 'Completion badge'],
-      curatorNote: 'Fast-paced and concept driven.',
-      questions: [
-        {
-          id: 'q1',
-          text: 'Who introduced the uncertainty principle?',
-          options: [
-            { id: 'a', label: 'Erwin Schrödinger' },
-            { id: 'b', label: 'Werner Heisenberg' },
-            { id: 'c', label: 'Niels Bohr' },
-            { id: 'd', label: 'Max Planck' },
-          ],
-          correctOptionId: 'b',
-          points: 10,
-        },
-      ],
-    },
-  ];
+  constructor(private databaseService: DatabaseService) {}
 
-  getHome() {
+  async getHome(userId: number) {
+    const pool = this.databaseService.getPool();
+
+    // Get enrolled quizzes for continuing learning
+    const enrolledResult = await pool.query(
+      `SELECT q.* FROM quizzes q
+       JOIN quiz_enrollments qe ON q.id = qe.quiz_id
+       WHERE qe.user_id = $1
+       ORDER BY q.starts_at DESC
+       LIMIT 5`,
+      [userId],
+    );
+
+    // Get all quizzes as featured
+    const featuredResult = await pool.query(
+      `SELECT id, title, category, starts_at, duration_minutes, level FROM quizzes
+       ORDER BY starts_at DESC
+       LIMIT 6`,
+    );
+
+    // Get categories
+    const categoriesResult = await pool.query(
+      `SELECT DISTINCT category FROM quizzes ORDER BY category`,
+    );
+
     return {
-      greeting: {
-        title: 'Hello, Alex! Ready for a challenge?',
-        subtitle:
-          "Your intellectual journey continues today. You've conquered 12 topics this week.",
-      },
-      continueLearning: this.quizzes.map((q) => ({
+      greeting: `Welcome back!`,
+      continueLearning: enrolledResult.rows.map((q: any) => ({
         id: q.id,
         title: q.title,
         category: q.category,
-        progress: q.id === 'quantum-basics' ? 65 : 35,
+        progress: Math.floor(Math.random() * 100),
       })),
-      categories: [
-        { id: 'modern-history', title: 'Modern History', icon: 'library-outline' },
-        { id: 'quantum', title: 'Quantum Physics', icon: 'flask-outline' },
-        { id: 'literature', title: 'Literature', icon: 'book-outline' },
-        { id: 'fine-arts', title: 'Fine Arts', icon: 'color-palette-outline' },
-      ],
-      featured: this.quizzes.map((q) => ({
+      categories: categoriesResult.rows.map((r: any) => r.category),
+      featuredQuizzes: featuredResult.rows.map((q: any) => ({
         id: q.id,
         title: q.title,
+        category: q.category,
+        startsAtIso: q.starts_at,
+        durationMinutes: q.duration_minutes,
         level: q.level,
-        durationMinutes: q.durationMinutes,
-        description: q.description,
       })),
     };
   }
 
-  getReportsOverview() {
+  async getReportsOverview(userId: number) {
+    const pool = this.databaseService.getPool();
+
+    // Get user's statistics
+    const attemptsResult = await pool.query(
+      `SELECT COUNT(*) as total, SUM(score) as totalScore FROM quiz_attempts WHERE user_id = $1`,
+      [userId],
+    );
+
+    const enrolledResult = await pool.query(
+      `SELECT COUNT(*) as count FROM quiz_enrollments WHERE user_id = $1`,
+      [userId],
+    );
+
+    const attempts = attemptsResult.rows[0];
+    const enrolled = enrolledResult.rows[0];
+
     return {
-      date: new Date().toISOString(),
-      totalEnrolled: 12800,
-      activeNow: 142,
-      completed: 3400,
-      completionRate: 88,
-      upcoming: [
-        { id: 'quantum-basics', title: 'Quantum Physics Basics', category: 'Science' },
-        { id: 'renaissance-masters', title: 'General Knowledge Masters', category: 'History' },
-      ],
+      metrics: {
+        totalEnrolled: enrolled.count,
+        activeNow: Math.floor(Math.random() * 50),
+        completed: attempts.total,
+        completionRate: attempts.total > 0 ? 88 : 0,
+      },
+      upcomingQuizzes: await this.listUpcoming(userId),
       insights: [
-        "'Quantum Physics' enrollment is 40% higher than average.",
-        "150 users completed the 'Ethics in AI' certificate today.",
+        'You are doing 23% better than last month',
+        'Science quizzes are your strongest category',
+        'Complete one more quiz to unlock Expert badge',
       ],
     };
   }
 
-  listUpcoming() {
-    return this.quizzes.map((q) => ({
-      id: q.id,
-      title: q.title,
-      category: q.category,
-      startsAtIso: q.startsAtIso,
-      durationMinutes: q.durationMinutes,
-      level: q.level,
+  async listUpcoming(userId: number): Promise<QuizListItem[]> {
+    const pool = this.databaseService.getPool();
+
+    const result = await pool.query(
+      `SELECT id, title, category, starts_at, duration_minutes, level FROM quizzes
+       ORDER BY starts_at DESC
+       LIMIT 10`,
+    );
+
+    return result.rows.map((row: any) => ({
+      id: row.id,
+      title: row.title,
+      category: row.category,
+      startsAtIso: row.starts_at,
+      durationMinutes: row.duration_minutes,
+      level: row.level,
     }));
   }
 
-  getQuizDetail(quizId: string) {
-    const quiz = this.findQuiz(quizId);
+  async getQuizDetail(quizId: string): Promise<QuizDetail> {
+    const pool = this.databaseService.getPool();
 
+    const result = await pool.query(
+      `SELECT * FROM quizzes WHERE id = $1`,
+      [quizId],
+    );
+
+    if (!result.rows[0]) {
+      throw new NotFoundException('Quiz not found');
+    }
+
+    const quiz = result.rows[0];
     return {
       id: quiz.id,
       title: quiz.title,
       topic: quiz.topic,
       category: quiz.category,
-      durationMinutes: quiz.durationMinutes,
-      startsAtIso: quiz.startsAtIso,
+      level: quiz.level,
+      durationMinutes: quiz.duration_minutes,
+      startsAtIso: quiz.starts_at,
       description: quiz.description,
       expectations: quiz.expectations,
-      curatorNote: quiz.curatorNote,
-      seats: {
-        status: 'Open Now',
-        available: 42,
-      },
+      curatorNote: quiz.curator_note,
     };
   }
 
-  getLobby(quizId: string) {
-    const quiz = this.findQuiz(quizId);
-    const startsAtMs = new Date(quiz.startsAtIso).getTime();
-    const now = Date.now();
-    const seconds = Math.max(0, Math.floor((startsAtMs - now) / 1000));
+  async getLobby(quizId: string, userId: number) {
+    const pool = this.databaseService.getPool();
 
-    return {
-      quizId: quiz.id,
-      quizTitle: quiz.title,
-      startsInSeconds: seconds,
-      rules: [
-        'Each question has a 20-second timer.',
-        'Faster correct answers earn bonus velocity points.',
-        'Leaving the quiz app during active question may disqualify the attempt.',
-      ],
-      lobby: {
-        waitingCount: 124,
-        sampleUsers: ['Sarah Jenkins', 'Marcus V.', 'Elena Rodriguez'],
-      },
-    };
-  }
+    // Check if user is enrolled
+    const enrollmentResult = await pool.query(
+      `SELECT * FROM quiz_enrollments WHERE user_id = $1 AND quiz_id = $2`,
+      [userId, quizId],
+    );
 
-  getQuestion(quizId: string, index: number) {
-    const quiz = this.findQuiz(quizId);
-
-    if (!Number.isInteger(index) || index < 1 || index > quiz.questions.length) {
-      throw new NotFoundException('Question not found');
+    if (!enrollmentResult.rows[0]) {
+      throw new BadRequestException('User not enrolled in this quiz');
     }
 
-    const question = quiz.questions[index - 1];
-    return {
-      quizId: quiz.id,
-      quizTitle: quiz.title,
-      current: index,
-      total: quiz.questions.length,
-      timerSeconds: 45,
-      highPoints: question.points > 8,
-      question: {
-        id: question.id,
-        text: question.text,
-        imageUrl: question.imageUrl,
-        options: question.options,
-      },
-    };
-  }
+    const quizResult = await pool.query(
+      `SELECT starts_at FROM quizzes WHERE id = $1`,
+      [quizId],
+    );
 
-  submitQuiz(quizId: string, body: any) {
-    const quiz = this.findQuiz(quizId);
-    const answers = body?.answers;
-
-    if (!answers || typeof answers !== 'object' || Array.isArray(answers)) {
-      throw new BadRequestException('answers must be an object keyed by question id');
-    }
-
-    let correct = 0;
-
-    for (const q of quiz.questions) {
-      if (String(answers[q.id] ?? '') === q.correctOptionId) {
-        correct += 1;
-      }
-    }
-
-    const total = quiz.questions.length;
-    const incorrect = total - correct;
-    const accuracyRate = total === 0 ? 0 : Math.round((correct / total) * 100);
-
-    return {
-      attemptId: `attempt-${Date.now()}`,
-      quizId: quiz.id,
-      score: correct,
-      total,
-      accuracyRate,
-      breakdown: {
-        correct,
-        incorrect,
-        timeTakenMinutes: 12,
-      },
-      badge: accuracyRate >= 80 ? 'Quantum Scholar' : 'Curious Challenger',
-      percentile: accuracyRate >= 80 ? 95 : 68,
-      leaderboard: this.getLeaderboard(quiz.id),
-    };
-  }
-
-  getLeaderboard(quizId: string) {
-    this.findQuiz(quizId);
-
-    return [
-      { rank: 1, user: 'Sarah Jenkins', score: 10 },
-      { rank: 2, user: 'David Chen', score: 9 },
-      { rank: 3, user: 'Alex Rivera', score: 8, currentUser: true },
-      { rank: 4, user: 'Elena Rodriguez', score: 8 },
-    ];
-  }
-
-  private findQuiz(quizId: string) {
-    const quiz = this.quizzes.find((q) => q.id === quizId);
-    if (!quiz) {
+    if (!quizResult.rows[0]) {
       throw new NotFoundException('Quiz not found');
     }
 
-    return quiz;
+    const startsAt = new Date(quizResult.rows[0].starts_at).getTime();
+    const now = Date.now();
+    const startsInSeconds = Math.max(0, Math.floor((startsAt - now) / 1000));
+
+    // Get sample waiting users
+    const usersResult = await pool.query(
+      `SELECT DISTINCT u.name, u.roll_number FROM quiz_enrollments qe
+       JOIN users u ON qe.user_id = u.id
+       WHERE qe.quiz_id = $1
+       LIMIT 10`,
+      [quizId],
+    );
+
+    return {
+      startsInSeconds,
+      rules: [
+        'Read each question carefully',
+        'You have limited time per question',
+        'Once submitted, answers cannot be changed',
+        'Internet disconnection will pause your quiz',
+      ],
+      lobby: {
+        waitingCount: Math.max(5, usersResult.rows.length),
+        sampleUsers: (usersResult.rows || []).map((u: any, i: number) => ({
+          name: u.name || `User ${i + 1}`,
+          status: i === 0 ? 'ready' : 'waiting',
+        })),
+      },
+    };
+  }
+
+  async getQuestion(
+    quizId: string,
+    userId: number,
+    questionIndex: number,
+  ): Promise<QuizQuestionPayload> {
+    const pool = this.databaseService.getPool();
+
+    // Get total questions
+    const countResult = await pool.query(
+      `SELECT COUNT(*) as total FROM quiz_questions WHERE quiz_id = $1`,
+      [quizId],
+    );
+
+    const total = parseInt(countResult.rows[0].total);
+
+    // Get question by index
+    const questionResult = await pool.query(
+      `SELECT * FROM quiz_questions WHERE quiz_id = $1 AND question_index = $2`,
+      [quizId, questionIndex],
+    );
+
+    if (!questionResult.rows[0]) {
+      throw new NotFoundException('Question not found');
+    }
+
+    const q = questionResult.rows[0];
+    const options = q.options || [];
+
+    return {
+      question: {
+        id: q.id,
+        text: q.question_text,
+        imageUrl: q.image_url,
+        options: options,
+        points: q.points,
+      },
+      current: questionIndex,
+      total,
+      timerSeconds: 30,
+      highPoints: q.points > 5,
+    };
+  }
+
+  async submitQuiz(
+    quizId: string,
+    userId: number,
+    answers: Record<string, string>,
+  ): Promise<QuizSubmitPayload> {
+    const pool = this.databaseService.getPool();
+
+    // Get all questions for the quiz
+    const questionsResult = await pool.query(
+      `SELECT * FROM quiz_questions WHERE quiz_id = $1 ORDER BY question_index ASC`,
+      [quizId],
+    );
+
+    const questions = questionsResult.rows;
+    let score = 0;
+    let correct = 0;
+    let incorrect = 0;
+
+    // Calculate score
+    for (const question of questions) {
+      const userAnswer = answers[question.id];
+      if (userAnswer === question.correct_option_id) {
+        score += question.points;
+        correct++;
+      } else {
+        incorrect++;
+      }
+    }
+
+    const total = questions.reduce((sum: number, q: any) => sum + q.points, 0);
+    const accuracyRate = questions.length > 0 ? (correct / questions.length) * 100 : 0;
+    const attemptId = randomUUID();
+
+    // Save attempt
+    await pool.query(
+      `INSERT INTO quiz_attempts (id, user_id, quiz_id, score, total, accuracy_rate)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [attemptId, userId, quizId, score, total, accuracyRate],
+    );
+
+    // Save individual responses
+    for (const question of questions) {
+      const selectedOptionId = answers[question.id] || null;
+      if (selectedOptionId) {
+        await pool.query(
+          `INSERT INTO quiz_responses (id, attempt_id, question_id, selected_option_id)
+           VALUES ($1, $2, $3, $4)`,
+          [randomUUID(), attemptId, question.id, selectedOptionId],
+        );
+      }
+    }
+
+    // Determine badge
+    let badge = 'Participant';
+    if (accuracyRate >= 90) badge = 'Expert';
+    else if (accuracyRate >= 80) badge = 'Advanced';
+    else if (accuracyRate >= 70) badge = 'Proficient';
+
+    // Calculate percentile (mock data for now)
+    const allAttemptsResult = await pool.query(
+      `SELECT score FROM quiz_attempts WHERE quiz_id = $1 ORDER BY score DESC`,
+      [quizId],
+    );
+    const allScores = allAttemptsResult.rows.map((r: any) => r.score);
+    const percentile = allScores.filter((s: number) => s > score).length;
+
+    return {
+      attemptId,
+      score,
+      total,
+      accuracyRate: Math.round(accuracyRate),
+      breakdown: {
+        correct,
+        incorrect,
+        timeTaken: '12m 34s',
+      },
+      badge,
+      percentile: Math.max(1, 100 - percentile),
+    };
+  }
+
+  async getLeaderboard(quizId: string, userId: number) {
+    const pool = this.databaseService.getPool();
+
+    const result = await pool.query(
+      `SELECT u.name, u.roll_number, MAX(qa.score) as score, 
+              ROW_NUMBER() OVER (ORDER BY MAX(qa.score) DESC) as rank
+       FROM quiz_attempts qa
+       JOIN users u ON qa.user_id = u.id
+       WHERE qa.quiz_id = $1
+       GROUP BY u.id, u.name, u.roll_number
+       ORDER BY score DESC
+       LIMIT 10`,
+      [quizId],
+    );
+
+    return {
+      leaderboard: result.rows.map((row: any, idx: number) => ({
+        rank: idx + 1,
+        name: row.name || `User ${idx + 1}`,
+        rollNumber: row.roll_number,
+        score: row.score || 0,
+        isCurrentUser: row.user_id === userId,
+      })),
+    };
+  }
+
+  async enrollUser(userId: number, quizId: string) {
+    const pool = this.databaseService.getPool();
+
+    try {
+      await pool.query(
+        `INSERT INTO quiz_enrollments (user_id, quiz_id) VALUES ($1, $2)`,
+        [userId, quizId],
+      );
+      return { success: true, message: 'Successfully enrolled' };
+    } catch (error: any) {
+      if (error.code === '23505') {
+        // Unique constraint violation
+        return { success: false, message: 'Already enrolled in this quiz' };
+      }
+      throw error;
+    }
+  }
+
+  async canAccessQuiz(userId: number, quizId: string): Promise<boolean> {
+    const pool = this.databaseService.getPool();
+    const result = await pool.query(
+      `SELECT * FROM quiz_enrollments WHERE user_id = $1 AND quiz_id = $2`,
+      [userId, quizId],
+    );
+    return result.rows.length > 0;
   }
 }

@@ -1,10 +1,10 @@
-import { fetchQuizDetail } from "@/constants/quiz-api";
+import { enrollQuiz, fetchQuizDetail } from "@/constants/quiz-api";
 import { clearQuizAnswers } from "@/constants/quiz-session";
 import { useTheme } from "@/hook/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function QuizDetailScreen() {
@@ -15,6 +15,7 @@ export default function QuizDetailScreen() {
     const router = useRouter();
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [enrolling, setEnrolling] = useState(false);
 
     useEffect(() => {
         if (!quizId) return;
@@ -30,6 +31,22 @@ export default function QuizDetailScreen() {
 
         run();
     }, [quizId]);
+
+    const handleEnroll = async () => {
+        if (!quizId) return;
+
+        setEnrolling(true);
+        try {
+            await enrollQuiz(quizId);
+            clearQuizAnswers(quizId);
+            router.push({ pathname: "/quiz/[id]/lobby", params: { id: quizId } } as any);
+        } catch (error) {
+            console.error('Enrollment failed:', error);
+            Alert.alert('Error', 'Failed to enroll in quiz. Please try again.');
+        } finally {
+            setEnrolling(false);
+        }
+    };
 
     if (loading) {
         return (
@@ -63,19 +80,24 @@ export default function QuizDetailScreen() {
 
             <View style={[styles.formCard, { backgroundColor: theme.surfaceLight, borderColor: theme.border }]}>
                 <Text style={[styles.formTitle, { color: theme.textPrimary }]}>Secure Your Spot</Text>
-                <TextInput placeholder="Full Name" placeholderTextColor={theme.textMuted} style={[styles.input, { borderColor: theme.border, color: theme.textPrimary }]} />
-                <TextInput placeholder="Email Address" placeholderTextColor={theme.textMuted} style={[styles.input, { borderColor: theme.border, color: theme.textPrimary }]} />
 
                 <Pressable
-                    style={[styles.primaryBtn, { backgroundColor: theme.buttonPrimary }]}
-                    onPress={() => {
-                        if (!quizId) return;
-                        clearQuizAnswers(quizId);
-                        router.push({ pathname: "/quiz/[id]/lobby", params: { id: quizId } } as any);
-                    }}
+                    style={[
+                        styles.primaryBtn,
+                        { backgroundColor: theme.buttonPrimary },
+                        enrolling && styles.buttonDisabled,
+                    ]}
+                    onPress={handleEnroll}
+                    disabled={enrolling}
                 >
-                    <Text style={[styles.primaryBtnText, { color: theme.textInverse }]}>Enroll Now</Text>
-                    <Ionicons name="arrow-forward" size={16} color={theme.textInverse} />
+                    {enrolling ? (
+                        <ActivityIndicator color={theme.textInverse} />
+                    ) : (
+                        <>
+                            <Text style={[styles.primaryBtnText, { color: theme.textInverse }]}>Enroll Now</Text>
+                            <Ionicons name="arrow-forward" size={16} color={theme.textInverse} />
+                        </>
+                    )}
                 </Pressable>
             </View>
         </ScrollView>
@@ -110,6 +132,9 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         flexDirection: "row",
         gap: 8,
+    },
+    buttonDisabled: {
+        opacity: 0.6,
     },
     primaryBtnText: { fontSize: 17, fontWeight: "700" },
 });

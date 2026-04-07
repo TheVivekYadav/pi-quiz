@@ -1,4 +1,5 @@
 import { apiUrl } from "@/constants/api";
+import { getAuthToken } from "@/constants/auth-session";
 
 export type QuizListItem = {
   id: string;
@@ -53,6 +54,14 @@ export type QuizSubmitPayload = {
   leaderboard: { rank: number; user: string; score: number; currentUser?: boolean }[];
 };
 
+const getAuthHeaders = () => {
+  const token = getAuthToken();
+  return {
+    'Content-Type': 'application/json',
+    ...(token && { 'Authorization': `Bearer ${token}` }),
+  };
+};
+
 const json = async <T>(resPromise: Promise<Response>): Promise<T> => {
   const res = await resPromise;
   if (!res.ok) {
@@ -63,31 +72,64 @@ const json = async <T>(resPromise: Promise<Response>): Promise<T> => {
   return (await res.json()) as T;
 };
 
-export const fetchQuizHome = () => json<any>(fetch(apiUrl("/quiz/home")));
+export const fetchQuizHome = () =>
+  json<any>(
+    fetch(apiUrl("/quiz/home"), {
+      headers: getAuthHeaders(),
+    })
+  );
 
-export const fetchUpcomingQuizzes = () => json<QuizListItem[]>(fetch(apiUrl("/quiz/upcoming")));
+export const fetchUpcomingQuizzes = () =>
+  json<QuizListItem[]>(
+    fetch(apiUrl("/quiz/upcoming"), {
+      headers: getAuthHeaders(),
+    })
+  );
 
 export const fetchQuizDetail = (quizId: string) =>
   json<QuizDetail>(fetch(apiUrl(`/quiz/${quizId}`)));
 
+export const enrollQuiz = (quizId: string) =>
+  json<{ success: boolean; message: string }>(
+    fetch(apiUrl(`/quiz/${quizId}/enroll`), {
+      method: "POST",
+      headers: getAuthHeaders(),
+    })
+  );
+
 export const fetchQuizLobby = (quizId: string) =>
-  json<any>(fetch(apiUrl(`/quiz/${quizId}/lobby`)));
+  json<any>(
+    fetch(apiUrl(`/quiz/${quizId}/lobby`), {
+      headers: getAuthHeaders(),
+    })
+  );
 
 export const fetchQuizQuestion = (quizId: string, index: number) =>
-  json<QuizQuestionPayload>(fetch(apiUrl(`/quiz/${quizId}/question/${index}`)));
+  json<QuizQuestionPayload>(
+    fetch(apiUrl(`/quiz/${quizId}/question/${index}`), {
+      headers: getAuthHeaders(),
+    })
+  );
 
 export const submitQuizAnswers = (quizId: string, answers: Record<string, string>) =>
   json<QuizSubmitPayload>(
     fetch(apiUrl(`/quiz/${quizId}/submit`), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getAuthHeaders(),
       body: JSON.stringify({ answers }),
-    }),
+    })
   );
 
 export const fetchQuizLeaderboard = (quizId: string) =>
   json<{ rank: number; user: string; score: number; currentUser?: boolean }[]>(
-    fetch(apiUrl(`/quiz/${quizId}/leaderboard`)),
+    fetch(apiUrl(`/quiz/${quizId}/leaderboard`), {
+      headers: getAuthHeaders(),
+    })
   );
 
-export const fetchReportsOverview = () => json<any>(fetch(apiUrl("/quiz/reports/overview")));
+export const fetchReportsOverview = () =>
+  json<any>(
+    fetch(apiUrl("/quiz/reports/overview"), {
+      headers: getAuthHeaders(),
+    })
+  );
