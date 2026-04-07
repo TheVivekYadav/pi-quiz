@@ -6,6 +6,14 @@ APP_DIR="$ROOT_DIR/hmmm"
 APK_TARGET="$ROOT_DIR/deploy/downloads/pi-quiz.apk"
 
 cd "$APP_DIR"
+
+PROJECT_ID="$(node -e 'const fs = require("fs"); const c = JSON.parse(fs.readFileSync("app.json", "utf8")); process.stdout.write(c?.expo?.extra?.eas?.projectId || "");')"
+if [[ -z "$PROJECT_ID" ]]; then
+  echo "EAS project not configured in app.json."
+  echo "Run once: npx eas-cli init"
+  exit 1
+fi
+
 echo "[1/4] Building Android APK with EAS..."
 BUILD_JSON="$(npx eas-cli build --platform android --profile preview --wait --non-interactive --json)"
 

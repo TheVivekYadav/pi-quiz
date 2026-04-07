@@ -1,5 +1,5 @@
-import { useTheme } from "@/hook/theme";
 import { apiUrl } from "@/constants/api";
+import { useTheme } from "@/hook/theme";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -88,7 +88,7 @@ export default function FillFormScreen() {
 
         setSubmitting(true);
         try {
-            await fetch(apiUrl("/responses"), {
+            const res = await fetch(apiUrl("/responses"), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -97,6 +97,11 @@ export default function FillFormScreen() {
                     submittedAt: new Date().toISOString(),
                 }),
             });
+
+            if (!res.ok) {
+                const errorText = await res.text();
+                throw new Error(errorText || "Failed to submit response");
+            }
 
             Alert.alert("Success", "Response submitted", [
                 {

@@ -9,6 +9,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
+    "eas:login": "npx eas-cli login",
+    "eas:init": "npx eas-cli init",
     "build:android:apk": "npx eas-cli build --platform android --profile preview",
     "build:android:aab": "npx eas-cli build --platform android --profile production",
     "publish:apk": "bash ./scripts/build-and-publish-apk.sh"

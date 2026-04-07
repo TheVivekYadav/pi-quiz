@@ -1,5 +1,5 @@
-import { useTheme } from "@/hook/theme";
 import { ANDROID_APK_URL } from "@/constants/links";
+import { useTheme } from "@/hook/theme";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Button, Linking, Platform, StyleSheet, View } from "react-native";

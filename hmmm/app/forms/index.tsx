@@ -1,5 +1,5 @@
-import { useTheme } from "@/hook/theme";
 import { apiUrl } from "@/constants/api";
+import { useTheme } from "@/hook/theme";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
@@ -105,6 +105,16 @@ export default function FormsList() {
           >
             <Text style={styles.linkBtnText}>Get URL</Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.responsesBtn}
+            onPress={(e) => {
+              e.stopPropagation?.();
+              router.push(`/responses/${form.id}`);
+            }}
+          >
+            <Text style={styles.responsesBtnText}>View Responses</Text>
+          </TouchableOpacity>
         </TouchableOpacity>
       ))}
 
@@ -170,6 +180,17 @@ const styles = StyleSheet.create({
   },
   linkBtnText: {
     color: "#111",
+    fontWeight: "600",
+  },
+  responsesBtn: {
+    marginTop: 8,
+    backgroundColor: "#1f2937",
+    paddingVertical: 10,
+    borderRadius: 6,
+    alignItems: "center",
+  },
+  responsesBtnText: {
+    color: "white",
     fontWeight: "600",
   },
 });
