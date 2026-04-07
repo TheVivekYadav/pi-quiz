@@ -36,8 +36,8 @@ services:
       - api
       - web
     ports:
-      - "8080:80"
-      - "8443:443"
+      - "80:80"
+      - "443:443"
     volumes:
       - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - ./deploy/downloads:/srv/downloads:ro
