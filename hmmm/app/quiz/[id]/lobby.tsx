@@ -76,11 +76,11 @@ export default function LobbyScreen() {
 
             <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                 <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Lobby</Text>
-                <Text style={[styles.rule, { color: theme.textSecondary }]}>{data?.lobby?.waitingCount} users currently waiting</Text>
-                {(data?.lobby?.sampleUsers ?? []).map((name: string) => (
-                    <View key={name} style={[styles.userRow, { borderColor: theme.border }]}>
+                <Text style={[styles.rule, { color: theme.textSecondary }]}>{data?.lobby?.waitingCount} users currently enrolled</Text>
+                {(data?.lobby?.sampleUsers ?? []).map((user: { name: string; status: string }, idx: number) => (
+                    <View key={`${user.name}-${idx}`} style={[styles.userRow, { borderColor: theme.border }]}>
                         <Ionicons name="ellipse" size={8} color={theme.success} />
-                        <Text style={[styles.userName, { color: theme.textPrimary }]}>{name}</Text>
+                        <Text style={[styles.userName, { color: theme.textPrimary }]}>{user.name}</Text>
                         <Text style={[styles.ready, { color: theme.primary }]}>READY</Text>
                     </View>
                 ))}

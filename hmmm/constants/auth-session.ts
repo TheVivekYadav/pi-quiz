@@ -1,15 +1,39 @@
-// Simple in-memory storage for auth token
-let storedToken: string | null = null;
-let storedUser:
-  | {
-      userId: number;
-      rollNumber: string;
-      role: 'admin' | 'user';
-      sessionId?: string;
-      branch?: string;
-      year?: number;
+// Simple auth session storage — persists to AsyncStorage so users stay logged in across app restarts.
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const STORAGE_KEY = 'pi_quiz_auth';
+
+type StoredUser = {
+  userId: number;
+  rollNumber: string;
+  role: 'admin' | 'user';
+  sessionId?: string;
+  branch?: string;
+  year?: number;
+};
+
+type StoredAuth = {
+  token: string;
+  user: StoredUser;
+};
+
+// In-memory cache for synchronous reads within the same session
+let _token: string | null = null;
+let _user: StoredUser | null = null;
+
+/** Load persisted auth from AsyncStorage (call once at app startup). */
+export async function loadPersistedAuth(): Promise<void> {
+  try {
+    const raw = await AsyncStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed: StoredAuth = JSON.parse(raw);
+      _token = parsed.token ?? null;
+      _user = parsed.user ?? null;
     }
-  | null = null;
+  } catch {
+    // Ignore — fresh session
+  }
+}
 
 export function setAuthToken(
   token: string,
@@ -20,27 +44,30 @@ export function setAuthToken(
   branch?: string,
   year?: number,
 ) {
-  storedToken = token;
-  storedUser = { userId, rollNumber, role, sessionId, branch, year };
+  _token = token;
+  _user = { userId, rollNumber, role, sessionId, branch, year };
+  const payload: StoredAuth = { token, user: _user };
+  AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(payload)).catch(() => {});
 }
 
 export function getAuthToken(): string | null {
-  return storedToken;
+  return _token;
 }
 
-export function getAuthUser() {
-  return storedUser;
+export function getAuthUser(): StoredUser | null {
+  return _user;
 }
 
 export function isAuthenticated(): boolean {
-  return storedToken !== null;
+  return _token !== null;
 }
 
 export function clearAuth() {
-  storedToken = null;
-  storedUser = null;
+  _token = null;
+  _user = null;
+  AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
 }
 
 export function isAdmin(): boolean {
-  return storedUser?.role === 'admin' || false;
+  return _user?.role === 'admin' || false;
 }

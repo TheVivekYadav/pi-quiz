@@ -1,4 +1,4 @@
-import { blockSession, getAuthLogs, getSessions, SessionItem, unblockSession } from "@/constants/auth-api";
+import { blockSession, getAuthLogs, getSessions, logout, SessionItem, unblockSession } from "@/constants/auth-api";
 import { clearAuth, getAuthToken, getAuthUser, isAdmin } from "@/constants/auth-session";
 import { useTheme } from "@/hook/theme";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,7 +17,15 @@ export default function SettingsTab() {
     const [logs, setLogs] = useState<Array<{ id: number; event_type: string; created_at: string }>>([]);
     const [maxActiveDevices, setMaxActiveDevices] = useState(2);
 
-    const handleLogout = () => {
+    const handleLogout = async () => {
+        const token = getAuthToken();
+        if (token) {
+            try {
+                await logout(token);
+            } catch {
+                // proceed with local logout even if API call fails
+            }
+        }
         clearAuth();
         router.replace("/login" as any);
     };

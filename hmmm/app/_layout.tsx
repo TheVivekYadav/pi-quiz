@@ -1,6 +1,23 @@
+import { loadPersistedAuth } from "@/constants/auth-session";
 import { Stack } from "expo-router";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, View } from "react-native";
 
 export default function RootLayout() {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    loadPersistedAuth().finally(() => setReady(true));
+  }, []);
+
+  if (!ready) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />

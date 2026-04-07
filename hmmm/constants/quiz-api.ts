@@ -153,3 +153,58 @@ export const fetchReportsOverview = () =>
       headers: getAuthHeaders(),
     })
   );
+
+// ─── Admin API ──────────────────────────────────────────────────────────────
+
+export type CreateQuizPayload = {
+  title: string;
+  topic: string;
+  category: string;
+  level: string;
+  durationMinutes: number;
+  startsAt: string;
+  description?: string;
+  expectations?: string;
+  curatorNote?: string;
+};
+
+export type AddQuestionPayload = {
+  text: string;
+  imageUrl?: string;
+  options: { id: string; label: string }[];
+  correctOptionId: string;
+  points?: number;
+};
+
+export const adminListQuizzes = () =>
+  json<QuizListItem[]>(
+    fetch(apiUrl('/quiz/admin/list'), {
+      headers: getAuthHeaders(),
+    })
+  );
+
+export const adminCreateQuiz = (payload: CreateQuizPayload) =>
+  json<QuizDetail>(
+    fetch(apiUrl('/quiz'), {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    })
+  );
+
+export const adminAddQuestion = (quizId: string, payload: AddQuestionPayload) =>
+  json<{ id: string; text: string }>(
+    fetch(apiUrl(`/quiz/${quizId}/questions`), {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    })
+  );
+
+export const adminDeleteQuiz = (quizId: string) =>
+  json<{ success: boolean }>(
+    fetch(apiUrl(`/quiz/${quizId}`), {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    })
+  );

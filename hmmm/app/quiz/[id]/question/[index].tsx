@@ -3,7 +3,7 @@ import { getAnswer, getQuizAnswers, setAnswer, setQuizResult } from "@/constants
 import { useTheme } from "@/hook/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -18,6 +18,15 @@ export default function QuestionScreen() {
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const [timeLeft, setTimeLeft] = useState(0);
+    const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    const clearTimer = () => {
+        if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+        }
+    };
 
     useEffect(() => {
         if (!quizId || !currentIndex) return;
@@ -26,13 +35,35 @@ export default function QuestionScreen() {
             try {
                 const payload = await fetchQuizQuestion(quizId, currentIndex);
                 setData(payload);
+                setTimeLeft(payload.timerSeconds ?? 30);
             } finally {
                 setLoading(false);
             }
         };
 
         run();
+
+        return clearTimer;
     }, [quizId, currentIndex]);
+
+    // Start countdown once data is loaded
+    useEffect(() => {
+        if (!data || timeLeft <= 0) return;
+
+        clearTimer();
+        timerRef.current = setInterval(() => {
+            setTimeLeft((prev) => {
+                if (prev <= 1) {
+                    clearTimer();
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+
+        return clearTimer;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [data?.question?.id]);
 
     if (loading || !data) {
         return (
@@ -43,9 +74,11 @@ export default function QuestionScreen() {
     }
 
     const selected = getAnswer(quizId!, data.question.id);
+    const timerExpired = timeLeft === 0;
 
     const goNext = async () => {
-        if (!selected || !quizId) return;
+        if (!quizId) return;
+        clearTimer();
 
         if (data.current < data.total) {
             router.replace({
@@ -65,6 +98,8 @@ export default function QuestionScreen() {
         }
     };
 
+    const timerColor = timeLeft <= 10 ? theme.error : timeLeft <= 20 ? theme.warning : theme.primary;
+
     return (
         <ScrollView
             style={[styles.root, { backgroundColor: theme.background }]}
@@ -78,9 +113,24 @@ export default function QuestionScreen() {
 
             <View style={[styles.card, { backgroundColor: theme.surfaceLight, borderColor: theme.border }]}>
                 <View style={styles.badges}>
-                    <Text style={[styles.badge, { backgroundColor: theme.warningMuted, color: theme.textPrimary }]}>HIGH POINTS</Text>
-                    <Text style={[styles.badge, { backgroundColor: theme.primaryMuted, color: theme.textPrimary }]}>00:{String(data.timerSeconds).padStart(2, "0")}</Text>
+                    {data.highPoints && (
+                        <Text style={[styles.badge, { backgroundColor: theme.warningMuted, color: theme.textPrimary }]}>HIGH POINTS</Text>
+                    )}
+                    <Text style={[
+                        styles.badge,
+                        {
+                            backgroundColor: timerExpired ? theme.error : theme.primaryMuted,
+                            color: timerExpired ? theme.textInverse : theme.textPrimary,
+                            marginLeft: "auto",
+                        },
+                    ]}>
+                        {String(Math.floor(timeLeft / 60)).padStart(2, "0")}:{String(timeLeft % 60).padStart(2, "0")}
+                    </Text>
                 </View>
+
+                {timerExpired && (
+                    <Text style={[styles.timerWarning, { color: theme.error }]}>Time's up! You can still submit your current answer.</Text>
+                )}
 
                 <Text style={[styles.question, { color: theme.textPrimary }]}>{data.question.text}</Text>
 
@@ -91,12 +141,13 @@ export default function QuestionScreen() {
                     return (
                         <Pressable
                             key={option.id}
-                            onPress={() => setAnswer(quizId!, data.question.id, option.id)}
+                            onPress={() => !timerExpired && setAnswer(quizId!, data.question.id, option.id)}
                             style={[
                                 styles.option,
                                 {
                                     backgroundColor: isActive ? theme.accent : theme.optionDefault,
                                     borderColor: isActive ? theme.textPrimary : "transparent",
+                                    opacity: timerExpired && !isActive ? 0.5 : 1,
                                 },
                             ]}
                         >
@@ -107,16 +158,20 @@ export default function QuestionScreen() {
             </View>
 
             <Pressable
-                disabled={!selected || submitting}
+                disabled={(!selected && !timerExpired) || submitting}
                 onPress={goNext}
                 style={[
                     styles.next,
                     {
-                        backgroundColor: !selected || submitting ? theme.buttonDisabled : theme.buttonPrimary,
+                        backgroundColor: ((!selected && !timerExpired) || submitting) ? theme.buttonDisabled : theme.buttonPrimary,
                     },
                 ]}
             >
-                <Text style={[styles.nextText, { color: theme.textInverse }]}>{data.current < data.total ? "Next Question" : submitting ? "Submitting..." : "Finish Quiz"}</Text>
+                <Text style={[styles.nextText, { color: theme.textInverse }]}>
+                    {data.current < data.total
+                        ? timerExpired ? "Skip to Next" : "Next Question"
+                        : submitting ? "Submitting..." : "Finish Quiz"}
+                </Text>
                 <Ionicons name="arrow-forward" size={18} color={theme.textInverse} />
             </Pressable>
         </ScrollView>
@@ -133,6 +188,7 @@ const styles = StyleSheet.create({
     card: { marginTop: 14, borderWidth: 1, borderRadius: 18, padding: 14 },
     badges: { flexDirection: "row", justifyContent: "space-between", marginBottom: 10 },
     badge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, fontSize: 11, fontWeight: "700" },
+    timerWarning: { fontSize: 13, fontWeight: "600", marginBottom: 8 },
     question: { fontSize: 48, lineHeight: 50, fontWeight: "800", marginBottom: 12 },
     image: { width: "100%", height: 200, borderRadius: 16, marginBottom: 10 },
     option: {
