@@ -67,6 +67,10 @@ export class AuthController {
     rollNumber?: string;
     role?: string;
     sessionId?: string;
+    name?: string;
+    email?: string;
+    branch?: string;
+    year?: number;
   }> {
     const token = this.extractToken(authHeader);
     if (!token) {
@@ -78,12 +82,19 @@ export class AuthController {
       return { authenticated: false };
     }
 
+    // Also fetch full user record for profile fields
+    const user = await this.authService.getUserProfile(authToken.userId);
+
     return {
       authenticated: true,
       userId: authToken.userId,
       rollNumber: authToken.rollNumber,
       role: authToken.role,
       sessionId: authToken.sessionId,
+      name: user?.name ?? undefined,
+      email: user?.email ?? undefined,
+      branch: user?.branch ?? undefined,
+      year: user?.year ?? undefined,
     };
   }
 

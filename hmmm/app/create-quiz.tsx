@@ -1,10 +1,10 @@
 /**
- * Admin Quiz Creator
- * Two-step flow:
- *   1. Fill quiz metadata (title, topic, category, level, duration, start time)
- *   2. Add questions one by one (text, 4 options, mark correct answer)
+ * Admin Quiz Creator — 3-step flow
+ *  Step 1: Quiz metadata (title, topic, category, level, duration, start time)
+ *  Step 2: Questions (text, options, correct answer, points)
+ *  Step 3: Enrollment form (custom fields — label, type, required; or skip)
  */
-import { adminAddQuestion, adminCreateQuiz } from "@/constants/quiz-api";
+import { adminAddQuestion, adminCreateQuiz, adminSetEnrollmentForm, EnrollmentFormField } from "@/constants/quiz-api";
 import { useTheme } from "@/hook/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -20,7 +20,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-type Step = "meta" | "questions" | "done";
+type Step = "meta" | "questions" | "enrollform" | "done";
 
 type Option = { id: string; label: string };
 
@@ -33,6 +33,13 @@ type Question = {
 };
 
 const LEVELS = ["Beginner", "Intermediate", "Expert"];
+const FIELD_TYPES: Array<{ value: EnrollmentFormField["type"]; label: string }> = [
+    { value: "text", label: "Text" },
+    { value: "email", label: "Email" },
+    { value: "phone", label: "Phone" },
+    { value: "number", label: "Number" },
+    { value: "select", label: "Dropdown" },
+];
 
 function makeOptionId(qIdx: number, oIdx: number) {
     return `q${qIdx}_o${oIdx}`;
@@ -50,6 +57,18 @@ function emptyQuestion(idx: number): Question {
         ],
         correctOptionId: makeOptionId(idx, 0),
         points: "1",
+    };
+}
+
+function emptyField(idx: number): EnrollmentFormField & { tempId: string; selectOptionsText: string } {
+    return {
+        tempId: String(Date.now()) + idx,
+        id: `field_${Date.now()}_${idx}`,
+        label: "",
+        type: "text",
+        required: true,
+        options: [],
+        selectOptionsText: "",
     };
 }
 
@@ -77,7 +96,13 @@ export default function CreateQuizScreen() {
     // Step 2 fields
     const [quizId, setQuizId] = useState<string | null>(null);
     const [questions, setQuestions] = useState<Question[]>([emptyQuestion(0)]);
+
+    // Step 3 fields
+    type FormField = EnrollmentFormField & { tempId: string; selectOptionsText: string };
+    const [formFields, setFormFields] = useState<FormField[]>([]);
     const [saving, setSaving] = useState(false);
+
+    // ── Step 1: Create quiz metadata ────────────────────────────────────────
 
     const handleCreateQuiz = async () => {
         if (!title.trim() || !topic.trim() || !category.trim()) {
@@ -116,6 +141,8 @@ export default function CreateQuizScreen() {
         }
     };
 
+    // ── Step 2: Add questions ───────────────────────────────────────────────
+
     const updateQuestion = (idx: number, patch: Partial<Question>) => {
         setQuestions((prev) => prev.map((q, i) => (i === idx ? { ...q, ...patch } : q)));
     };
@@ -139,7 +166,7 @@ export default function CreateQuizScreen() {
         setQuestions((prev) => prev.filter((_, i) => i !== idx));
     };
 
-    const handlePublish = async () => {
+    const handleSaveQuestions = async () => {
         if (!quizId) return;
 
         for (let i = 0; i < questions.length; i++) {
@@ -171,7 +198,7 @@ export default function CreateQuizScreen() {
                     points: parseInt(q.points) || 1,
                 });
             }
-            setStep("done");
+            setStep("enrollform");
         } catch (err: any) {
             Alert.alert("Error", err?.message || "Failed to save questions.");
         } finally {
@@ -179,13 +206,83 @@ export default function CreateQuizScreen() {
         }
     };
 
+    // ── Step 3: Enrollment form ─────────────────────────────────────────────
+
+    const addField = () => {
+        setFormFields((prev) => [...prev, emptyField(prev.length)]);
+    };
+
+    const removeField = (idx: number) => {
+        setFormFields((prev) => prev.filter((_, i) => i !== idx));
+    };
+
+    const updateField = (idx: number, patch: Partial<FormField>) => {
+        setFormFields((prev) => prev.map((f, i) => (i === idx ? { ...f, ...patch } : f)));
+    };
+
+    const handleSkipForm = () => {
+        setStep("done");
+    };
+
+    const handleSaveForm = async () => {
+        if (!quizId) return;
+
+        if (formFields.length === 0) {
+            setStep("done");
+            return;
+        }
+
+        for (let i = 0; i < formFields.length; i++) {
+            const f = formFields[i];
+            if (!f.label.trim()) {
+                Alert.alert("Missing label", `Field ${i + 1} has no label.`);
+                return;
+            }
+            if (f.type === "select") {
+                const opts = f.selectOptionsText.split(",").map((s) => s.trim()).filter(Boolean);
+                if (opts.length < 2) {
+                    Alert.alert("Insufficient options", `Dropdown field "${f.label}" needs at least 2 comma-separated options.`);
+                    return;
+                }
+            }
+        }
+
+        const fieldsToSave: EnrollmentFormField[] = formFields.map((f) => {
+            const base: EnrollmentFormField = {
+                id: f.id,
+                label: f.label.trim(),
+                type: f.type,
+                required: f.required,
+            };
+            if (f.type === "select") {
+                base.options = f.selectOptionsText.split(",").map((s) => s.trim()).filter(Boolean);
+            }
+            return base;
+        });
+
+        setSaving(true);
+        try {
+            await adminSetEnrollmentForm(quizId, fieldsToSave);
+            setStep("done");
+        } catch (err: any) {
+            Alert.alert("Error", err?.message || "Failed to save enrollment form.");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    // ── Done screen ─────────────────────────────────────────────────────────
+
     if (step === "done") {
         return (
             <View style={[styles.center, { backgroundColor: theme.background }]}>
                 <Ionicons name="checkmark-circle" size={64} color={theme.success} />
                 <Text style={[styles.doneTitle, { color: theme.textPrimary }]}>Quiz Published!</Text>
                 <Text style={[styles.doneSub, { color: theme.textSecondary }]}>
-                    {questions.length} question{questions.length !== 1 ? "s" : ""} added successfully.
+                    {questions.length} question{questions.length !== 1 ? "s" : ""} added.
+                    {formFields.length > 0
+                        ? `\nEnrollment form with ${formFields.length} field${formFields.length !== 1 ? "s" : ""} attached.`
+                        : "\nNo enrollment form — users can enroll directly."}
                 </Text>
                 <Pressable
                     style={[styles.btn, { backgroundColor: theme.buttonPrimary, marginTop: 24 }]}
@@ -197,6 +294,17 @@ export default function CreateQuizScreen() {
         );
     }
 
+    const stepLabel =
+        step === "meta" ? "STEP 1 OF 3" : step === "questions" ? "STEP 2 OF 3" : "STEP 3 OF 3";
+    const pageTitle =
+        step === "meta" ? "Quiz Details" : step === "questions" ? "Add Questions" : "Enrollment Form";
+    const pageSub =
+        step === "meta"
+            ? "Set quiz metadata, then add your questions."
+            : step === "questions"
+            ? `Quiz created — "${title}". Add questions below.`
+            : "Design the registration form participants fill before enrolling.\nOr skip to let users enroll without a form.";
+
     return (
         <ScrollView
             style={[styles.root, { backgroundColor: theme.background }]}
@@ -207,18 +315,11 @@ export default function CreateQuizScreen() {
                 <Text style={[styles.backText, { color: theme.primary }]}>Back</Text>
             </Pressable>
 
-            <Text style={[styles.eyebrow, { color: theme.primary }]}>
-                {step === "meta" ? "STEP 1 OF 2" : "STEP 2 OF 2"}
-            </Text>
-            <Text style={[styles.pageTitle, { color: theme.textPrimary }]}>
-                {step === "meta" ? "Quiz Details" : "Add Questions"}
-            </Text>
-            <Text style={[styles.pageSub, { color: theme.textSecondary }]}>
-                {step === "meta"
-                    ? "Set the quiz metadata, then add your questions."
-                    : `Quiz created! Now add questions for "${title}".`}
-            </Text>
+            <Text style={[styles.eyebrow, { color: theme.primary }]}>{stepLabel}</Text>
+            <Text style={[styles.pageTitle, { color: theme.textPrimary }]}>{pageTitle}</Text>
+            <Text style={[styles.pageSub, { color: theme.textSecondary }]}>{pageSub}</Text>
 
+            {/* ── Step 1: Metadata ── */}
             {step === "meta" && (
                 <View style={styles.form}>
                     <Field label="Title *" value={title} onChangeText={setTitle} placeholder="e.g., Science Quiz 2024" theme={theme} />
@@ -245,13 +346,7 @@ export default function CreateQuizScreen() {
                     </View>
 
                     <Field label="Duration (minutes) *" value={duration} onChangeText={setDuration} placeholder="30" keyboardType="numeric" theme={theme} />
-                    <Field
-                        label="Start Date/Time * (YYYY-MM-DDTHH:MM)"
-                        value={startsAt}
-                        onChangeText={setStartsAt}
-                        placeholder="2024-06-01T10:00"
-                        theme={theme}
-                    />
+                    <Field label="Start Date/Time * (YYYY-MM-DDTHH:MM)" value={startsAt} onChangeText={setStartsAt} placeholder="2024-06-01T10:00" theme={theme} />
                     <Field label="Description" value={description} onChangeText={setDescription} placeholder="Brief overview..." multiline theme={theme} />
                     <Field label="Curator Note" value={curatorNote} onChangeText={setCuratorNote} placeholder="A personal note for participants..." multiline theme={theme} />
 
@@ -266,6 +361,7 @@ export default function CreateQuizScreen() {
                 </View>
             )}
 
+            {/* ── Step 2: Questions ── */}
             {step === "questions" && (
                 <View style={styles.form}>
                     {questions.map((q, qIdx) => (
@@ -288,7 +384,7 @@ export default function CreateQuizScreen() {
                                 multiline
                             />
 
-                            <Text style={[styles.label, { color: theme.textSecondary, marginTop: 10 }]}>Options (tap circle to mark correct)</Text>
+                            <Text style={[styles.label, { color: theme.textSecondary, marginTop: 10 }]}>Options — tap circle to mark correct</Text>
                             {q.options.map((opt, oIdx) => (
                                 <View key={opt.id} style={styles.optionRow}>
                                     <Pressable
@@ -332,12 +428,110 @@ export default function CreateQuizScreen() {
 
                     <Pressable
                         style={[styles.btn, { backgroundColor: saving ? theme.buttonDisabled : theme.buttonPrimary, marginTop: 16 }]}
-                        onPress={handlePublish}
+                        onPress={handleSaveQuestions}
+                        disabled={saving}
+                    >
+                        <Text style={[styles.btnText, { color: theme.textInverse }]}>{saving ? "Saving..." : "Next: Enrollment Form"}</Text>
+                        <Ionicons name="arrow-forward" size={18} color={theme.textInverse} />
+                    </Pressable>
+                </View>
+            )}
+
+            {/* ── Step 3: Enrollment form builder ── */}
+            {step === "enrollform" && (
+                <View style={styles.form}>
+                    {formFields.length === 0 && (
+                        <View style={[styles.emptyNotice, { borderColor: theme.border, backgroundColor: theme.surface }]}>
+                            <Ionicons name="information-circle-outline" size={22} color={theme.textMuted} />
+                            <Text style={[styles.emptyNoticeText, { color: theme.textMuted }]}>
+                                No fields added yet. Add fields below, or skip to allow direct enrollment.
+                            </Text>
+                        </View>
+                    )}
+
+                    {formFields.map((f, fIdx) => (
+                        <View key={f.tempId} style={[styles.qCard, { backgroundColor: theme.surfaceLight, borderColor: theme.border }]}>
+                            <View style={styles.qHeader}>
+                                <Text style={[styles.qNum, { color: theme.primary }]}>Field {fIdx + 1}</Text>
+                                <Pressable onPress={() => removeField(fIdx)}>
+                                    <Ionicons name="trash-outline" size={18} color={theme.error} />
+                                </Pressable>
+                            </View>
+
+                            <Field
+                                label="Field Label *"
+                                value={f.label}
+                                onChangeText={(t) => updateField(fIdx, { label: t })}
+                                placeholder="e.g., Full Name"
+                                theme={theme}
+                            />
+
+                            <Text style={[styles.label, { color: theme.textSecondary }]}>Type</Text>
+                            <View style={[styles.levelRow, { flexWrap: "wrap" }]}>
+                                {FIELD_TYPES.map((ft) => (
+                                    <Pressable
+                                        key={ft.value}
+                                        onPress={() => updateField(fIdx, { type: ft.value })}
+                                        style={[
+                                            styles.levelChip,
+                                            {
+                                                backgroundColor: f.type === ft.value ? theme.buttonPrimary : theme.surface,
+                                                borderColor: f.type === ft.value ? theme.buttonPrimary : theme.border,
+                                            },
+                                        ]}
+                                    >
+                                        <Text style={[styles.levelChipText, { color: f.type === ft.value ? theme.textInverse : theme.textPrimary }]}>{ft.label}</Text>
+                                    </Pressable>
+                                ))}
+                            </View>
+
+                            {f.type === "select" && (
+                                <Field
+                                    label="Options (comma-separated) *"
+                                    value={f.selectOptionsText}
+                                    onChangeText={(t) => updateField(fIdx, { selectOptionsText: t })}
+                                    placeholder="e.g., CSE, ECE, ME, Civil"
+                                    theme={theme}
+                                />
+                            )}
+
+                            <View style={styles.requiredRow}>
+                                <Pressable
+                                    onPress={() => updateField(fIdx, { required: !f.required })}
+                                    style={[
+                                        styles.correctBtn,
+                                        {
+                                            backgroundColor: f.required ? theme.primary : "transparent",
+                                            borderColor: f.required ? theme.primary : theme.border,
+                                        },
+                                    ]}
+                                >
+                                    {f.required && <Ionicons name="checkmark" size={12} color={theme.textInverse} />}
+                                </Pressable>
+                                <Text style={[styles.label, { color: theme.textPrimary, marginBottom: 0 }]}>Required</Text>
+                            </View>
+                        </View>
+                    ))}
+
+                    <Pressable style={[styles.addBtn, { borderColor: theme.primary }]} onPress={addField}>
+                        <Ionicons name="add-circle-outline" size={20} color={theme.primary} />
+                        <Text style={[styles.addBtnText, { color: theme.primary }]}>Add Form Field</Text>
+                    </Pressable>
+
+                    <Pressable
+                        style={[styles.btn, { backgroundColor: saving ? theme.buttonDisabled : theme.buttonPrimary, marginTop: 16 }]}
+                        onPress={handleSaveForm}
                         disabled={saving}
                     >
                         <Ionicons name="rocket-outline" size={18} color={theme.textInverse} />
-                        <Text style={[styles.btnText, { color: theme.textInverse }]}>{saving ? "Publishing..." : "Publish Quiz"}</Text>
+                        <Text style={[styles.btnText, { color: theme.textInverse }]}>{saving ? "Publishing..." : formFields.length > 0 ? "Publish with Form" : "Publish Quiz"}</Text>
                     </Pressable>
+
+                    {!saving && (
+                        <Pressable style={[styles.skipBtn, { borderColor: theme.border }]} onPress={handleSkipForm}>
+                            <Text style={[styles.skipBtnText, { color: theme.textSecondary }]}>Skip — no enrollment form</Text>
+                        </Pressable>
+                    )}
                 </View>
             )}
         </ScrollView>
@@ -406,6 +600,14 @@ const styles = StyleSheet.create({
         marginTop: 8,
     },
     btnText: { fontSize: 16, fontWeight: "700" },
+    skipBtn: {
+        borderRadius: 14,
+        paddingVertical: 12,
+        alignItems: "center",
+        borderWidth: 1,
+        marginTop: 10,
+    },
+    skipBtnText: { fontSize: 14, fontWeight: "600" },
     qCard: { borderWidth: 1, borderRadius: 16, padding: 14, marginBottom: 14 },
     qHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
     qNum: { fontSize: 18, fontWeight: "800" },
@@ -436,6 +638,7 @@ const styles = StyleSheet.create({
         width: 60,
         textAlign: "center",
     },
+    requiredRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 6 },
     addBtn: {
         flexDirection: "row",
         alignItems: "center",
@@ -448,6 +651,16 @@ const styles = StyleSheet.create({
         marginTop: 4,
     },
     addBtnText: { fontSize: 15, fontWeight: "700" },
+    emptyNotice: {
+        flexDirection: "row",
+        alignItems: "flex-start",
+        gap: 10,
+        borderWidth: 1,
+        borderRadius: 14,
+        padding: 14,
+        marginBottom: 12,
+    },
+    emptyNoticeText: { flex: 1, fontSize: 14, lineHeight: 20 },
     doneTitle: { marginTop: 16, fontSize: 30, fontWeight: "800", textAlign: "center" },
     doneSub: { marginTop: 8, fontSize: 15, textAlign: "center", lineHeight: 22 },
 });

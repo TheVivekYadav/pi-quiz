@@ -120,15 +120,50 @@ export class QuizController {
     return this.quizService.deleteQuiz(quizId);
   }
 
+  @Post(':quizId/enrollment-form')
+  async setEnrollmentForm(
+    @Param('quizId') quizId: string,
+    @Body() body: any,
+    @Headers('Authorization') authHeader: string,
+  ) {
+    await this.requireAdmin(authHeader);
+
+    const fields = body?.fields;
+    if (!Array.isArray(fields) || fields.length === 0) {
+      throw new BadRequestException('fields must be a non-empty array');
+    }
+
+    // Validate each field
+    const VALID_TYPES = ['text', 'email', 'phone', 'number', 'select'];
+    for (const f of fields) {
+      if (!f.id || !f.label || !VALID_TYPES.includes(f.type)) {
+        throw new BadRequestException(
+          `Each field must have id, label, and type (one of ${VALID_TYPES.join(', ')})`,
+        );
+      }
+      if (f.type === 'select' && (!Array.isArray(f.options) || f.options.length < 2)) {
+        throw new BadRequestException(`Select field "${f.label}" must have at least 2 options`);
+      }
+    }
+
+    return this.quizService.setEnrollmentForm(quizId, fields);
+  }
+
+  @Get(':quizId/enrollment-form')
+  async getEnrollmentForm(@Param('quizId') quizId: string) {
+    return this.quizService.getEnrollmentForm(quizId);
+  }
+
   // ─── User endpoints ─────────────────────────────────────────────────────
 
   @Post(':quizId/enroll')
   async enrollQuiz(
     @Param('quizId') quizId: string,
+    @Body() body: any,
     @Headers('Authorization') authHeader: string,
   ) {
     const userId = await this.getUserId(authHeader);
-    return this.quizService.enrollUser(userId, quizId);
+    return this.quizService.enrollUser(userId, quizId, body?.formAnswers);
   }
 
   @Get(':quizId/lobby')

@@ -195,11 +195,14 @@ export class QuizService {
     }));
   }
 
-  async getQuizDetail(quizId: string): Promise<QuizDetail> {
+  async getQuizDetail(quizId: string): Promise<QuizDetail & { enrollmentForm: { id: string; fields: any[] } | null }> {
     const pool = this.databaseService.getPool();
 
     const result = await pool.query(
-      `SELECT * FROM quizzes WHERE id = $1`,
+      `SELECT q.*, f.id as form_id, f.fields as form_fields
+       FROM quizzes q
+       LEFT JOIN forms f ON f.id = q.enrollment_form_id
+       WHERE q.id = $1`,
       [quizId],
     );
 
@@ -219,6 +222,9 @@ export class QuizService {
       description: quiz.description,
       expectations: quiz.expectations,
       curatorNote: quiz.curator_note,
+      enrollmentForm: quiz.form_id
+        ? { id: quiz.form_id, fields: quiz.form_fields ?? [] }
+        : null,
     };
   }
 
@@ -436,18 +442,53 @@ export class QuizService {
     }));
   }
 
-  async enrollUser(userId: number, quizId: string) {
+  async enrollUser(userId: number, quizId: string, formAnswers?: Record<string, any>) {
     const pool = this.databaseService.getPool();
 
+    // Check if this quiz has an enrollment form
+    const quizResult = await pool.query(
+      `SELECT enrollment_form_id FROM quizzes WHERE id = $1`,
+      [quizId],
+    );
+    const enrollmentFormId: string | null = quizResult.rows[0]?.enrollment_form_id ?? null;
+
+    // If quiz has an enrollment form, form answers are required
+    if (enrollmentFormId && (!formAnswers || Object.keys(formAnswers).length === 0)) {
+      throw new BadRequestException('This quiz requires you to fill out the enrollment form.');
+    }
+
+    // Validate required fields if a form is attached
+    if (enrollmentFormId) {
+      const formResult = await pool.query(
+        `SELECT fields FROM forms WHERE id = $1`,
+        [enrollmentFormId],
+      );
+      const fields: any[] = formResult.rows[0]?.fields ?? [];
+      for (const field of fields) {
+        if (field.required && !formAnswers![field.id]) {
+          throw new BadRequestException(`Field "${field.label}" is required.`);
+        }
+      }
+    }
+
     try {
+      // Save form response first (if applicable)
+      let formResponseId: string | null = null;
+      if (enrollmentFormId && formAnswers) {
+        formResponseId = randomUUID();
+        await pool.query(
+          `INSERT INTO responses (id, form_id, answers) VALUES ($1, $2, $3::jsonb)`,
+          [formResponseId, enrollmentFormId, JSON.stringify(formAnswers)],
+        );
+      }
+
       await pool.query(
-        `INSERT INTO quiz_enrollments (user_id, quiz_id) VALUES ($1, $2)`,
-        [userId, quizId],
+        `INSERT INTO quiz_enrollments (user_id, quiz_id, form_response_id) VALUES ($1, $2, $3)`,
+        [userId, quizId, formResponseId],
       );
       return { success: true, message: 'Successfully enrolled' };
     } catch (error: any) {
       if (error.code === '23505') {
-        // Unique constraint violation
         return { success: false, message: 'Already enrolled in this quiz' };
       }
       throw error;
@@ -587,5 +628,72 @@ export class QuizService {
       durationMinutes: row.duration_minutes,
       level: row.level,
     }));
+  }
+
+  /**
+   * Admin: Create (or replace) the enrollment form for a quiz.
+   * fields is an array of { id, label, type, required, options? }
+   */
+  async setEnrollmentForm(
+    quizId: string,
+    fields: Array<{
+      id: string;
+      label: string;
+      type: 'text' | 'email' | 'phone' | 'number' | 'select';
+      required: boolean;
+      options?: string[];
+    }>,
+  ): Promise<{ formId: string; fields: any[] }> {
+    const pool = this.databaseService.getPool();
+
+    // Ensure quiz exists
+    const quizCheck = await pool.query(`SELECT enrollment_form_id FROM quizzes WHERE id = $1`, [quizId]);
+    if (!quizCheck.rows[0]) {
+      throw new NotFoundException('Quiz not found');
+    }
+
+    const existingFormId: string | null = quizCheck.rows[0].enrollment_form_id ?? null;
+
+    if (existingFormId) {
+      // Update the existing form's fields
+      await pool.query(
+        `UPDATE forms SET fields = $2::jsonb, title = $3 WHERE id = $1`,
+        [existingFormId, JSON.stringify(fields), `Enrollment Form — ${quizId}`],
+      );
+      return { formId: existingFormId, fields };
+    }
+
+    // Create a new form and link it to the quiz
+    const formId = randomUUID();
+    await pool.query(
+      `INSERT INTO forms (id, title, fields) VALUES ($1, $2, $3::jsonb)`,
+      [formId, `Enrollment Form — ${quizId}`, JSON.stringify(fields)],
+    );
+    await pool.query(
+      `UPDATE quizzes SET enrollment_form_id = $1 WHERE id = $2`,
+      [formId, quizId],
+    );
+
+    return { formId, fields };
+  }
+
+  /** Public: get the enrollment form (fields only) for a quiz */
+  async getEnrollmentForm(quizId: string): Promise<{ formId: string; fields: any[] } | null> {
+    const pool = this.databaseService.getPool();
+
+    const result = await pool.query(
+      `SELECT f.id as form_id, f.fields
+       FROM quizzes q
+       JOIN forms f ON f.id = q.enrollment_form_id
+       WHERE q.id = $1`,
+      [quizId],
+    );
+
+    if (!result.rows[0]) return null;
+
+    return {
+      formId: result.rows[0].form_id,
+      fields: result.rows[0].fields ?? [],
+    };
   }
 }

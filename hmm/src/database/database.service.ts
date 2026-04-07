@@ -172,6 +172,16 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       );
     `);
 
+    // Link enrollment form to quiz (nullable — a quiz may have no registration form)
+    await this.pool.query(`
+      ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS enrollment_form_id TEXT REFERENCES forms(id) ON DELETE SET NULL;
+    `);
+
+    // Track which form response a user submitted when enrolling
+    await this.pool.query(`
+      ALTER TABLE quiz_enrollments ADD COLUMN IF NOT EXISTS form_response_id TEXT REFERENCES responses(id) ON DELETE SET NULL;
+    `);
+
     // Create indexes for performance
     await this.pool.query(
       'CREATE INDEX IF NOT EXISTS idx_responses_form_id ON responses(form_id);',

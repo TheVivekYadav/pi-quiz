@@ -31,7 +31,7 @@ export default function AdminTab() {
                 <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Quiz Management</Text>
                 <Text style={[styles.cardSub, { color: theme.textSecondary }]}>Create, publish, and monitor quizzes.</Text>
                 <Pressable
-                    onPress={() => router.push("/create" as any)}
+                    onPress={() => router.push("/create-quiz" as any)}
                     style={({ pressed }) => [
                         styles.action,
                         { backgroundColor: theme.buttonPrimary, opacity: pressed ? 0.9 : 1 },

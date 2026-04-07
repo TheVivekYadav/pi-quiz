@@ -1,4 +1,4 @@
-import { blockSession, getAuthLogs, getSessions, logout, SessionItem, unblockSession } from "@/constants/auth-api";
+import { blockSession, getCurrentUser, getAuthLogs, getSessions, logout, SessionItem, unblockSession } from "@/constants/auth-api";
 import { clearAuth, getAuthToken, getAuthUser, isAdmin } from "@/constants/auth-session";
 import { useTheme } from "@/hook/theme";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,6 +16,7 @@ export default function SettingsTab() {
     const [sessions, setSessions] = useState<SessionItem[]>([]);
     const [logs, setLogs] = useState<Array<{ id: number; event_type: string; created_at: string }>>([]);
     const [maxActiveDevices, setMaxActiveDevices] = useState(2);
+    const [profile, setProfile] = useState<{ name?: string; email?: string; branch?: string; year?: number } | null>(null);
 
     const handleLogout = async () => {
         const token = getAuthToken();
@@ -42,6 +43,11 @@ export default function SettingsTab() {
 
                 const logsPayload = await getAuthLogs(token, 25);
                 setLogs((logsPayload.logs || []).map((l) => ({ id: l.id, event_type: l.event_type, created_at: l.created_at })));
+
+                const me = await getCurrentUser(token);
+                if (me.authenticated) {
+                    setProfile({ name: me.name, email: me.email, branch: me.branch, year: me.year });
+                }
             } catch (error) {
                 console.error("Failed to load security data", error);
             }
@@ -78,9 +84,15 @@ export default function SettingsTab() {
 
             <View style={[styles.card, { backgroundColor: theme.surfaceLight, borderColor: theme.border }]}>
                 <Ionicons name="person-circle-outline" size={26} color={theme.primary} />
-                <View>
-                    <Text style={[styles.name, { color: theme.textPrimary }]}>{user?.rollNumber ?? "Unknown User"}</Text>
-                    <Text style={[styles.meta, { color: theme.textMuted }]}>{adminView ? "Administrator" : "Learner"}</Text>
+                <View style={{ flex: 1 }}>
+                    <Text style={[styles.name, { color: theme.textPrimary }]}>{profile?.name || user?.rollNumber || "Unknown User"}</Text>
+                    <Text style={[styles.meta, { color: theme.textMuted }]}>{user?.rollNumber} • {adminView ? "Administrator" : "Learner"}</Text>
+                    {!!profile?.email && <Text style={[styles.meta, { color: theme.textMuted }]}>{profile.email}</Text>}
+                    {(profile?.branch || profile?.year) && (
+                        <Text style={[styles.meta, { color: theme.textMuted }]}>
+                            {[profile.branch, profile.year ? `Year ${profile.year}` : null].filter(Boolean).join(" • ")}
+                        </Text>
+                    )}
                 </View>
             </View>
 

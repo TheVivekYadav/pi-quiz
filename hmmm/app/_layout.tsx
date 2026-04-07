@@ -28,6 +28,7 @@ export default function RootLayout() {
       <Stack.Screen name="quiz/[id]/question/[index]" />
       <Stack.Screen name="quiz/[id]/result" />
       <Stack.Screen name="create" />
+      <Stack.Screen name="create-quiz" />
       <Stack.Screen name="forms" />
       <Stack.Screen name="fill/[id]" />
       <Stack.Screen name="responses/[id]" />
