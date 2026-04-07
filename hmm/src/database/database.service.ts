@@ -40,9 +40,47 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         roll_number TEXT UNIQUE NOT NULL,
         email TEXT UNIQUE,
         name TEXT,
+        branch TEXT,
+        year INTEGER,
         role TEXT DEFAULT 'user' CHECK (role IN ('admin', 'user')),
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    // Backward-compatible user metadata columns
+    await this.pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS branch TEXT;`);
+    await this.pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS year INTEGER;`);
+
+    // Persistent auth sessions table
+    await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS user_sessions (
+        id TEXT PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token TEXT UNIQUE NOT NULL,
+        device_name TEXT,
+        device_id TEXT,
+        platform TEXT,
+        ip_address TEXT,
+        user_agent TEXT,
+        is_blocked BOOLEAN NOT NULL DEFAULT FALSE,
+        blocked_reason TEXT,
+        blocked_at TIMESTAMPTZ,
+        revoked_at TIMESTAMPTZ,
+        last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    // Structured auth logs
+    await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS auth_logs (
+        id BIGSERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        session_id TEXT REFERENCES user_sessions(id) ON DELETE SET NULL,
+        event_type TEXT NOT NULL,
+        details JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `);
 
@@ -155,6 +193,21 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     );
     await this.pool.query(
       'CREATE INDEX IF NOT EXISTS idx_quiz_responses_attempt_id ON quiz_responses(attempt_id);',
+    );
+    await this.pool.query(
+      'CREATE INDEX IF NOT EXISTS idx_users_roll_number ON users(roll_number);',
+    );
+    await this.pool.query(
+      'CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);',
+    );
+    await this.pool.query(
+      'CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(token);',
+    );
+    await this.pool.query(
+      'CREATE INDEX IF NOT EXISTS idx_user_sessions_active ON user_sessions(user_id, revoked_at, is_blocked);',
+    );
+    await this.pool.query(
+      'CREATE INDEX IF NOT EXISTS idx_auth_logs_user_id_created_at ON auth_logs(user_id, created_at DESC);',
     );
 
     // Insert default admin user if not exists

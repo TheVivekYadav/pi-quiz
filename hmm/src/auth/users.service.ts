@@ -6,6 +6,8 @@ export interface User {
   roll_number: string;
   email?: string;
   name?: string;
+  branch?: string;
+  year?: number;
   role: 'admin' | 'user';
   created_at: string;
 }
@@ -32,12 +34,14 @@ export class UsersService {
     rollNumber: string,
     name?: string,
     email?: string,
+    branch?: string,
+    year?: number,
   ): Promise<User> {
     const result = await this.databaseService.getPool().query(
-      `INSERT INTO users (roll_number, name, email, role) 
-       VALUES ($1, $2, $3, 'user') 
+      `INSERT INTO users (roll_number, name, email, branch, year, role)
+       VALUES ($1, $2, $3, $4, $5, 'user')
        RETURNING *`,
-      [rollNumber, name || null, email || null],
+      [rollNumber, name || null, email || null, branch || null, year || null],
     );
     return result.rows[0];
   }
@@ -68,6 +72,14 @@ export class UsersService {
     if (updates.role !== undefined) {
       setClauses.push(`role = $${paramCount++}`);
       values.push(updates.role);
+    }
+    if (updates.branch !== undefined) {
+      setClauses.push(`branch = $${paramCount++}`);
+      values.push(updates.branch);
+    }
+    if (updates.year !== undefined) {
+      setClauses.push(`year = $${paramCount++}`);
+      values.push(updates.year);
     }
 
     setClauses.push(`updated_at = NOW()`);

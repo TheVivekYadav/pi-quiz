@@ -1,10 +1,27 @@
 // Simple in-memory storage for auth token
 let storedToken: string | null = null;
-let storedUser: { userId: number; rollNumber: string; role: 'admin' | 'user' } | null = null;
+let storedUser:
+  | {
+      userId: number;
+      rollNumber: string;
+      role: 'admin' | 'user';
+      sessionId?: string;
+      branch?: string;
+      year?: number;
+    }
+  | null = null;
 
-export function setAuthToken(token: string, userId: number, rollNumber: string, role: 'admin' | 'user') {
+export function setAuthToken(
+  token: string,
+  userId: number,
+  rollNumber: string,
+  role: 'admin' | 'user',
+  sessionId?: string,
+  branch?: string,
+  year?: number,
+) {
   storedToken = token;
-  storedUser = { userId, rollNumber, role };
+  storedUser = { userId, rollNumber, role, sessionId, branch, year };
 }
 
 export function getAuthToken(): string | null {

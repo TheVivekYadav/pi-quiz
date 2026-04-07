@@ -9,12 +9,12 @@ export class QuizController {
     private readonly authService: AuthService,
   ) {}
 
-  private getUserId(authHeader: string): number {
+  private async getUserId(authHeader: string): Promise<number> {
     const token = this.extractToken(authHeader);
     if (!token) {
       throw new BadRequestException('Missing authorization token');
     }
-    const userId = this.authService.getUserId(token);
+    const userId = await this.authService.getUserId(token);
     if (!userId) {
       throw new BadRequestException('Invalid authorization token');
     }
@@ -28,29 +28,29 @@ export class QuizController {
   }
 
   @Get('home')
-  getHome(@Headers('Authorization') authHeader: string) {
-    const userId = this.getUserId(authHeader);
+  async getHome(@Headers('Authorization') authHeader: string) {
+    const userId = await this.getUserId(authHeader);
     return this.quizService.getHome(userId);
   }
 
   @Get('reports/overview')
-  getReportsOverview(@Headers('Authorization') authHeader: string) {
-    const userId = this.getUserId(authHeader);
+  async getReportsOverview(@Headers('Authorization') authHeader: string) {
+    const userId = await this.getUserId(authHeader);
     return this.quizService.getReportsOverview(userId);
   }
 
   @Get('upcoming')
-  listUpcoming(@Headers('Authorization') authHeader: string) {
-    const userId = this.getUserId(authHeader);
+  async listUpcoming(@Headers('Authorization') authHeader: string) {
+    const userId = await this.getUserId(authHeader);
     return this.quizService.listUpcoming(userId);
   }
 
   @Post(':quizId/enroll')
-  enrollQuiz(
+  async enrollQuiz(
     @Param('quizId') quizId: string,
     @Headers('Authorization') authHeader: string,
   ) {
-    const userId = this.getUserId(authHeader);
+    const userId = await this.getUserId(authHeader);
     return this.quizService.enrollUser(userId, quizId);
   }
 
@@ -59,7 +59,7 @@ export class QuizController {
     @Param('quizId') quizId: string,
     @Headers('Authorization') authHeader: string,
   ) {
-    const userId = this.getUserId(authHeader);
+    const userId = await this.getUserId(authHeader);
     return this.quizService.getLobby(quizId, userId);
   }
 
@@ -68,7 +68,7 @@ export class QuizController {
     @Param('quizId') quizId: string,
     @Headers('Authorization') authHeader: string,
   ) {
-    const userId = this.getUserId(authHeader);
+    const userId = await this.getUserId(authHeader);
     return this.quizService.getLeaderboard(quizId, userId);
   }
 
@@ -78,7 +78,7 @@ export class QuizController {
     @Param('index', ParseIntPipe) index: number,
     @Headers('Authorization') authHeader: string,
   ) {
-    const userId = this.getUserId(authHeader);
+    const userId = await this.getUserId(authHeader);
     return this.quizService.getQuestion(quizId, userId, index);
   }
 
@@ -88,7 +88,7 @@ export class QuizController {
     @Body() body: any,
     @Headers('Authorization') authHeader: string,
   ) {
-    const userId = this.getUserId(authHeader);
+    const userId = await this.getUserId(authHeader);
     return this.quizService.submitQuiz(quizId, userId, body.answers || {});
   }
 

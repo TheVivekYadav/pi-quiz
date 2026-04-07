@@ -1,5 +1,5 @@
-import { fetchQuizHome } from "@/constants/quiz-api";
 import { getAuthUser, isAdmin } from "@/constants/auth-session";
+import { fetchQuizHome } from "@/constants/quiz-api";
 import { useTheme } from "@/hook/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -129,7 +129,7 @@ export default function DiscoverScreen() {
                     <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>
                         {adminView ? "No quizzes created yet" : "No quizzes available"}
                     </Text>
-                    <Text style={[styles.emptyText, { color: theme.textSecondary }]}> 
+                    <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
                         {adminView ? "Use the Admin tab to create and publish your first quiz." : "Ask your admin to publish quizzes."}
                     </Text>
                 </View>

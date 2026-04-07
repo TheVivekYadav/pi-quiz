@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { login } from '../constants/auth-api';
 import { setAuthToken } from '../constants/auth-session';
 import { useTheme } from '../hook/theme';
@@ -11,6 +11,8 @@ export default function LoginScreen() {
     const [rollNumber, setRollNumber] = useState('');
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
+    const [branch, setBranch] = useState('');
+    const [year, setYear] = useState('');
     const [loading, setLoading] = useState(false);
 
     const handleLogin = async () => {
@@ -19,12 +21,27 @@ export default function LoginScreen() {
             return;
         }
 
+        const numericYear = year.trim() ? Number(year) : undefined;
+        if (numericYear !== undefined && (Number.isNaN(numericYear) || numericYear < 1 || numericYear > 6)) {
+            Alert.alert('Error', 'Year should be between 1 and 6');
+            return;
+        }
+
         setLoading(true);
         try {
-            const result = await login(rollNumber, name || undefined, email || undefined);
+            const result = await login(
+                rollNumber,
+                name || undefined,
+                email || undefined,
+                branch || undefined,
+                numericYear,
+                `${Platform.OS}-device`,
+                undefined,
+                Platform.OS,
+            );
 
             // Store auth token and user info
-            setAuthToken(result.token, result.userId, result.rollNumber, result.role);
+            setAuthToken(result.token, result.userId, result.rollNumber, result.role, result.sessionId, branch || undefined, numericYear);
 
             // Navigate to dashboard
             router.replace('/(tabs)' as any);
@@ -107,6 +124,47 @@ export default function LoginScreen() {
                             onChangeText={setEmail}
                             editable={!loading}
                             keyboardType="email-address"
+                        />
+                    </View>
+
+                    {/* Branch */}
+                    <View style={styles.formGroup}>
+                        <Text style={[styles.label, { color: colors.textPrimary }]}>Branch (Optional)</Text>
+                        <TextInput
+                            style={[
+                                styles.input,
+                                {
+                                    borderColor: colors.border,
+                                    color: colors.textPrimary,
+                                    backgroundColor: colors.surface,
+                                },
+                            ]}
+                            placeholder="e.g., CSE"
+                            placeholderTextColor={colors.textSecondary}
+                            value={branch}
+                            onChangeText={setBranch}
+                            editable={!loading}
+                        />
+                    </View>
+
+                    {/* Year */}
+                    <View style={styles.formGroup}>
+                        <Text style={[styles.label, { color: colors.textPrimary }]}>Year (Optional)</Text>
+                        <TextInput
+                            style={[
+                                styles.input,
+                                {
+                                    borderColor: colors.border,
+                                    color: colors.textPrimary,
+                                    backgroundColor: colors.surface,
+                                },
+                            ]}
+                            placeholder="1 to 6"
+                            placeholderTextColor={colors.textSecondary}
+                            value={year}
+                            onChangeText={setYear}
+                            editable={!loading}
+                            keyboardType="numeric"
                         />
                     </View>
 

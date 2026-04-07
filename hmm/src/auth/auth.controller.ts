@@ -4,8 +4,12 @@ import {
     Controller,
     Get,
     Headers,
-    Post
+    Param,
+    Post,
+    Query,
+    Req,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { AuthService, AuthToken } from './auth.service.js';
 
 @Controller('auth')
@@ -14,20 +18,44 @@ export class AuthController {
 
   @Post('login')
   async login(
-    @Body() body: { rollNumber: string; name?: string; email?: string },
+    @Body()
+    body: {
+      rollNumber: string;
+      name?: string;
+      email?: string;
+      branch?: string;
+      year?: number;
+      deviceName?: string;
+      deviceId?: string;
+      platform?: string;
+    },
+    @Req() req: Request,
   ): Promise<AuthToken> {
     if (!body.rollNumber) {
       throw new BadRequestException('Roll number is required');
     }
 
-    return this.authService.login(body.rollNumber, body.name, body.email);
+    return this.authService.login(
+      body.rollNumber,
+      body.name,
+      body.email,
+      body.branch,
+      body.year,
+      body.deviceName,
+      body.deviceId,
+      body.platform,
+      req.ip,
+      req.headers['user-agent'],
+    );
   }
 
   @Post('logout')
-  logout(@Headers('Authorization') authHeader: string): { success: boolean } {
+  async logout(
+    @Headers('Authorization') authHeader: string,
+  ): Promise<{ success: boolean }> {
     const token = this.extractToken(authHeader);
     if (token) {
-      this.authService.logout(token);
+      await this.authService.logout(token);
     }
     return { success: true };
   }
@@ -38,13 +66,14 @@ export class AuthController {
     userId?: number;
     rollNumber?: string;
     role?: string;
+    sessionId?: string;
   }> {
     const token = this.extractToken(authHeader);
     if (!token) {
       return { authenticated: false };
     }
 
-    const authToken = this.authService.verifyToken(token);
+    const authToken = await this.authService.verifyToken(token);
     if (!authToken) {
       return { authenticated: false };
     }
@@ -54,7 +83,77 @@ export class AuthController {
       userId: authToken.userId,
       rollNumber: authToken.rollNumber,
       role: authToken.role,
+      sessionId: authToken.sessionId,
     };
+  }
+
+  @Get('sessions')
+  async listSessions(@Headers('Authorization') authHeader: string) {
+    const token = this.extractToken(authHeader);
+    if (!token) {
+      throw new BadRequestException('Missing authorization token');
+    }
+
+    const auth = await this.authService.verifyToken(token);
+    if (!auth) {
+      throw new BadRequestException('Invalid authorization token');
+    }
+
+    return {
+      maxActiveDevices: Number(process.env.MAX_ACTIVE_DEVICES ?? 2),
+      sessions: await this.authService.listSessions(auth.userId, token),
+    };
+  }
+
+  @Post('sessions/:sessionId/block')
+  async blockSession(
+    @Param('sessionId') sessionId: string,
+    @Headers('Authorization') authHeader: string,
+    @Body() body: { reason?: string },
+  ) {
+    const token = this.extractToken(authHeader);
+    if (!token) {
+      throw new BadRequestException('Missing authorization token');
+    }
+    const auth = await this.authService.verifyToken(token);
+    if (!auth) {
+      throw new BadRequestException('Invalid authorization token');
+    }
+    return this.authService.blockSession(auth.userId, sessionId, body?.reason);
+  }
+
+  @Post('sessions/:sessionId/unblock')
+  async unblockSession(
+    @Param('sessionId') sessionId: string,
+    @Headers('Authorization') authHeader: string,
+  ) {
+    const token = this.extractToken(authHeader);
+    if (!token) {
+      throw new BadRequestException('Missing authorization token');
+    }
+    const auth = await this.authService.verifyToken(token);
+    if (!auth) {
+      throw new BadRequestException('Invalid authorization token');
+    }
+    return this.authService.unblockSession(auth.userId, sessionId);
+  }
+
+  @Get('logs')
+  async getLogs(
+    @Headers('Authorization') authHeader: string,
+    @Query('limit') limit?: string,
+    @Query('rollNumber') rollNumber?: string,
+  ) {
+    const token = this.extractToken(authHeader);
+    if (!token) {
+      throw new BadRequestException('Missing authorization token');
+    }
+    const auth = await this.authService.verifyToken(token);
+    if (!auth) {
+      throw new BadRequestException('Invalid authorization token');
+    }
+    const parsedLimit = Number(limit ?? 100);
+    return this.authService.getLogs(auth.userId, auth.role, parsedLimit, rollNumber);
   }
 
   private extractToken(authHeader: string): string | null {
