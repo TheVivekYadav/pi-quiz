@@ -1,9 +1,11 @@
 import { useTheme } from "@/hook/theme";
+import { isAdmin } from "@/constants/auth-session";
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 
 export default function TabsLayout() {
     const theme = useTheme();
+    const adminView = isAdmin();
 
     return (
         <Tabs
@@ -56,6 +58,17 @@ export default function TabsLayout() {
                     ),
                 }}
             />
+            {adminView && (
+                <Tabs.Screen
+                    name="admin"
+                    options={{
+                        title: "Admin",
+                        tabBarIcon: ({ color, size }) => (
+                            <Ionicons name="shield-checkmark-outline" color={color} size={size} />
+                        ),
+                    }}
+                />
+            )}
         </Tabs>
     );
 }

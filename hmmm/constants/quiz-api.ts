@@ -54,6 +54,26 @@ export type QuizSubmitPayload = {
   leaderboard: { rank: number; user: string; score: number; currentUser?: boolean }[];
 };
 
+export type QuizHomePayload = {
+  greeting?: string | { title?: string; subtitle?: string };
+  continueLearning?: Array<{ id: string; title: string; category: string; progress?: number }>;
+  categories?: Array<string | { id?: string; title?: string; icon?: string }>;
+  featuredQuizzes?: QuizListItem[];
+  featured?: QuizListItem[];
+};
+
+export type QuizReportsPayload = {
+  metrics?: {
+    totalEnrolled?: number | string;
+    activeNow?: number | string;
+    completed?: number | string;
+    completionRate?: number | string;
+  };
+  upcomingQuizzes?: QuizListItem[];
+  upcoming?: QuizListItem[];
+  insights?: string[];
+};
+
 const getAuthHeaders = () => {
   const token = getAuthToken();
   return {
@@ -73,7 +93,7 @@ const json = async <T>(resPromise: Promise<Response>): Promise<T> => {
 };
 
 export const fetchQuizHome = () =>
-  json<any>(
+  json<QuizHomePayload>(
     fetch(apiUrl("/quiz/home"), {
       headers: getAuthHeaders(),
     })
@@ -128,7 +148,7 @@ export const fetchQuizLeaderboard = (quizId: string) =>
   );
 
 export const fetchReportsOverview = () =>
-  json<any>(
+  json<QuizReportsPayload>(
     fetch(apiUrl("/quiz/reports/overview"), {
       headers: getAuthHeaders(),
     })

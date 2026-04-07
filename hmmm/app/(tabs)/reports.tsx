@@ -31,6 +31,13 @@ export default function ReportsTab() {
         );
     }
 
+    const metrics = data?.metrics ?? {};
+    const totalEnrolled = Number(metrics.totalEnrolled ?? 0);
+    const activeNow = Number(metrics.activeNow ?? 0);
+    const completed = Number(metrics.completed ?? 0);
+    const upcoming = data?.upcomingQuizzes ?? data?.upcoming ?? [];
+    const insights = data?.insights ?? [];
+
     return (
         <ScrollView
             style={[styles.root, { backgroundColor: theme.background }]}
@@ -41,31 +48,33 @@ export default function ReportsTab() {
 
             <View style={[styles.metricCard, { backgroundColor: theme.surfaceLight, borderColor: theme.border }]}>
                 <Text style={[styles.metricLabel, { color: theme.textMuted }]}>TOTAL ENROLLED</Text>
-                <Text style={[styles.metricValue, { color: theme.primary }]}>{(data?.totalEnrolled / 1000).toFixed(1)}k</Text>
+                <Text style={[styles.metricValue, { color: theme.primary }]}>{totalEnrolled}</Text>
             </View>
 
             <View style={[styles.metricCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                 <Text style={[styles.metricLabel, { color: theme.textMuted }]}>ACTIVE NOW</Text>
-                <Text style={[styles.metricValue, { color: theme.textPrimary }]}>{data?.activeNow}</Text>
+                <Text style={[styles.metricValue, { color: theme.textPrimary }]}>{activeNow}</Text>
             </View>
 
             <View style={[styles.metricCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                 <Text style={[styles.metricLabel, { color: theme.textMuted }]}>COMPLETED</Text>
-                <Text style={[styles.metricValue, { color: theme.textPrimary }]}>{(data?.completed / 1000).toFixed(1)}k</Text>
+                <Text style={[styles.metricValue, { color: theme.textPrimary }]}>{completed}</Text>
             </View>
 
             <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Upcoming Quizzes</Text>
-            {(data?.upcoming ?? []).map((item: any) => (
+            {upcoming.map((item: any) => (
                 <View key={item.id} style={[styles.item, { borderBottomColor: theme.border }]}>
                     <Text style={[styles.itemTitle, { color: theme.textPrimary }]}>{item.title}</Text>
                     <Text style={[styles.itemMeta, { color: theme.textMuted }]}>{item.category}</Text>
                 </View>
             ))}
+            {!upcoming.length && <Text style={[styles.insight, { color: theme.textMuted }]}>No upcoming quizzes right now.</Text>}
 
             <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Quick Insights</Text>
-            {(data?.insights ?? []).map((insight: string, idx: number) => (
+            {insights.map((insight: string, idx: number) => (
                 <Text key={`${insight}-${idx}`} style={[styles.insight, { color: theme.textSecondary }]}>• {insight}</Text>
             ))}
+            {!insights.length && <Text style={[styles.insight, { color: theme.textMuted }]}>Your insights will appear after quiz activity.</Text>}
         </ScrollView>
     );
 }

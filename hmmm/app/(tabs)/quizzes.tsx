@@ -1,4 +1,5 @@
 import { fetchUpcomingQuizzes, QuizListItem } from "@/constants/quiz-api";
+import { isAdmin } from "@/constants/auth-session";
 import { useTheme } from "@/hook/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -12,6 +13,7 @@ export default function QuizzesTab() {
     const insets = useSafeAreaInsets();
     const [items, setItems] = useState<QuizListItem[]>([]);
     const [loading, setLoading] = useState(true);
+    const adminView = isAdmin();
 
     useEffect(() => {
         const run = async () => {
@@ -60,6 +62,15 @@ export default function QuizzesTab() {
                     </View>
                 </Pressable>
             ))}
+
+            {!loading && items.length === 0 && (
+                <View style={[styles.emptyCard, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
+                    <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>No quizzes found</Text>
+                    <Text style={[styles.emptyMeta, { color: theme.textSecondary }]}> 
+                        {adminView ? "You can create your first quiz from the Admin tab." : "Please check back later or contact your admin."}
+                    </Text>
+                </View>
+            )}
         </ScrollView>
     );
 }
@@ -84,4 +95,7 @@ const styles = StyleSheet.create({
         gap: 6,
     },
     ctaText: { fontSize: 13, fontWeight: "700" },
+    emptyCard: { borderWidth: 1, borderRadius: 18, padding: 14, marginTop: 8 },
+    emptyTitle: { fontSize: 18, fontWeight: "700" },
+    emptyMeta: { marginTop: 8, fontSize: 14, lineHeight: 20 },
 });

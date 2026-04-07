@@ -1,11 +1,21 @@
 import { useTheme } from "@/hook/theme";
+import { clearAuth, getAuthUser, isAdmin } from "@/constants/auth-session";
 import { Ionicons } from "@expo/vector-icons";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useRouter } from "expo-router";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function SettingsTab() {
     const theme = useTheme();
     const insets = useSafeAreaInsets();
+    const router = useRouter();
+    const user = getAuthUser();
+    const adminView = isAdmin();
+
+    const handleLogout = () => {
+        clearAuth();
+        router.replace("/login" as any);
+    };
 
     return (
         <ScrollView
@@ -18,8 +28,8 @@ export default function SettingsTab() {
             <View style={[styles.card, { backgroundColor: theme.surfaceLight, borderColor: theme.border }]}>
                 <Ionicons name="person-circle-outline" size={26} color={theme.primary} />
                 <View>
-                    <Text style={[styles.name, { color: theme.textPrimary }]}>Alex Rivera</Text>
-                    <Text style={[styles.meta, { color: theme.textMuted }]}>Premium Learner</Text>
+                    <Text style={[styles.name, { color: theme.textPrimary }]}>{user?.rollNumber ?? "Unknown User"}</Text>
+                    <Text style={[styles.meta, { color: theme.textMuted }]}>{adminView ? "Administrator" : "Learner"}</Text>
                 </View>
             </View>
 
@@ -35,6 +45,28 @@ export default function SettingsTab() {
                 <Ionicons name="color-palette-outline" size={22} color={theme.primary} />
                 <Text style={[styles.itemLabel, { color: theme.textPrimary }]}>Theme</Text>
             </View>
+
+            {adminView && (
+                <View style={[styles.card, { backgroundColor: theme.surfaceLight, borderColor: theme.border }]}> 
+                    <Ionicons name="shield-outline" size={22} color={theme.primary} />
+                    <Text style={[styles.itemLabel, { color: theme.textPrimary }]}>Admin privileges enabled</Text>
+                </View>
+            )}
+
+            <Pressable
+                onPress={handleLogout}
+                style={({ pressed }) => [
+                    styles.card,
+                    {
+                        backgroundColor: theme.surface,
+                        borderColor: theme.border,
+                        opacity: pressed ? 0.85 : 1,
+                    },
+                ]}
+            >
+                <Ionicons name="log-out-outline" size={22} color={theme.error} />
+                <Text style={[styles.itemLabel, { color: theme.error }]}>Logout</Text>
+            </Pressable>
         </ScrollView>
     );
 }
