@@ -61,9 +61,15 @@ export class QuizService {
   async getHome(userId: number) {
     const pool = this.databaseService.getPool();
 
-    // Get enrolled quizzes for continuing learning
+    // Get enrolled quizzes with real attempt-based progress
     const enrolledResult = await pool.query(
-      `SELECT q.* FROM quizzes q
+      `SELECT q.id, q.title, q.category,
+              (SELECT COUNT(*) FROM quiz_questions WHERE quiz_id = q.id) AS total_questions,
+              (SELECT COUNT(DISTINCT qr.question_id)
+               FROM quiz_attempts qa
+               JOIN quiz_responses qr ON qr.attempt_id = qa.id
+               WHERE qa.user_id = $1 AND qa.quiz_id = q.id) AS answered_questions
+       FROM quizzes q
        JOIN quiz_enrollments qe ON q.id = qe.quiz_id
        WHERE qe.user_id = $1
        ORDER BY q.starts_at DESC
@@ -71,10 +77,11 @@ export class QuizService {
       [userId],
     );
 
-    // Get all quizzes as featured
+    // Get upcoming (future) quizzes as featured
     const featuredResult = await pool.query(
       `SELECT id, title, category, starts_at, duration_minutes, level FROM quizzes
-       ORDER BY starts_at DESC
+       WHERE starts_at >= NOW()
+       ORDER BY starts_at ASC
        LIMIT 6`,
     );
 
@@ -85,12 +92,17 @@ export class QuizService {
 
     return {
       greeting: `Welcome back!`,
-      continueLearning: enrolledResult.rows.map((q: any) => ({
-        id: q.id,
-        title: q.title,
-        category: q.category,
-        progress: Math.floor(Math.random() * 100),
-      })),
+      continueLearning: enrolledResult.rows.map((q: any) => {
+        const total = parseInt(q.total_questions) || 0;
+        const answered = parseInt(q.answered_questions) || 0;
+        const progress = total > 0 ? Math.round((answered / total) * 100) : 0;
+        return {
+          id: q.id,
+          title: q.title,
+          category: q.category,
+          progress,
+        };
+      }),
       categories: categoriesResult.rows.map((r: any) => r.category),
       featuredQuizzes: featuredResult.rows.map((q: any) => ({
         id: q.id,
@@ -117,22 +129,49 @@ export class QuizService {
       [userId],
     );
 
+    // Count currently active sessions across all users (platform-wide metric)
+    const activeNowResult = await pool.query(
+      `SELECT COUNT(*) as count FROM user_sessions
+       WHERE revoked_at IS NULL AND is_blocked = FALSE
+         AND last_seen_at >= NOW() - INTERVAL '15 minutes'`,
+    );
+
     const attempts = attemptsResult.rows[0];
     const enrolled = enrolledResult.rows[0];
+    const activeNow = parseInt(activeNowResult.rows[0].count) || 0;
+
+    const totalAttempts = parseInt(attempts.total) || 0;
+    const totalEnrolled = parseInt(enrolled.count) || 0;
+    const completionRate =
+      totalEnrolled > 0 ? Math.round((totalAttempts / totalEnrolled) * 100) : 0;
+
+    // Build dynamic insights from real data
+    const insights: string[] = [];
+    if (totalAttempts === 0) {
+      insights.push('Start your first quiz to see personalised insights here.');
+    } else {
+      const avgResult = await pool.query(
+        `SELECT AVG(accuracy_rate) as avg_acc FROM quiz_attempts WHERE user_id = $1`,
+        [userId],
+      );
+      const avg = Math.round(parseFloat(avgResult.rows[0].avg_acc) || 0);
+      insights.push(`Your average accuracy across all attempts is ${avg}%.`);
+      if (completionRate < 100) {
+        insights.push(`You have completed ${completionRate}% of your enrolled quizzes.`);
+      } else {
+        insights.push('Great job — you have completed every quiz you enrolled in!');
+      }
+    }
 
     return {
       metrics: {
-        totalEnrolled: enrolled.count,
-        activeNow: Math.floor(Math.random() * 50),
-        completed: attempts.total,
-        completionRate: attempts.total > 0 ? 88 : 0,
+        totalEnrolled,
+        activeNow,
+        completed: totalAttempts,
+        completionRate,
       },
       upcomingQuizzes: await this.listUpcoming(userId),
-      insights: [
-        'You are doing 23% better than last month',
-        'Science quizzes are your strongest category',
-        'Complete one more quiz to unlock Expert badge',
-      ],
+      insights,
     };
   }
 
@@ -141,7 +180,8 @@ export class QuizService {
 
     const result = await pool.query(
       `SELECT id, title, category, starts_at, duration_minutes, level FROM quizzes
-       ORDER BY starts_at DESC
+       WHERE starts_at >= NOW()
+       ORDER BY starts_at ASC
        LIMIT 10`,
     );
 
@@ -155,11 +195,14 @@ export class QuizService {
     }));
   }
 
-  async getQuizDetail(quizId: string): Promise<QuizDetail> {
+  async getQuizDetail(quizId: string): Promise<QuizDetail & { enrollmentForm: { id: string; fields: any[] } | null }> {
     const pool = this.databaseService.getPool();
 
     const result = await pool.query(
-      `SELECT * FROM quizzes WHERE id = $1`,
+      `SELECT q.*, f.id as form_id, f.fields as form_fields
+       FROM quizzes q
+       LEFT JOIN forms f ON f.id = q.enrollment_form_id
+       WHERE q.id = $1`,
       [quizId],
     );
 
@@ -179,6 +222,9 @@ export class QuizService {
       description: quiz.description,
       expectations: quiz.expectations,
       curatorNote: quiz.curator_note,
+      enrollmentForm: quiz.form_id
+        ? { id: quiz.form_id, fields: quiz.form_fields ?? [] }
+        : null,
     };
   }
 
@@ -196,7 +242,7 @@ export class QuizService {
     }
 
     const quizResult = await pool.query(
-      `SELECT starts_at FROM quizzes WHERE id = $1`,
+      `SELECT title, starts_at FROM quizzes WHERE id = $1`,
       [quizId],
     );
 
@@ -217,7 +263,15 @@ export class QuizService {
       [quizId],
     );
 
+    // Count all enrolled users (real waiting count)
+    const waitingCountResult = await pool.query(
+      `SELECT COUNT(*) as count FROM quiz_enrollments WHERE quiz_id = $1`,
+      [quizId],
+    );
+    const waitingCount = parseInt(waitingCountResult.rows[0].count) || 0;
+
     return {
+      quizTitle: quizResult.rows[0].title,
       startsInSeconds,
       rules: [
         'Read each question carefully',
@@ -226,10 +280,10 @@ export class QuizService {
         'Internet disconnection will pause your quiz',
       ],
       lobby: {
-        waitingCount: Math.max(5, usersResult.rows.length),
+        waitingCount,
         sampleUsers: (usersResult.rows || []).map((u: any, i: number) => ({
-          name: u.name || `User ${i + 1}`,
-          status: i === 0 ? 'ready' : 'waiting',
+          name: u.name || u.roll_number || `User ${i + 1}`,
+          status: 'ready',
         })),
       },
     };
@@ -336,13 +390,17 @@ export class QuizService {
     else if (accuracyRate >= 80) badge = 'Advanced';
     else if (accuracyRate >= 70) badge = 'Proficient';
 
-    // Calculate percentile (mock data for now)
+    // Calculate real percentile from DB
     const allAttemptsResult = await pool.query(
       `SELECT score FROM quiz_attempts WHERE quiz_id = $1 ORDER BY score DESC`,
       [quizId],
     );
     const allScores = allAttemptsResult.rows.map((r: any) => r.score);
-    const percentile = allScores.filter((s: number) => s > score).length;
+    const betterCount = allScores.filter((s: number) => s > score).length;
+    const percentile =
+      allScores.length > 1
+        ? Math.round(((allScores.length - 1 - betterCount) / (allScores.length - 1)) * 100)
+        : 100;
 
     return {
       attemptId,
@@ -352,10 +410,10 @@ export class QuizService {
       breakdown: {
         correct,
         incorrect,
-        timeTaken: '12m 34s',
+        timeTakenMinutes: 0,
       },
       badge,
-      percentile: Math.max(1, 100 - percentile),
+      percentile: Math.max(1, percentile),
     };
   }
 
@@ -363,7 +421,7 @@ export class QuizService {
     const pool = this.databaseService.getPool();
 
     const result = await pool.query(
-      `SELECT u.name, u.roll_number, MAX(qa.score) as score, 
+      `SELECT u.id as user_id, u.name, u.roll_number, MAX(qa.score) as score,
               ROW_NUMBER() OVER (ORDER BY MAX(qa.score) DESC) as rank
        FROM quiz_attempts qa
        JOIN users u ON qa.user_id = u.id
@@ -374,29 +432,63 @@ export class QuizService {
       [quizId],
     );
 
-    return {
-      leaderboard: result.rows.map((row: any, idx: number) => ({
-        rank: idx + 1,
-        name: row.name || `User ${idx + 1}`,
-        rollNumber: row.roll_number,
-        score: row.score || 0,
-        isCurrentUser: row.user_id === userId,
-      })),
-    };
+    // Return a flat array matching frontend QuizListItem expectations
+    return result.rows.map((row: any, idx: number) => ({
+      rank: idx + 1,
+      user: row.name || row.roll_number || `User ${idx + 1}`,
+      rollNumber: row.roll_number,
+      score: parseInt(row.score) || 0,
+      currentUser: row.user_id === userId,
+    }));
   }
 
-  async enrollUser(userId: number, quizId: string) {
+  async enrollUser(userId: number, quizId: string, formAnswers?: Record<string, any>) {
     const pool = this.databaseService.getPool();
 
+    // Check if this quiz has an enrollment form
+    const quizResult = await pool.query(
+      `SELECT enrollment_form_id FROM quizzes WHERE id = $1`,
+      [quizId],
+    );
+    const enrollmentFormId: string | null = quizResult.rows[0]?.enrollment_form_id ?? null;
+
+    // If quiz has an enrollment form, form answers are required
+    if (enrollmentFormId && (!formAnswers || Object.keys(formAnswers).length === 0)) {
+      throw new BadRequestException('This quiz requires you to fill out the enrollment form.');
+    }
+
+    // Validate required fields if a form is attached
+    if (enrollmentFormId) {
+      const formResult = await pool.query(
+        `SELECT fields FROM forms WHERE id = $1`,
+        [enrollmentFormId],
+      );
+      const fields: any[] = formResult.rows[0]?.fields ?? [];
+      for (const field of fields) {
+        if (field.required && !formAnswers![field.id]) {
+          throw new BadRequestException(`Field "${field.label}" is required.`);
+        }
+      }
+    }
+
     try {
+      // Save form response first (if applicable)
+      let formResponseId: string | null = null;
+      if (enrollmentFormId && formAnswers) {
+        formResponseId = randomUUID();
+        await pool.query(
+          `INSERT INTO responses (id, form_id, answers) VALUES ($1, $2, $3::jsonb)`,
+          [formResponseId, enrollmentFormId, JSON.stringify(formAnswers)],
+        );
+      }
+
       await pool.query(
-        `INSERT INTO quiz_enrollments (user_id, quiz_id) VALUES ($1, $2)`,
-        [userId, quizId],
+        `INSERT INTO quiz_enrollments (user_id, quiz_id, form_response_id) VALUES ($1, $2, $3)`,
+        [userId, quizId, formResponseId],
       );
       return { success: true, message: 'Successfully enrolled' };
     } catch (error: any) {
       if (error.code === '23505') {
-        // Unique constraint violation
         return { success: false, message: 'Already enrolled in this quiz' };
       }
       throw error;
@@ -410,5 +502,198 @@ export class QuizService {
       [userId, quizId],
     );
     return result.rows.length > 0;
+  }
+
+  // ─── Admin methods ───────────────────────────────────────────────────────
+
+  async createQuiz(createdByUserId: number, body: {
+    title: string;
+    topic: string;
+    category: string;
+    level: string;
+    durationMinutes: number;
+    startsAt: string;
+    description?: string;
+    expectations?: string;
+    curatorNote?: string;
+  }): Promise<QuizDetail> {
+    const pool = this.databaseService.getPool();
+    const id = randomUUID();
+
+    await pool.query(
+      `INSERT INTO quizzes
+         (id, title, topic, category, level, duration_minutes, starts_at, description, expectations, curator_note, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+      [
+        id,
+        body.title,
+        body.topic,
+        body.category,
+        body.level,
+        body.durationMinutes,
+        new Date(body.startsAt).toISOString(),
+        body.description ?? null,
+        body.expectations ?? null,
+        body.curatorNote ?? null,
+        createdByUserId,
+      ],
+    );
+
+    return {
+      id,
+      title: body.title,
+      topic: body.topic,
+      category: body.category,
+      level: body.level,
+      durationMinutes: body.durationMinutes,
+      startsAtIso: body.startsAt,
+      description: body.description,
+      expectations: body.expectations,
+      curatorNote: body.curatorNote,
+    };
+  }
+
+  async addQuestion(quizId: string, body: {
+    text: string;
+    imageUrl?: string;
+    options: { id: string; label: string }[];
+    correctOptionId: string;
+    points?: number;
+  }): Promise<QuizQuestion> {
+    const pool = this.databaseService.getPool();
+
+    // Ensure quiz exists
+    const quizCheck = await pool.query(`SELECT id FROM quizzes WHERE id = $1`, [quizId]);
+    if (!quizCheck.rows[0]) {
+      throw new NotFoundException('Quiz not found');
+    }
+
+    // Get next question index
+    const indexResult = await pool.query(
+      `SELECT COALESCE(MAX(question_index), 0) + 1 AS next_index FROM quiz_questions WHERE quiz_id = $1`,
+      [quizId],
+    );
+    const questionIndex = parseInt(indexResult.rows[0].next_index);
+
+    const id = randomUUID();
+    const points = body.points ?? 1;
+
+    await pool.query(
+      `INSERT INTO quiz_questions
+         (id, quiz_id, question_text, image_url, options, correct_option_id, points, question_index)
+       VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8)`,
+      [
+        id,
+        quizId,
+        body.text,
+        body.imageUrl ?? null,
+        JSON.stringify(body.options),
+        body.correctOptionId,
+        points,
+        questionIndex,
+      ],
+    );
+
+    return {
+      id,
+      text: body.text,
+      imageUrl: body.imageUrl,
+      options: body.options,
+      points,
+    };
+  }
+
+  async deleteQuiz(quizId: string): Promise<{ success: boolean }> {
+    const pool = this.databaseService.getPool();
+    const result = await pool.query(
+      `DELETE FROM quizzes WHERE id = $1 RETURNING id`,
+      [quizId],
+    );
+    if (!result.rows[0]) {
+      throw new NotFoundException('Quiz not found');
+    }
+    return { success: true };
+  }
+
+  async listAllQuizzes(): Promise<QuizListItem[]> {
+    const pool = this.databaseService.getPool();
+    const result = await pool.query(
+      `SELECT id, title, category, starts_at, duration_minutes, level FROM quizzes ORDER BY starts_at DESC`,
+    );
+    return result.rows.map((row: any) => ({
+      id: row.id,
+      title: row.title,
+      category: row.category,
+      startsAtIso: row.starts_at,
+      durationMinutes: row.duration_minutes,
+      level: row.level,
+    }));
+  }
+
+  /**
+   * Admin: Create (or replace) the enrollment form for a quiz.
+   * fields is an array of { id, label, type, required, options? }
+   */
+  async setEnrollmentForm(
+    quizId: string,
+    fields: Array<{
+      id: string;
+      label: string;
+      type: 'text' | 'email' | 'phone' | 'number' | 'select';
+      required: boolean;
+      options?: string[];
+    }>,
+  ): Promise<{ formId: string; fields: any[] }> {
+    const pool = this.databaseService.getPool();
+
+    // Ensure quiz exists
+    const quizCheck = await pool.query(`SELECT enrollment_form_id FROM quizzes WHERE id = $1`, [quizId]);
+    if (!quizCheck.rows[0]) {
+      throw new NotFoundException('Quiz not found');
+    }
+
+    const existingFormId: string | null = quizCheck.rows[0].enrollment_form_id ?? null;
+
+    if (existingFormId) {
+      // Update the existing form's fields
+      await pool.query(
+        `UPDATE forms SET fields = $2::jsonb, title = $3 WHERE id = $1`,
+        [existingFormId, JSON.stringify(fields), `Enrollment Form — ${quizId}`],
+      );
+      return { formId: existingFormId, fields };
+    }
+
+    // Create a new form and link it to the quiz
+    const formId = randomUUID();
+    await pool.query(
+      `INSERT INTO forms (id, title, fields) VALUES ($1, $2, $3::jsonb)`,
+      [formId, `Enrollment Form — ${quizId}`, JSON.stringify(fields)],
+    );
+    await pool.query(
+      `UPDATE quizzes SET enrollment_form_id = $1 WHERE id = $2`,
+      [formId, quizId],
+    );
+
+    return { formId, fields };
+  }
+
+  /** Public: get the enrollment form (fields only) for a quiz */
+  async getEnrollmentForm(quizId: string): Promise<{ formId: string; fields: any[] } | null> {
+    const pool = this.databaseService.getPool();
+
+    const result = await pool.query(
+      `SELECT f.id as form_id, f.fields
+       FROM quizzes q
+       JOIN forms f ON f.id = q.enrollment_form_id
+       WHERE q.id = $1`,
+      [quizId],
+    );
+
+    if (!result.rows[0]) return null;
+
+    return {
+      formId: result.rows[0].form_id,
+      fields: result.rows[0].fields ?? [],
+    };
   }
 }

@@ -10,6 +10,19 @@ export type QuizListItem = {
   level: "Beginner" | "Intermediate" | "Expert";
 };
 
+export type EnrollmentFormField = {
+  id: string;
+  label: string;
+  type: "text" | "email" | "phone" | "number" | "select";
+  required: boolean;
+  options?: string[];
+};
+
+export type EnrollmentForm = {
+  formId: string;
+  fields: EnrollmentFormField[];
+};
+
 export type QuizDetail = {
   id: string;
   title: string;
@@ -21,6 +34,7 @@ export type QuizDetail = {
   expectations: string[];
   curatorNote: string;
   seats: { status: string; available: number };
+  enrollmentForm: EnrollmentForm | null;
 };
 
 export type QuizQuestionPayload = {
@@ -107,13 +121,14 @@ export const fetchUpcomingQuizzes = () =>
   );
 
 export const fetchQuizDetail = (quizId: string) =>
-  json<QuizDetail>(fetch(apiUrl(`/quiz/${quizId}`)));
+  json<QuizDetail>(fetch(apiUrl(`/quiz/${quizId}`), { headers: getAuthHeaders() }));
 
-export const enrollQuiz = (quizId: string) =>
+export const enrollQuiz = (quizId: string, formAnswers?: Record<string, string>) =>
   json<{ success: boolean; message: string }>(
     fetch(apiUrl(`/quiz/${quizId}/enroll`), {
       method: "POST",
       headers: getAuthHeaders(),
+      body: JSON.stringify({ formAnswers: formAnswers ?? {} }),
     })
   );
 
@@ -151,5 +166,69 @@ export const fetchReportsOverview = () =>
   json<QuizReportsPayload>(
     fetch(apiUrl("/quiz/reports/overview"), {
       headers: getAuthHeaders(),
+    })
+  );
+
+// ─── Admin API ──────────────────────────────────────────────────────────────
+
+export type CreateQuizPayload = {
+  title: string;
+  topic: string;
+  category: string;
+  level: string;
+  durationMinutes: number;
+  startsAt: string;
+  description?: string;
+  expectations?: string;
+  curatorNote?: string;
+};
+
+export type AddQuestionPayload = {
+  text: string;
+  imageUrl?: string;
+  options: { id: string; label: string }[];
+  correctOptionId: string;
+  points?: number;
+};
+
+export const adminListQuizzes = () =>
+  json<QuizListItem[]>(
+    fetch(apiUrl('/quiz/admin/list'), {
+      headers: getAuthHeaders(),
+    })
+  );
+
+export const adminCreateQuiz = (payload: CreateQuizPayload) =>
+  json<QuizDetail>(
+    fetch(apiUrl('/quiz'), {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    })
+  );
+
+export const adminAddQuestion = (quizId: string, payload: AddQuestionPayload) =>
+  json<{ id: string; text: string }>(
+    fetch(apiUrl(`/quiz/${quizId}/questions`), {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    })
+  );
+
+export const adminDeleteQuiz = (quizId: string) =>
+  json<{ success: boolean }>(
+    fetch(apiUrl(`/quiz/${quizId}`), {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    })
+  );
+
+export const adminSetEnrollmentForm = (quizId: string, fields: EnrollmentFormField[]) =>
+  json<{ formId: string; fields: EnrollmentFormField[] }>(
+    fetch(apiUrl(`/quiz/${quizId}/enrollment-form`), {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ fields }),
     })
   );

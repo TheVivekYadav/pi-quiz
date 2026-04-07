@@ -199,6 +199,10 @@ export class AuthService {
     return authToken?.userId || null;
   }
 
+  async getUserProfile(userId: number) {
+    return this.usersService.getUserById(userId);
+  }
+
   async listSessions(userId: number, currentToken?: string): Promise<SessionInfo[]> {
     const current = currentToken ? await this.verifyToken(currentToken) : null;
 

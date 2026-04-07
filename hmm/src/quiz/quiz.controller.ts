@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Headers, Param, ParseIntPipe, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Headers, Param, ParseIntPipe, Post } from '@nestjs/common';
 import { AuthService } from '../auth/auth.service.js';
 import { QuizService } from './quiz.service.js';
 
@@ -19,6 +19,19 @@ export class QuizController {
       throw new BadRequestException('Invalid authorization token');
     }
     return userId;
+  }
+
+  private async requireAdmin(authHeader: string): Promise<number> {
+    const token = this.extractToken(authHeader);
+    if (!token) {
+      throw new BadRequestException('Missing authorization token');
+    }
+    const isAdmin = await this.authService.isAdmin(token);
+    if (!isAdmin) {
+      throw new ForbiddenException('Admin access required');
+    }
+    const userId = await this.authService.getUserId(token);
+    return userId!;
   }
 
   private extractToken(authHeader: string): string | null {
@@ -45,13 +58,112 @@ export class QuizController {
     return this.quizService.listUpcoming(userId);
   }
 
-  @Post(':quizId/enroll')
-  async enrollQuiz(
+  // ─── Admin endpoints ────────────────────────────────────────────────────
+
+  @Get('admin/list')
+  async listAllQuizzes(@Headers('Authorization') authHeader: string) {
+    await this.requireAdmin(authHeader);
+    return this.quizService.listAllQuizzes();
+  }
+
+  @Post()
+  async createQuiz(
+    @Body() body: any,
+    @Headers('Authorization') authHeader: string,
+  ) {
+    const userId = await this.requireAdmin(authHeader);
+
+    if (!body.title || !body.topic || !body.category || !body.level || !body.durationMinutes || !body.startsAt) {
+      throw new BadRequestException('title, topic, category, level, durationMinutes and startsAt are required');
+    }
+
+    return this.quizService.createQuiz(userId, {
+      title: String(body.title),
+      topic: String(body.topic),
+      category: String(body.category),
+      level: String(body.level),
+      durationMinutes: Number(body.durationMinutes),
+      startsAt: String(body.startsAt),
+      description: body.description ? String(body.description) : undefined,
+      expectations: body.expectations ? String(body.expectations) : undefined,
+      curatorNote: body.curatorNote ? String(body.curatorNote) : undefined,
+    });
+  }
+
+  @Post(':quizId/questions')
+  async addQuestion(
+    @Param('quizId') quizId: string,
+    @Body() body: any,
+    @Headers('Authorization') authHeader: string,
+  ) {
+    await this.requireAdmin(authHeader);
+
+    if (!body.text || !Array.isArray(body.options) || body.options.length < 2 || !body.correctOptionId) {
+      throw new BadRequestException('text, options (array with ≥2 items) and correctOptionId are required');
+    }
+
+    return this.quizService.addQuestion(quizId, {
+      text: String(body.text),
+      imageUrl: body.imageUrl ? String(body.imageUrl) : undefined,
+      options: body.options,
+      correctOptionId: String(body.correctOptionId),
+      points: body.points !== undefined ? Number(body.points) : 1,
+    });
+  }
+
+  @Delete(':quizId')
+  async deleteQuiz(
     @Param('quizId') quizId: string,
     @Headers('Authorization') authHeader: string,
   ) {
+    await this.requireAdmin(authHeader);
+    return this.quizService.deleteQuiz(quizId);
+  }
+
+  @Post(':quizId/enrollment-form')
+  async setEnrollmentForm(
+    @Param('quizId') quizId: string,
+    @Body() body: any,
+    @Headers('Authorization') authHeader: string,
+  ) {
+    await this.requireAdmin(authHeader);
+
+    const fields = body?.fields;
+    if (!Array.isArray(fields) || fields.length === 0) {
+      throw new BadRequestException('fields must be a non-empty array');
+    }
+
+    // Validate each field
+    const VALID_TYPES = ['text', 'email', 'phone', 'number', 'select'];
+    for (const f of fields) {
+      if (!f.id || !f.label || !VALID_TYPES.includes(f.type)) {
+        throw new BadRequestException(
+          `Each field must have id, label, and type (one of ${VALID_TYPES.join(', ')})`,
+        );
+      }
+      if (f.type === 'select' && (!Array.isArray(f.options) || f.options.length < 2)) {
+        throw new BadRequestException(`Select field "${f.label}" must have at least 2 options`);
+      }
+    }
+
+    return this.quizService.setEnrollmentForm(quizId, fields);
+  }
+
+  @Get(':quizId/enrollment-form')
+  async getEnrollmentForm(@Param('quizId') quizId: string) {
+    return this.quizService.getEnrollmentForm(quizId);
+  }
+
+  // ─── User endpoints ─────────────────────────────────────────────────────
+
+  @Post(':quizId/enroll')
+  async enrollQuiz(
+    @Param('quizId') quizId: string,
+    @Body() body: any,
+    @Headers('Authorization') authHeader: string,
+  ) {
     const userId = await this.getUserId(authHeader);
-    return this.quizService.enrollUser(userId, quizId);
+    return this.quizService.enrollUser(userId, quizId, body?.formAnswers);
   }
 
   @Get(':quizId/lobby')

@@ -14,6 +14,10 @@ export interface AuthUser {
   rollNumber?: string;
   role?: string;
   sessionId?: string;
+  name?: string;
+  email?: string;
+  branch?: string;
+  year?: number;
 }
 
 export interface SessionItem {
