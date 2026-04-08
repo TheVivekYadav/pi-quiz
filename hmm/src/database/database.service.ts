@@ -133,6 +133,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     await this.pool.query(`ALTER TABLE quiz_enrollments ADD COLUMN IF NOT EXISTS attempts_count INTEGER NOT NULL DEFAULT 0;`);
     await this.pool.query(`ALTER TABLE quiz_enrollments ADD COLUMN IF NOT EXISTS locked_until TIMESTAMPTZ;`);
 
+    // Add completion tracking to enrollments
+    await this.pool.query(`ALTER TABLE quiz_enrollments ADD COLUMN IF NOT EXISTS is_completed BOOLEAN NOT NULL DEFAULT FALSE;`);
+    await this.pool.query(`ALTER TABLE quiz_enrollments ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;`);
+
     // Quiz attempts table
     await this.pool.query(`
       CREATE TABLE IF NOT EXISTS quiz_attempts (
@@ -175,6 +179,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `);
+
+    // Add winners tracking to quizzes
+    await this.pool.query(`ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS winners_declared_at TIMESTAMPTZ;`);
+    await this.pool.query(`ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS winners_declared_by INT REFERENCES users(id);`);
 
     // Link enrollment form to quiz (nullable — a quiz may have no registration form)
     await this.pool.query(`
