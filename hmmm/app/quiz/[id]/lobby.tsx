@@ -96,9 +96,9 @@ export default function LobbyScreen() {
             </View>
 
             {lockedSeconds > 0 ? (
-                <View style={[styles.startBtn, { alignItems: 'center', paddingVertical: 16 }]}> 
+                <View style={[styles.startBtn, { alignItems: 'center', paddingVertical: 16 }]}>
                     <Text style={[styles.startText, { color: theme.textSecondary }]}>You are temporarily locked out from attempting this quiz.</Text>
-                    <Text style={{ marginTop: 8, color: theme.textMuted }}>{`Try again in ${String(Math.floor(lockedSeconds/60)).padStart(2,'0')}:${String(lockedSeconds%60).padStart(2,'0')}`}</Text>
+                    <Text style={{ marginTop: 8, color: theme.textMuted }}>{`Try again in ${String(Math.floor(lockedSeconds / 60)).padStart(2, '0')}:${String(lockedSeconds % 60).padStart(2, '0')}`}</Text>
                 </View>
             ) : (
                 <Pressable

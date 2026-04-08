@@ -62,7 +62,7 @@ export default function QuestionScreen() {
         }, 1000);
 
         return clearTimer;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [data?.question?.id]);
 
     if (loading || !data) {
@@ -96,100 +96,100 @@ export default function QuestionScreen() {
         } finally {
             setSubmitting(false);
         }
-        } catch (err: any) {
-            // Handle lockout / forbidden messages
-            const msg = err?.message || String(err);
-            if (msg.toLowerCase().includes('locked') || msg.toLowerCase().includes('too many attempts')) {
-                // Show alert and send user back to lobby
-                Alert.alert('Locked out', msg, [
-                    { text: 'Back to Lobby', onPress: () => router.replace({ pathname: '/quiz/[id]/lobby', params: { id: quizId } } as any) },
-                ]);
-                return;
-            }
-
-            Alert.alert('Error', msg || 'Failed to submit answers');
+    } catch (err: any) {
+        // Handle lockout / forbidden messages
+        const msg = err?.message || String(err);
+        if (msg.toLowerCase().includes('locked') || msg.toLowerCase().includes('too many attempts')) {
+            // Show alert and send user back to lobby
+            Alert.alert('Locked out', msg, [
+                { text: 'Back to Lobby', onPress: () => router.replace({ pathname: '/quiz/[id]/lobby', params: { id: quizId } } as any) },
+            ]);
             return;
         }
-    };
 
-    const timerColor = timeLeft <= 10 ? theme.error : timeLeft <= 20 ? theme.warning : theme.primary;
+        Alert.alert('Error', msg || 'Failed to submit answers');
+        return;
+    }
+};
 
-    return (
-        <ScrollView
-            style={[styles.root, { backgroundColor: theme.background }]}
-            contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + 24, paddingHorizontal: 16 }}
-        >
-            <Text style={[styles.brand, { color: theme.textPrimary }]}>Intellectual Playground</Text>
-            <Text style={[styles.progress, { color: theme.textSecondary }]}>{data.current}/{data.total}</Text>
-            <View style={[styles.progressTrack, { backgroundColor: theme.divider }]}>
-                <View style={[styles.progressFill, { backgroundColor: theme.primary, width: `${(data.current / data.total) * 100}%` }]} />
-            </View>
+const timerColor = timeLeft <= 10 ? theme.error : timeLeft <= 20 ? theme.warning : theme.primary;
 
-            <View style={[styles.card, { backgroundColor: theme.surfaceLight, borderColor: theme.border }]}>
-                <View style={styles.badges}>
-                    {data.highPoints && (
-                        <Text style={[styles.badge, { backgroundColor: theme.warningMuted, color: theme.textPrimary }]}>HIGH POINTS</Text>
-                    )}
-                    <Text style={[
-                        styles.badge,
-                        {
-                            backgroundColor: timerExpired ? theme.error : theme.primaryMuted,
-                            color: timerExpired ? theme.textInverse : theme.textPrimary,
-                            marginLeft: "auto",
-                        },
-                    ]}>
-                        {String(Math.floor(timeLeft / 60)).padStart(2, "0")}:{String(timeLeft % 60).padStart(2, "0")}
-                    </Text>
-                </View>
+return (
+    <ScrollView
+        style={[styles.root, { backgroundColor: theme.background }]}
+        contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + 24, paddingHorizontal: 16 }}
+    >
+        <Text style={[styles.brand, { color: theme.textPrimary }]}>Intellectual Playground</Text>
+        <Text style={[styles.progress, { color: theme.textSecondary }]}>{data.current}/{data.total}</Text>
+        <View style={[styles.progressTrack, { backgroundColor: theme.divider }]}>
+            <View style={[styles.progressFill, { backgroundColor: theme.primary, width: `${(data.current / data.total) * 100}%` }]} />
+        </View>
 
-                {timerExpired && (
-                    <Text style={[styles.timerWarning, { color: theme.error }]}>Time's up! You can still submit your current answer.</Text>
+        <View style={[styles.card, { backgroundColor: theme.surfaceLight, borderColor: theme.border }]}>
+            <View style={styles.badges}>
+                {data.highPoints && (
+                    <Text style={[styles.badge, { backgroundColor: theme.warningMuted, color: theme.textPrimary }]}>HIGH POINTS</Text>
                 )}
-
-                <Text style={[styles.question, { color: theme.textPrimary }]}>{data.question.text}</Text>
-
-                {!!data.question.imageUrl && <Image source={{ uri: data.question.imageUrl }} style={styles.image} />}
-
-                {data.question.options.map((option: any) => {
-                    const isActive = selected === option.id;
-                    return (
-                        <Pressable
-                            key={option.id}
-                            onPress={() => !timerExpired && setAnswer(quizId!, data.question.id, option.id)}
-                            style={[
-                                styles.option,
-                                {
-                                    backgroundColor: isActive ? theme.accent : theme.optionDefault,
-                                    borderColor: isActive ? theme.textPrimary : "transparent",
-                                    opacity: timerExpired && !isActive ? 0.5 : 1,
-                                },
-                            ]}
-                        >
-                            <Text style={[styles.optionText, { color: isActive ? theme.textInverse : theme.textPrimary }]}>{option.label}</Text>
-                        </Pressable>
-                    );
-                })}
+                <Text style={[
+                    styles.badge,
+                    {
+                        backgroundColor: timerExpired ? theme.error : theme.primaryMuted,
+                        color: timerExpired ? theme.textInverse : theme.textPrimary,
+                        marginLeft: "auto",
+                    },
+                ]}>
+                    {String(Math.floor(timeLeft / 60)).padStart(2, "0")}:{String(timeLeft % 60).padStart(2, "0")}
+                </Text>
             </View>
 
-            <Pressable
-                disabled={(!selected && !timerExpired) || submitting}
-                onPress={goNext}
-                style={[
-                    styles.next,
-                    {
-                        backgroundColor: ((!selected && !timerExpired) || submitting) ? theme.buttonDisabled : theme.buttonPrimary,
-                    },
-                ]}
-            >
-                <Text style={[styles.nextText, { color: theme.textInverse }]}>
-                    {data.current < data.total
-                        ? timerExpired ? "Skip to Next" : "Next Question"
-                        : submitting ? "Submitting..." : "Finish Quiz"}
-                </Text>
-                <Ionicons name="arrow-forward" size={18} color={theme.textInverse} />
-            </Pressable>
-        </ScrollView>
-    );
+            {timerExpired && (
+                <Text style={[styles.timerWarning, { color: theme.error }]}>Time's up! You can still submit your current answer.</Text>
+            )}
+
+            <Text style={[styles.question, { color: theme.textPrimary }]}>{data.question.text}</Text>
+
+            {!!data.question.imageUrl && <Image source={{ uri: data.question.imageUrl }} style={styles.image} />}
+
+            {data.question.options.map((option: any) => {
+                const isActive = selected === option.id;
+                return (
+                    <Pressable
+                        key={option.id}
+                        onPress={() => !timerExpired && setAnswer(quizId!, data.question.id, option.id)}
+                        style={[
+                            styles.option,
+                            {
+                                backgroundColor: isActive ? theme.accent : theme.optionDefault,
+                                borderColor: isActive ? theme.textPrimary : "transparent",
+                                opacity: timerExpired && !isActive ? 0.5 : 1,
+                            },
+                        ]}
+                    >
+                        <Text style={[styles.optionText, { color: isActive ? theme.textInverse : theme.textPrimary }]}>{option.label}</Text>
+                    </Pressable>
+                );
+            })}
+        </View>
+
+        <Pressable
+            disabled={(!selected && !timerExpired) || submitting}
+            onPress={goNext}
+            style={[
+                styles.next,
+                {
+                    backgroundColor: ((!selected && !timerExpired) || submitting) ? theme.buttonDisabled : theme.buttonPrimary,
+                },
+            ]}
+        >
+            <Text style={[styles.nextText, { color: theme.textInverse }]}>
+                {data.current < data.total
+                    ? timerExpired ? "Skip to Next" : "Next Question"
+                    : submitting ? "Submitting..." : "Finish Quiz"}
+            </Text>
+            <Ionicons name="arrow-forward" size={18} color={theme.textInverse} />
+        </Pressable>
+    </ScrollView>
+);
 }
 
 const styles = StyleSheet.create({
