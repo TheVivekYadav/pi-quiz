@@ -247,7 +247,9 @@ export default function QuizDetailScreen() {
                             <ActivityIndicator color={theme.textInverse} />
                         ) : (
                             <>
-                                <Text style={[styles.primaryBtnText, { color: theme.textInverse }]}>Enroll Now</Text>
+                                <Text style={[styles.primaryBtnText, { color: theme.textInverse }]}>
+                                    {data?.startsAtIso && new Date(data.startsAtIso) < new Date() ? "Join Now" : "Enroll Now"}
+                                </Text>
                                 <Ionicons name="arrow-forward" size={16} color={theme.textInverse} />
                             </>
                         )}

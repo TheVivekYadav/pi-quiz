@@ -1,9 +1,10 @@
 import { isAdmin } from "@/constants/auth-session";
 import { adminListQuizzes, fetchUpcomingQuizzes, QuizListItem } from "@/constants/quiz-api";
+import { useLoadTimeout } from "@/hook/useLoadTimeout";
 import { useTheme } from "@/hook/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -13,24 +14,37 @@ export default function QuizzesTab() {
     const insets = useSafeAreaInsets();
     const [items, setItems] = useState<QuizListItem[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [timedOut, setTimedOut] = useState(false);
     const adminView = isAdmin();
 
-    useEffect(() => {
-        const run = async () => {
-            try {
-                // Admins see all quizzes (past + future) so they can verify newly created ones.
-                // Regular users only see upcoming quizzes.
-                const payload = adminView
-                    ? await adminListQuizzes()
-                    : await fetchUpcomingQuizzes();
-                setItems(payload);
-            } finally {
-                setLoading(false);
-            }
-        };
+    const load = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        setTimedOut(false);
+        try {
+            const payload = adminView ? await adminListQuizzes() : await fetchUpcomingQuizzes();
+            setItems(payload);
+        } catch (err: any) {
+            setError(err?.message || 'Failed to load quizzes');
+        } finally {
+            setLoading(false);
+        }
+    }, [adminView]);
 
-        run();
-    }, []);
+    useEffect(() => { load(); }, [load]);
+    useLoadTimeout(loading, () => { setTimedOut(true); setLoading(false); });
+
+    if (timedOut && items.length === 0) {
+        return (
+            <View style={[styles.root, { alignItems: 'center', justifyContent: 'center', padding: 24 }]}>
+                <Text style={{ fontSize: 15, color: '#6b7280', textAlign: 'center', marginBottom: 16 }}>Could not connect — tap to retry.</Text>
+                <Pressable onPress={load} style={{ borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: '#2563eb' }}>
+                    <Text style={{ color: '#fff', fontWeight: '700' }}>Retry</Text>
+                </Pressable>
+            </View>
+        );
+    }
 
     return (
         <ScrollView
@@ -41,6 +55,12 @@ export default function QuizzesTab() {
             <Text style={[styles.title, { color: theme.textPrimary }]}>
                 {adminView ? "All Quizzes" : "Upcoming Quizzes"}
             </Text>
+
+            {!!error && (
+                <View style={[styles.errorBanner, { backgroundColor: '#fee2e2', borderColor: '#fca5a5' }]}>
+                    <Text style={{ color: '#b91c1c', fontSize: 13 }}>⚠ {error}</Text>
+                </View>
+            )}
 
             {loading && <ActivityIndicator color={theme.primary} size="large" />}
 
@@ -117,4 +137,5 @@ const styles = StyleSheet.create({
     emptyCard: { borderWidth: 1, borderRadius: 18, padding: 14, marginTop: 8 },
     emptyTitle: { fontSize: 18, fontWeight: "700" },
     emptyMeta: { marginTop: 8, fontSize: 14, lineHeight: 20 },
+    errorBanner: { borderWidth: 1, borderRadius: 10, padding: 10, marginBottom: 8 },
 });

@@ -1,9 +1,10 @@
 import { getAuthUser, isAdmin } from "@/constants/auth-session";
 import { fetchQuizHome } from "@/constants/quiz-api";
+import { useLoadTimeout } from "@/hook/useLoadTimeout";
 import { useTheme } from "@/hook/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -14,26 +15,45 @@ export default function DiscoverScreen() {
 
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [timedOut, setTimedOut] = useState(false);
     const user = getAuthUser();
     const adminView = isAdmin();
 
-    useEffect(() => {
-        const run = async () => {
-            try {
-                const payload = await fetchQuizHome();
-                setData(payload);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        run();
+    const load = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        setTimedOut(false);
+        try {
+            const payload = await fetchQuizHome();
+            setData(payload);
+        } catch (err: any) {
+            setError(err?.message || 'Failed to load home data');
+        } finally {
+            setLoading(false);
+        }
     }, []);
+
+    useEffect(() => { load(); }, [load]);
+    useLoadTimeout(loading, () => { setTimedOut(true); setLoading(false); });
 
     if (loading) {
         return (
             <View style={[styles.center, { backgroundColor: theme.background }]}>
                 <ActivityIndicator size="large" color={theme.primary} />
+            </View>
+        );
+    }
+
+    if (timedOut || (error && !data)) {
+        return (
+            <View style={[styles.center, { backgroundColor: theme.background }]}>
+                <Text style={{ fontSize: 15, color: theme.textSecondary, textAlign: 'center', marginBottom: 16 }}>
+                    Could not connect — tap to retry.
+                </Text>
+                <Pressable onPress={load} style={{ backgroundColor: theme.buttonPrimary, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 }}>
+                    <Text style={{ color: theme.textInverse, fontWeight: '700' }}>Retry</Text>
+                </Pressable>
             </View>
         );
     }
@@ -75,10 +95,16 @@ export default function DiscoverScreen() {
             style={[styles.root, { backgroundColor: theme.background }]}
             contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + 24, paddingHorizontal: 16 }}
         >
-            <Text style={[styles.brand, { color: theme.primary }]}>Intellectual Playground</Text>
+            <Text style={[styles.brand, { color: theme.primary }]}>Pi Quiz</Text>
             <Text style={[styles.heading, { color: theme.textPrimary }]}>{greetingTitle}</Text>
             <Text style={[styles.subheading, { color: theme.textSecondary }]}>{greetingSubtitle}</Text>
             <Text style={[styles.viewer, { color: theme.textMuted }]}>Signed in as {adminView ? "Admin" : "Learner"} • {user?.rollNumber ?? "Unknown"}</Text>
+
+            {!!error && (
+                <View style={[styles.errorBanner, { backgroundColor: '#fee2e2', borderColor: '#fca5a5' }]}>
+                    <Text style={{ color: '#b91c1c', fontSize: 13 }}>⚠ {error}</Text>
+                </View>
+            )}
 
             <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Continue Learning</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
@@ -99,6 +125,12 @@ export default function DiscoverScreen() {
                     <View style={[styles.emptyCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                         <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>No enrolled quizzes yet</Text>
                         <Text style={[styles.emptyText, { color: theme.textSecondary }]}>Go to Quizzes and enroll in your first quiz.</Text>
+                        <Pressable
+                            onPress={() => router.push("/(tabs)/quizzes" as any)}
+                            style={[styles.browseCta, { backgroundColor: theme.buttonPrimary }]}
+                        >
+                            <Text style={[styles.browseCtaText, { color: theme.textInverse }]}>Browse Quizzes →</Text>
+                        </Pressable>
                     </View>
                 )}
             </ScrollView>
@@ -176,4 +208,7 @@ const styles = StyleSheet.create({
     emptyCard: { borderWidth: 1, borderRadius: 16, padding: 14, width: 280 },
     emptyTitle: { fontSize: 16, fontWeight: "700" },
     emptyText: { marginTop: 6, fontSize: 13, lineHeight: 19 },
+    errorBanner: { borderWidth: 1, borderRadius: 10, padding: 10, marginTop: 10, marginBottom: 4 },
+    browseCta: { marginTop: 12, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9, alignSelf: "flex-start" },
+    browseCtaText: { fontSize: 13, fontWeight: "700" },
 });
