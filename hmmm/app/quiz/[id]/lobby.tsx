@@ -1,4 +1,5 @@
 import { fetchQuizLobby } from "@/constants/quiz-api";
+import { useRequireAuth } from "@/hook/useRequireAuth";
 import { useTheme } from "@/hook/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -12,6 +13,7 @@ export default function LobbyScreen() {
     const theme = useTheme();
     const insets = useSafeAreaInsets();
     const router = useRouter();
+    useRequireAuth();
 
     const [data, setData] = useState<any>(null);
     const [seconds, setSeconds] = useState(0);
@@ -95,7 +97,23 @@ export default function LobbyScreen() {
                 ))}
             </View>
 
-            {lockedSeconds > 0 ? (
+            {data?.enrollment?.isCompleted ? (
+                <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border, marginTop: 16 }]}>
+                    <Text style={[styles.cardTitle, { color: theme.primary }]}>Quiz Completed ✓</Text>
+                    <Text style={[styles.rule, { color: theme.textSecondary }]}>
+                        You have already completed this quiz.
+                    </Text>
+                    <Pressable
+                        style={({ pressed }) => [
+                            styles.startBtn,
+                            { backgroundColor: theme.buttonPrimary, marginTop: 8, opacity: pressed ? 0.9 : 1 },
+                        ]}
+                        onPress={() => quizId && router.push({ pathname: "/quiz/[id]/winners", params: { id: quizId } } as any)}
+                    >
+                        <Text style={[styles.startText, { color: theme.textInverse }]}>🏆 See Winners</Text>
+                    </Pressable>
+                </View>
+            ) : lockedSeconds > 0 ? (
                 <View style={[styles.startBtn, { alignItems: 'center', paddingVertical: 16 }]}>
                     <Text style={[styles.startText, { color: theme.textSecondary }]}>You are temporarily locked out from attempting this quiz.</Text>
                     <Text style={{ marginTop: 8, color: theme.textMuted }}>{`Try again in ${String(Math.floor(lockedSeconds / 60)).padStart(2, '0')}:${String(lockedSeconds % 60).padStart(2, '0')}`}</Text>

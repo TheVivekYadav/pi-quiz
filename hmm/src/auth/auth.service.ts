@@ -311,4 +311,122 @@ export class AuthService {
       logs: result.rows,
     };
   }
+
+  // ─── Admin session management ────────────────────────────────────────────
+
+  async adminListUsers(page = 1, limit = 50) {
+    const offset = (Math.max(page, 1) - 1) * limit;
+    const result = await this.databaseService.getPool().query(
+      `SELECT u.id, u.roll_number, u.name, u.email, u.role, u.created_at,
+              COUNT(s.id) FILTER (WHERE s.revoked_at IS NULL AND s.is_blocked = FALSE) AS active_sessions,
+              COUNT(s.id) AS total_sessions
+       FROM users u
+       LEFT JOIN user_sessions s ON s.user_id = u.id
+       GROUP BY u.id
+       ORDER BY u.created_at DESC
+       LIMIT $1 OFFSET $2`,
+      [limit, offset],
+    );
+
+    const countRes = await this.databaseService.getPool().query(`SELECT COUNT(*) as count FROM users`);
+
+    return {
+      total: parseInt(countRes.rows[0].count) || 0,
+      page,
+      limit,
+      users: result.rows.map((r: any) => ({
+        userId: r.id,
+        rollNumber: r.roll_number,
+        name: r.name,
+        email: r.email,
+        role: r.role,
+        createdAt: r.created_at,
+        activeSessions: parseInt(r.active_sessions) || 0,
+        totalSessions: parseInt(r.total_sessions) || 0,
+      })),
+    };
+  }
+
+  async adminListUserSessions(targetUserId: number): Promise<SessionInfo[]> {
+    const result = await this.databaseService.getPool().query(
+      `SELECT id, device_name, platform, ip_address, user_agent, created_at,
+              last_seen_at, is_blocked, blocked_at, blocked_reason, revoked_at
+       FROM user_sessions
+       WHERE user_id = $1
+       ORDER BY created_at DESC`,
+      [targetUserId],
+    );
+
+    return result.rows.map((row: any) => ({
+      sessionId: row.id,
+      deviceName: row.device_name,
+      platform: row.platform,
+      ipAddress: row.ip_address,
+      userAgent: row.user_agent,
+      createdAt: row.created_at,
+      lastSeenAt: row.last_seen_at,
+      isBlocked: row.is_blocked,
+      blockedAt: row.blocked_at,
+      blockedReason: row.blocked_reason,
+      revokedAt: row.revoked_at,
+      current: false,
+    }));
+  }
+
+  async adminBlockSession(
+    adminId: number,
+    sessionId: string,
+    reason?: string,
+  ): Promise<{ success: boolean }> {
+    const result = await this.databaseService.getPool().query(
+      `UPDATE user_sessions
+       SET is_blocked = TRUE,
+           blocked_reason = $2,
+           blocked_at = NOW(),
+           revoked_at = COALESCE(revoked_at, NOW())
+       WHERE id = $1
+       RETURNING id, user_id`,
+      [sessionId, reason ?? 'Blocked by admin'],
+    );
+
+    if (!result.rows[0]) {
+      throw new BadRequestException('Session not found');
+    }
+
+    await this.logEvent(
+      'admin_session_blocked',
+      { sessionId, reason: reason ?? 'Blocked by admin', targetUserId: result.rows[0].user_id },
+      adminId,
+      sessionId,
+    );
+    return { success: true };
+  }
+
+  async adminUnblockSession(
+    adminId: number,
+    sessionId: string,
+  ): Promise<{ success: boolean }> {
+    const result = await this.databaseService.getPool().query(
+      `UPDATE user_sessions
+       SET is_blocked = FALSE,
+           blocked_reason = NULL,
+           blocked_at = NULL,
+           revoked_at = NULL
+       WHERE id = $1
+       RETURNING id, user_id`,
+      [sessionId],
+    );
+
+    if (!result.rows[0]) {
+      throw new BadRequestException('Session not found');
+    }
+
+    await this.logEvent(
+      'admin_session_unblocked',
+      { sessionId, targetUserId: result.rows[0].user_id },
+      adminId,
+      sessionId,
+    );
+    return { success: true };
+  }
 }

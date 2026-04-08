@@ -1,5 +1,6 @@
 import { fetchQuizQuestion, submitQuizAnswers } from "@/constants/quiz-api";
 import { getAnswer, getQuizAnswers, setAnswer, setQuizResult } from "@/constants/quiz-session";
+import { useRequireAuth } from "@/hook/useRequireAuth";
 import { useTheme } from "@/hook/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -15,6 +16,7 @@ export default function QuestionScreen() {
     const theme = useTheme();
     const insets = useSafeAreaInsets();
     const router = useRouter();
+    useRequireAuth();
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
@@ -93,24 +95,20 @@ export default function QuestionScreen() {
             const result = await submitQuizAnswers(quizId, getQuizAnswers(quizId));
             setQuizResult(quizId, result);
             router.replace({ pathname: "/quiz/[id]/result", params: { id: quizId } } as any);
+        } catch (err: any) {
+            // Handle lockout / forbidden messages
+            const msg = err?.message || String(err);
+            if (msg.toLowerCase().includes('locked') || msg.toLowerCase().includes('too many attempts') || msg.toLowerCase().includes('already completed')) {
+                Alert.alert('Locked out', msg, [
+                    { text: 'Back to Lobby', onPress: () => router.replace({ pathname: '/quiz/[id]/lobby', params: { id: quizId } } as any) },
+                ]);
+                return;
+            }
+            Alert.alert('Error', msg || 'Failed to submit answers');
         } finally {
             setSubmitting(false);
         }
-    } catch (err: any) {
-        // Handle lockout / forbidden messages
-        const msg = err?.message || String(err);
-        if (msg.toLowerCase().includes('locked') || msg.toLowerCase().includes('too many attempts')) {
-            // Show alert and send user back to lobby
-            Alert.alert('Locked out', msg, [
-                { text: 'Back to Lobby', onPress: () => router.replace({ pathname: '/quiz/[id]/lobby', params: { id: quizId } } as any) },
-            ]);
-            return;
-        }
-
-        Alert.alert('Error', msg || 'Failed to submit answers');
-        return;
-    }
-};
+    };
 
 const timerColor = timeLeft <= 10 ? theme.error : timeLeft <= 20 ? theme.warning : theme.primary;
 

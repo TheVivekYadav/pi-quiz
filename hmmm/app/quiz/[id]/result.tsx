@@ -1,5 +1,6 @@
 import { fetchQuizLeaderboard } from "@/constants/quiz-api";
 import { getQuizResult } from "@/constants/quiz-session";
+import { useRequireAuth } from "@/hook/useRequireAuth";
 import { useTheme } from "@/hook/theme";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
@@ -12,6 +13,7 @@ export default function ResultScreen() {
     const theme = useTheme();
     const insets = useSafeAreaInsets();
     const router = useRouter();
+    useRequireAuth();
 
     const [leaderboard, setLeaderboard] = useState<any[]>([]);
     const result = quizId ? getQuizResult(quizId) : null;
@@ -70,6 +72,13 @@ export default function ResultScreen() {
                     </View>
                 ))}
             </View>
+
+            <Pressable
+                style={[styles.cta, { backgroundColor: theme.buttonPrimary }]}
+                onPress={() => quizId && router.push({ pathname: "/quiz/[id]/winners", params: { id: quizId } } as any)}
+            >
+                <Text style={[styles.ctaText, { color: theme.textInverse }]}>🏆 See Winners</Text>
+            </Pressable>
 
             <Pressable
                 style={[styles.cta, { backgroundColor: theme.buttonPrimary }]}

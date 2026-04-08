@@ -1,5 +1,6 @@
 import { EnrollmentFormField, enrollQuiz, fetchQuizDetail } from "@/constants/quiz-api";
 import { clearQuizAnswers } from "@/constants/quiz-session";
+import { useRequireAuth } from "@/hook/useRequireAuth";
 import { useTheme } from "@/hook/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -23,9 +24,11 @@ export default function QuizDetailScreen() {
     const theme = useTheme();
     const insets = useSafeAreaInsets();
     const router = useRouter();
+    useRequireAuth(`/quiz/${quizId}`);
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [enrolling, setEnrolling] = useState(false);
+    const [alreadyCompleted, setAlreadyCompleted] = useState(false);
 
     // Dynamic form answers keyed by field.id
     const [formAnswers, setFormAnswers] = useState<Record<string, string>>({});
@@ -71,7 +74,13 @@ export default function QuizDetailScreen() {
             clearQuizAnswers(quizId);
             router.push({ pathname: "/quiz/[id]/lobby", params: { id: quizId } } as any);
         } catch (error: any) {
-            Alert.alert("Error", error?.message || "Failed to enroll. Please try again.");
+            const msg: string = error?.message || '';
+            if (msg.toLowerCase().includes('already completed')) {
+                setAlreadyCompleted(true);
+                Alert.alert("Quiz Completed", "You have already completed this quiz.");
+                return;
+            }
+            Alert.alert("Error", msg || "Failed to enroll. Please try again.");
         } finally {
             setEnrolling(false);
         }
@@ -129,6 +138,21 @@ export default function QuizDetailScreen() {
                 )}
 
                 {/* Enrollment section */}
+                {alreadyCompleted ? (
+                    <View style={[styles.formCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                        <Text style={[styles.formTitle, { color: theme.primary }]}>Quiz Completed ✓</Text>
+                        <Text style={[{ color: theme.textSecondary, fontSize: 15, lineHeight: 22 }]}>
+                            You have already completed this quiz. Check the winners board!
+                        </Text>
+                        <Pressable
+                            style={[styles.primaryBtn, { backgroundColor: theme.buttonPrimary, marginTop: 14 }]}
+                            onPress={() => router.push({ pathname: "/quiz/[id]/winners", params: { id: quizId } } as any)}
+                        >
+                            <Text style={[styles.primaryBtnText, { color: theme.textInverse }]}>See Winners</Text>
+                            <Ionicons name="trophy-outline" size={16} color={theme.textInverse} />
+                        </Pressable>
+                    </View>
+                ) : (
                 <View style={[styles.formCard, { backgroundColor: theme.surfaceLight, borderColor: theme.border }]}>
                     <Text style={[styles.formTitle, { color: theme.textPrimary }]}>Secure Your Spot</Text>
 
@@ -229,6 +253,7 @@ export default function QuizDetailScreen() {
                         )}
                     </Pressable>
                 </View>
+                )}
             </ScrollView>
         </KeyboardAvoidingView>
     );
