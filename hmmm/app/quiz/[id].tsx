@@ -1,4 +1,4 @@
-import { enrollQuiz, EnrollmentFormField, fetchQuizDetail } from "@/constants/quiz-api";
+import { EnrollmentFormField, enrollQuiz, fetchQuizDetail } from "@/constants/quiz-api";
 import { clearQuizAnswers } from "@/constants/quiz-session";
 import { useTheme } from "@/hook/theme";
 import { Ionicons } from "@expo/vector-icons";
@@ -10,11 +10,10 @@ import {
     KeyboardAvoidingView,
     Platform,
     Pressable,
-    ScrollView,
-    StyleSheet,
+    ScrollView, Share, StyleSheet,
     Text,
     TextInput,
-    View,
+    View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -41,6 +40,17 @@ export default function QuizDetailScreen() {
 
     const enrollmentForm: { formId: string; fields: EnrollmentFormField[] } | null =
         data?.enrollmentForm ?? null;
+
+    const shareQuizUrl = async () => {
+        if (!quizId) return;
+        const appUrl = `hmmm://quiz/${quizId}/lobby`;
+        const webUrl = `https://pit.engineer/quiz/${quizId}/lobby`;
+        try {
+            await Share.share({ message: `Join quiz:\n\nApp: ${appUrl}\nWeb: ${webUrl}` });
+        } catch (err) {
+            console.error('Failed to share quiz url', err);
+        }
+    };
 
     const handleEnroll = async () => {
         if (!quizId) return;
@@ -94,6 +104,10 @@ export default function QuizDetailScreen() {
                 <Text style={[styles.meta, { color: theme.textSecondary }]}>
                     {data?.category} • {new Date(data?.startsAtIso).toLocaleString()}
                 </Text>
+                <Pressable onPress={shareQuizUrl} style={{ alignSelf: 'flex-start', marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Ionicons name="share-social-outline" size={16} color={theme.primary} />
+                    <Text style={{ color: theme.primary, fontWeight: '700' }}>Share</Text>
+                </Pressable>
                 <Text style={[styles.desc, { color: theme.textSecondary }]}>{data?.description}</Text>
 
                 {(data?.expectations ?? []).length > 0 && (
@@ -173,10 +187,10 @@ export default function QuizDetailScreen() {
                                                 field.type === "email"
                                                     ? "you@example.com"
                                                     : field.type === "phone"
-                                                    ? "+91 98765 43210"
-                                                    : field.type === "number"
-                                                    ? "0"
-                                                    : field.label
+                                                        ? "+91 98765 43210"
+                                                        : field.type === "number"
+                                                            ? "0"
+                                                            : field.label
                                             }
                                             placeholderTextColor={theme.textMuted}
                                             value={formAnswers[field.id] ?? ""}
@@ -187,10 +201,10 @@ export default function QuizDetailScreen() {
                                                 field.type === "email"
                                                     ? "email-address"
                                                     : field.type === "phone"
-                                                    ? "phone-pad"
-                                                    : field.type === "number"
-                                                    ? "numeric"
-                                                    : "default"
+                                                        ? "phone-pad"
+                                                        : field.type === "number"
+                                                            ? "numeric"
+                                                            : "default"
                                             }
                                             autoCapitalize={field.type === "email" ? "none" : "sentences"}
                                         />

@@ -224,6 +224,14 @@ export const adminDeleteQuiz = (quizId: string) =>
     })
   );
 
+export const adminStartQuiz = (quizId: string) =>
+  json<{ success: boolean }>(
+    fetch(apiUrl(`/quiz/${quizId}/start`), {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    })
+  );
+
 export const adminSetEnrollmentForm = (quizId: string, fields: EnrollmentFormField[]) =>
   json<{ formId: string; fields: EnrollmentFormField[] }>(
     fetch(apiUrl(`/quiz/${quizId}/enrollment-form`), {

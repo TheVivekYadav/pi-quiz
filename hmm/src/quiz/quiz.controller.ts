@@ -208,4 +208,11 @@ export class QuizController {
   getQuizDetail(@Param('quizId') quizId: string) {
     return this.quizService.getQuizDetail(quizId);
   }
+
+  // Admin: start quiz immediately
+  @Post(':quizId/start')
+  async startQuiz(@Param('quizId') quizId: string, @Headers('Authorization') authHeader: string) {
+    await this.requireAdmin(authHeader);
+    return this.quizService.startQuiz(quizId);
+  }
 }

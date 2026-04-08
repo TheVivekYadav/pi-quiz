@@ -15,6 +15,7 @@ export default function LobbyScreen() {
 
     const [data, setData] = useState<any>(null);
     const [seconds, setSeconds] = useState(0);
+    const [lockedSeconds, setLockedSeconds] = useState(0);
 
     useEffect(() => {
         if (!quizId) return;
@@ -23,17 +24,25 @@ export default function LobbyScreen() {
             const payload = await fetchQuizLobby(quizId);
             setData(payload);
             setSeconds(payload.startsInSeconds ?? 0);
+            setLockedSeconds(payload.enrollment?.lockedSeconds ?? 0);
         };
 
         run();
     }, [quizId]);
 
     useEffect(() => {
-        if (seconds <= 0) return;
-
-        const timer = setInterval(() => setSeconds((prev) => Math.max(0, prev - 1)), 1000);
-        return () => clearInterval(timer);
+        if (seconds > 0) {
+            const timer = setInterval(() => setSeconds((prev) => Math.max(0, prev - 1)), 1000);
+            return () => clearInterval(timer);
+        }
+        return;
     }, [seconds]);
+
+    useEffect(() => {
+        if (lockedSeconds <= 0) return;
+        const timer = setInterval(() => setLockedSeconds((prev) => Math.max(0, prev - 1)), 1000);
+        return () => clearInterval(timer);
+    }, [lockedSeconds]);
 
     if (!data) {
         return (
@@ -86,15 +95,29 @@ export default function LobbyScreen() {
                 ))}
             </View>
 
-            <Pressable
-                style={[styles.startBtn, { backgroundColor: theme.buttonPrimary }]}
-                onPress={() =>
-                    quizId &&
-                    router.replace({ pathname: "/quiz/[id]/question/[index]", params: { id: quizId, index: "1" } } as any)
-                }
-            >
-                <Text style={[styles.startText, { color: theme.textInverse }]}>Start Quiz</Text>
-            </Pressable>
+            {lockedSeconds > 0 ? (
+                <View style={[styles.startBtn, { alignItems: 'center', paddingVertical: 16 }]}> 
+                    <Text style={[styles.startText, { color: theme.textSecondary }]}>You are temporarily locked out from attempting this quiz.</Text>
+                    <Text style={{ marginTop: 8, color: theme.textMuted }}>{`Try again in ${String(Math.floor(lockedSeconds/60)).padStart(2,'0')}:${String(lockedSeconds%60).padStart(2,'0')}`}</Text>
+                </View>
+            ) : (
+                <Pressable
+                    style={({ pressed }) => [
+                        styles.startBtn,
+                        {
+                            backgroundColor: seconds > 0 ? theme.buttonDisabled : theme.buttonPrimary,
+                            opacity: pressed ? 0.95 : 1,
+                        },
+                    ]}
+                    disabled={seconds > 0}
+                    onPress={() =>
+                        quizId &&
+                        router.replace({ pathname: "/quiz/[id]/question/[index]", params: { id: quizId, index: "1" } } as any)
+                    }
+                >
+                    <Text style={[styles.startText, { color: theme.textInverse }]}>{seconds > 0 ? `Starting in ${mm}:${ss}` : 'Start Quiz'}</Text>
+                </Pressable>
+            )}
         </ScrollView>
     );
 }

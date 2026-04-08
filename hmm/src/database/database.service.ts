@@ -129,6 +129,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       );
     `);
 
+    // Add lockout and attempt tracking to enrollments
+    await this.pool.query(`ALTER TABLE quiz_enrollments ADD COLUMN IF NOT EXISTS attempts_count INTEGER NOT NULL DEFAULT 0;`);
+    await this.pool.query(`ALTER TABLE quiz_enrollments ADD COLUMN IF NOT EXISTS locked_until TIMESTAMPTZ;`);
+
     // Quiz attempts table
     await this.pool.query(`
       CREATE TABLE IF NOT EXISTS quiz_attempts (

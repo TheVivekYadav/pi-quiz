@@ -66,7 +66,7 @@ export default function ResultScreen() {
                     <View key={`${row.rank}-${row.user}`} style={[styles.row, { borderColor: theme.border, backgroundColor: row.currentUser ? theme.primaryMuted : theme.surfaceLight }]}>
                         <Text style={[styles.rank, { color: theme.textSecondary }]}>{String(row.rank).padStart(2, "0")}</Text>
                         <Text style={[styles.user, { color: theme.textPrimary }]}>{row.user}{row.currentUser ? " (You)" : ""}</Text>
-                        <Text style={[styles.score, { color: theme.primary }]}>{row.score}/10</Text>
+                        <Text style={[styles.score, { color: theme.primary }]}>{row.score}/{result.total}</Text>
                     </View>
                 ))}
             </View>

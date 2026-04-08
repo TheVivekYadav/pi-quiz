@@ -29,9 +29,24 @@ export async function loadPersistedAuth(): Promise<void> {
       const parsed: StoredAuth = JSON.parse(raw);
       _token = parsed.token ?? null;
       _user = parsed.user ?? null;
+      return;
     }
   } catch {
-    // Ignore — fresh session
+    // Ignore — try fallback
+  }
+
+  // Fallback for web builds when AsyncStorage may not be available
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed: StoredAuth = JSON.parse(raw);
+        _token = parsed.token ?? null;
+        _user = parsed.user ?? null;
+      }
+    }
+  } catch {
+    // ignore
   }
 }
 
@@ -48,6 +63,11 @@ export function setAuthToken(
   _user = { userId, rollNumber, role, sessionId, branch, year };
   const payload: StoredAuth = { token, user: _user };
   AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(payload)).catch(() => {});
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    }
+  } catch {}
 }
 
 export function getAuthToken(): string | null {
@@ -66,6 +86,11 @@ export function clearAuth() {
   _token = null;
   _user = null;
   AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.removeItem(STORAGE_KEY);
+    }
+  } catch {}
 }
 
 export function isAdmin(): boolean {

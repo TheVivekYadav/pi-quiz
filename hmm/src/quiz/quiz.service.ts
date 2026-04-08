@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { DatabaseService } from '../database/database.service.js';
 
@@ -270,6 +270,10 @@ export class QuizService {
     );
     const waitingCount = parseInt(waitingCountResult.rows[0].count) || 0;
 
+    const enrollmentRow = enrollmentResult.rows[0];
+    const lockedUntilIso = enrollmentRow.locked_until ? new Date(enrollmentRow.locked_until).toISOString() : null;
+    const lockedSeconds = enrollmentRow.locked_until ? Math.max(0, Math.ceil((new Date(enrollmentRow.locked_until).getTime() - Date.now()) / 1000)) : 0;
+
     return {
       quizTitle: quizResult.rows[0].title,
       startsInSeconds,
@@ -286,6 +290,12 @@ export class QuizService {
           status: 'ready',
         })),
       },
+      enrollment: {
+        attemptsCount: parseInt(enrollmentRow.attempts_count) || 0,
+        lockedUntilIso,
+        lockedSeconds,
+        maxAttempts: 2,
+      },
     };
   }
 
@@ -295,7 +305,14 @@ export class QuizService {
     questionIndex: number,
   ): Promise<QuizQuestionPayload> {
     const pool = this.databaseService.getPool();
-
+    // Ensure quiz has started
+    const quizStartRes = await pool.query(`SELECT starts_at FROM quizzes WHERE id = $1`, [quizId]);
+    if (!quizStartRes.rows[0]) throw new NotFoundException('Quiz not found');
+    const startsAt = new Date(quizStartRes.rows[0].starts_at).getTime();
+    const now = Date.now();
+    if (now < startsAt) {
+      throw new ForbiddenException('Quiz has not started yet');
+    }
     // Get total questions
     const countResult = await pool.query(
       `SELECT COUNT(*) as total FROM quiz_questions WHERE quiz_id = $1`,
@@ -338,6 +355,38 @@ export class QuizService {
     answers: Record<string, string>,
   ): Promise<QuizSubmitPayload> {
     const pool = this.databaseService.getPool();
+
+    // Ensure quiz has started before accepting submissions
+    const quizStartRes = await pool.query(`SELECT starts_at FROM quizzes WHERE id = $1`, [quizId]);
+    if (!quizStartRes.rows[0]) throw new NotFoundException('Quiz not found');
+    const startsAt = new Date(quizStartRes.rows[0].starts_at).getTime();
+    const now = Date.now();
+    if (now < startsAt) {
+      throw new ForbiddenException('Quiz has not started yet');
+    }
+
+    // Check enrollment attempt counts and lockout
+    const enrolRes = await pool.query(
+      `SELECT id, attempts_count, locked_until FROM quiz_enrollments WHERE user_id = $1 AND quiz_id = $2`,
+      [userId, quizId],
+    );
+    if (!enrolRes.rows[0]) {
+      throw new BadRequestException('User not enrolled in this quiz');
+    }
+
+    const enrollment = enrolRes.rows[0];
+    const MAX_ATTEMPTS = 2;
+    const LOCK_MINUTES = 15;
+
+    if (enrollment.locked_until) {
+      const lockedUntil = new Date(enrollment.locked_until).getTime();
+      if (Date.now() < lockedUntil) {
+        const remainingMs = lockedUntil - Date.now();
+        const remainingSeconds = Math.ceil(remainingMs / 1000);
+        throw new ForbiddenException(`Too many attempts. Locked for ${remainingSeconds} seconds.`);
+      }
+    }
+
 
     // Get all questions for the quiz
     const questionsResult = await pool.query(
@@ -382,6 +431,27 @@ export class QuizService {
           [randomUUID(), attemptId, question.id, selectedOptionId],
         );
       }
+    }
+
+    // Increment attempts_count for this enrollment
+    await pool.query(
+      `UPDATE quiz_enrollments SET attempts_count = COALESCE(attempts_count,0) + 1, locked_until = NULL WHERE user_id = $1 AND quiz_id = $2`,
+      [userId, quizId],
+    );
+
+    // If attempts reached limit, set temporary lockout for subsequent attempts
+    const attemptsRow = await pool.query(
+      `SELECT attempts_count FROM quiz_enrollments WHERE user_id = $1 AND quiz_id = $2`,
+      [userId, quizId],
+    );
+    const attemptsCount = parseInt(attemptsRow.rows[0].attempts_count) || 0;
+    const MAX_ATTEMPTS = 2;
+    const LOCK_MINUTES = 15;
+    if (attemptsCount >= MAX_ATTEMPTS) {
+      await pool.query(
+        `UPDATE quiz_enrollments SET locked_until = NOW() + ($1 || ' minutes')::interval WHERE user_id = $2 AND quiz_id = $3`,
+        [String(LOCK_MINUTES), userId, quizId],
+      );
     }
 
     // Determine badge
@@ -675,6 +745,17 @@ export class QuizService {
     );
 
     return { formId, fields };
+  }
+
+  /** Admin: mark quiz as started immediately (sets starts_at = now) */
+  async startQuiz(quizId: string): Promise<{ success: boolean }> {
+    const pool = this.databaseService.getPool();
+
+    const check = await pool.query(`SELECT id FROM quizzes WHERE id = $1`, [quizId]);
+    if (!check.rows[0]) throw new NotFoundException('Quiz not found');
+
+    await pool.query(`UPDATE quizzes SET starts_at = NOW() WHERE id = $1`, [quizId]);
+    return { success: true };
   }
 
   /** Public: get the enrollment form (fields only) for a quiz */

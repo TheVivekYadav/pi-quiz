@@ -4,7 +4,7 @@ import { useTheme } from "@/hook/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function QuestionScreen() {
@@ -95,6 +95,20 @@ export default function QuestionScreen() {
             router.replace({ pathname: "/quiz/[id]/result", params: { id: quizId } } as any);
         } finally {
             setSubmitting(false);
+        }
+        } catch (err: any) {
+            // Handle lockout / forbidden messages
+            const msg = err?.message || String(err);
+            if (msg.toLowerCase().includes('locked') || msg.toLowerCase().includes('too many attempts')) {
+                // Show alert and send user back to lobby
+                Alert.alert('Locked out', msg, [
+                    { text: 'Back to Lobby', onPress: () => router.replace({ pathname: '/quiz/[id]/lobby', params: { id: quizId } } as any) },
+                ]);
+                return;
+            }
+
+            Alert.alert('Error', msg || 'Failed to submit answers');
+            return;
         }
     };
 
