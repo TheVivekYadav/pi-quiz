@@ -137,3 +137,60 @@ export async function getAuthLogs(token: string, limit = 100): Promise<AuthLogRe
     })
   );
 }
+
+// ─── Admin APIs ──────────────────────────────────────────────────────────────
+
+export interface AdminUserItem {
+  userId: number;
+  rollNumber: string;
+  name?: string | null;
+  email?: string | null;
+  role: string;
+  createdAt: string;
+  activeSessions: number;
+  totalSessions: number;
+}
+
+export interface AdminUserListResponse {
+  total: number;
+  page: number;
+  limit: number;
+  users: AdminUserItem[];
+}
+
+export async function adminListUsers(token: string, page = 1, limit = 50): Promise<AdminUserListResponse> {
+  return json(
+    fetch(apiUrl(`/auth/admin/users?page=${page}&limit=${limit}`), {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+  );
+}
+
+export async function adminListUserSessions(token: string, userId: number): Promise<SessionItem[]> {
+  return json(
+    fetch(apiUrl(`/auth/admin/users/${userId}/sessions`), {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+  );
+}
+
+export async function adminBlockUserSession(token: string, sessionId: string, reason?: string): Promise<{ success: boolean }> {
+  return json(
+    fetch(apiUrl(`/auth/admin/sessions/${sessionId}/block`), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ reason }),
+    })
+  );
+}
+
+export async function adminUnblockUserSession(token: string, sessionId: string): Promise<{ success: boolean }> {
+  return json(
+    fetch(apiUrl(`/auth/admin/sessions/${sessionId}/unblock`), {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+  );
+}

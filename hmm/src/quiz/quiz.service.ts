@@ -48,7 +48,7 @@ export interface QuizSubmitPayload {
   breakdown: {
     correct: number;
     incorrect: number;
-    timeTaken: string;
+    timeTakenMinutes: number;
   };
   badge: string;
   percentile: number;
@@ -115,8 +115,55 @@ export class QuizService {
     };
   }
 
-  async getReportsOverview(userId: number) {
+  async getReportsOverview(userId: number, role: 'admin' | 'user' = 'user') {
     const pool = this.databaseService.getPool();
+
+    // ─── Admin: platform-wide overview ──────────────────────────────────────
+    if (role === 'admin') {
+      const [usersRow, quizzesRow, enrollRow, attemptsRow] = await Promise.all([
+        pool.query(`SELECT COUNT(*) as count FROM users`),
+        pool.query(`SELECT COUNT(*) as count FROM quizzes`),
+        pool.query(`SELECT COUNT(*) as count FROM quiz_enrollments`),
+        pool.query(`SELECT COUNT(*) as count, COALESCE(AVG(accuracy_rate),0) as avg_accuracy FROM quiz_attempts`),
+      ]);
+
+      const perQuizResult = await pool.query(
+        `SELECT q.id, q.title, q.category, q.starts_at,
+                COUNT(DISTINCT qe.user_id) AS enrolled,
+                COUNT(DISTINCT qa.id) AS attempts,
+                COALESCE(MAX(qa.score),0) AS top_score,
+                q.winners_declared_at
+         FROM quizzes q
+         LEFT JOIN quiz_enrollments qe ON qe.quiz_id = q.id
+         LEFT JOIN quiz_attempts qa ON qa.quiz_id = q.id
+         GROUP BY q.id
+         ORDER BY q.starts_at DESC
+         LIMIT 20`,
+      );
+
+      return {
+        admin: true,
+        metrics: {
+          totalUsers: parseInt(usersRow.rows[0].count) || 0,
+          totalQuizzes: parseInt(quizzesRow.rows[0].count) || 0,
+          totalEnrolled: parseInt(enrollRow.rows[0].count) || 0,
+          totalAttempts: parseInt(attemptsRow.rows[0].count) || 0,
+          avgAccuracy: Math.round(parseFloat(attemptsRow.rows[0].avg_accuracy) || 0),
+        },
+        quizSummaries: perQuizResult.rows.map((r: any) => ({
+          id: r.id,
+          title: r.title,
+          category: r.category,
+          startsAtIso: new Date(r.starts_at).toISOString(),
+          enrolled: parseInt(r.enrolled) || 0,
+          attempts: parseInt(r.attempts) || 0,
+          topScore: parseInt(r.top_score) || 0,
+          winnersDeclared: !!r.winners_declared_at,
+        })),
+      };
+    }
+
+    // ─── User: personal overview ─────────────────────────────────────────────
 
     // Get user's statistics
     const attemptsResult = await pool.query(
@@ -233,7 +280,8 @@ export class QuizService {
 
     // Check if user is enrolled
     const enrollmentResult = await pool.query(
-      `SELECT * FROM quiz_enrollments WHERE user_id = $1 AND quiz_id = $2`,
+      `SELECT id, attempts_count, locked_until, is_completed, completed_at
+       FROM quiz_enrollments WHERE user_id = $1 AND quiz_id = $2`,
       [userId, quizId],
     );
 
@@ -295,6 +343,8 @@ export class QuizService {
         lockedUntilIso,
         lockedSeconds,
         maxAttempts: 2,
+        isCompleted: !!enrollmentRow.is_completed,
+        completedAt: enrollmentRow.completed_at ? new Date(enrollmentRow.completed_at).toISOString() : null,
       },
     };
   }
@@ -312,6 +362,14 @@ export class QuizService {
     const now = Date.now();
     if (now < startsAt) {
       throw new ForbiddenException('Quiz has not started yet');
+    }
+    // Block completed users from fetching questions
+    const completedCheck = await pool.query(
+      `SELECT is_completed FROM quiz_enrollments WHERE user_id = $1 AND quiz_id = $2`,
+      [userId, quizId],
+    );
+    if (completedCheck.rows[0]?.is_completed) {
+      throw new ForbiddenException('You have already completed this quiz');
     }
     // Get total questions
     const countResult = await pool.query(
@@ -367,7 +425,7 @@ export class QuizService {
 
     // Check enrollment attempt counts and lockout
     const enrolRes = await pool.query(
-      `SELECT id, attempts_count, locked_until FROM quiz_enrollments WHERE user_id = $1 AND quiz_id = $2`,
+      `SELECT id, attempts_count, locked_until, is_completed FROM quiz_enrollments WHERE user_id = $1 AND quiz_id = $2`,
       [userId, quizId],
     );
     if (!enrolRes.rows[0]) {
@@ -377,6 +435,11 @@ export class QuizService {
     const enrollment = enrolRes.rows[0];
     const MAX_ATTEMPTS = 2;
     const LOCK_MINUTES = 15;
+
+    // Block permanently completed users
+    if (enrollment.is_completed) {
+      throw new ForbiddenException('You have already completed this quiz');
+    }
 
     if (enrollment.locked_until) {
       const lockedUntil = new Date(enrollment.locked_until).getTime();
@@ -439,17 +502,18 @@ export class QuizService {
       [userId, quizId],
     );
 
-    // If attempts reached limit, set temporary lockout for subsequent attempts
+    // If attempts reached limit, permanently mark as completed (and set a short lockout as belt-and-suspenders)
     const attemptsRow = await pool.query(
       `SELECT attempts_count FROM quiz_enrollments WHERE user_id = $1 AND quiz_id = $2`,
       [userId, quizId],
     );
     const attemptsCount = parseInt(attemptsRow.rows[0].attempts_count) || 0;
-    const MAX_ATTEMPTS = 2;
-    const LOCK_MINUTES = 15;
     if (attemptsCount >= MAX_ATTEMPTS) {
       await pool.query(
-        `UPDATE quiz_enrollments SET locked_until = NOW() + ($1 || ' minutes')::interval WHERE user_id = $2 AND quiz_id = $3`,
+        `UPDATE quiz_enrollments
+         SET is_completed = TRUE, completed_at = NOW(),
+             locked_until = NOW() + ($1 || ' minutes')::interval
+         WHERE user_id = $2 AND quiz_id = $3`,
         [String(LOCK_MINUTES), userId, quizId],
       );
     }
@@ -542,6 +606,15 @@ export class QuizService {
     }
 
     try {
+      // Check if user has already completed this quiz
+      const existingEnroll = await pool.query(
+        `SELECT is_completed FROM quiz_enrollments WHERE user_id = $1 AND quiz_id = $2`,
+        [userId, quizId],
+      );
+      if (existingEnroll.rows[0]?.is_completed) {
+        throw new BadRequestException('You have already completed this quiz and cannot re-enroll');
+      }
+
       // Save form response first (if applicable)
       let formResponseId: string | null = null;
       if (enrollmentFormId && formAnswers) {
@@ -756,6 +829,165 @@ export class QuizService {
 
     await pool.query(`UPDATE quizzes SET starts_at = NOW() WHERE id = $1`, [quizId]);
     return { success: true };
+  }
+
+  // ─── Winners & Reports ───────────────────────────────────────────────────
+
+  /** Admin: officially declare winners for a quiz (top-3 by max score). */
+  async adminDeclareWinners(quizId: string, adminId: number) {
+    const pool = this.databaseService.getPool();
+
+    const quizRes = await pool.query(
+      `SELECT id, title, starts_at, winners_declared_at FROM quizzes WHERE id = $1`,
+      [quizId],
+    );
+    if (!quizRes.rows[0]) throw new NotFoundException('Quiz not found');
+
+    const quiz = quizRes.rows[0];
+    if (quiz.winners_declared_at) {
+      throw new BadRequestException('Winners have already been declared for this quiz');
+    }
+
+    const startsAt = new Date(quiz.starts_at).getTime();
+    if (Date.now() < startsAt) {
+      throw new BadRequestException('Cannot declare winners before the quiz has started');
+    }
+
+    // Fetch top-3 participants by max score
+    const topResult = await pool.query(
+      `SELECT u.id as user_id, u.name, u.roll_number, MAX(qa.score) as score,
+              ROW_NUMBER() OVER (ORDER BY MAX(qa.score) DESC) as rank
+       FROM quiz_attempts qa
+       JOIN users u ON qa.user_id = u.id
+       WHERE qa.quiz_id = $1
+       GROUP BY u.id, u.name, u.roll_number
+       ORDER BY score DESC
+       LIMIT 3`,
+      [quizId],
+    );
+
+    await pool.query(
+      `UPDATE quizzes SET winners_declared_at = NOW(), winners_declared_by = $2 WHERE id = $1`,
+      [quizId, adminId],
+    );
+
+    return {
+      success: true,
+      quizTitle: quiz.title,
+      winners: topResult.rows.map((r: any) => ({
+        rank: parseInt(r.rank),
+        user: r.name || r.roll_number,
+        rollNumber: r.roll_number,
+        score: parseInt(r.score) || 0,
+      })),
+    };
+  }
+
+  /** Get officially declared winners for a quiz. */
+  async getWinners(quizId: string) {
+    const pool = this.databaseService.getPool();
+
+    const quizRes = await pool.query(
+      `SELECT id, title, winners_declared_at FROM quizzes WHERE id = $1`,
+      [quizId],
+    );
+    if (!quizRes.rows[0]) throw new NotFoundException('Quiz not found');
+
+    const quiz = quizRes.rows[0];
+    if (!quiz.winners_declared_at) {
+      return { declared: false, quizTitle: quiz.title, winners: [] };
+    }
+
+    const topResult = await pool.query(
+      `SELECT u.name, u.roll_number, MAX(qa.score) as score,
+              ROW_NUMBER() OVER (ORDER BY MAX(qa.score) DESC) as rank
+       FROM quiz_attempts qa
+       JOIN users u ON qa.user_id = u.id
+       WHERE qa.quiz_id = $1
+       GROUP BY u.name, u.roll_number
+       ORDER BY score DESC
+       LIMIT 3`,
+      [quizId],
+    );
+
+    return {
+      declared: true,
+      declaredAt: new Date(quiz.winners_declared_at).toISOString(),
+      quizTitle: quiz.title,
+      winners: topResult.rows.map((r: any) => ({
+        rank: parseInt(r.rank),
+        user: r.name || r.roll_number,
+        rollNumber: r.roll_number,
+        score: parseInt(r.score) || 0,
+      })),
+    };
+  }
+
+  /** Admin: detailed report for a single quiz. */
+  async adminGetQuizReport(quizId: string) {
+    const pool = this.databaseService.getPool();
+
+    const quizRes = await pool.query(
+      `SELECT id, title, category, level, starts_at, duration_minutes,
+              winners_declared_at, winners_declared_by
+       FROM quizzes WHERE id = $1`,
+      [quizId],
+    );
+    if (!quizRes.rows[0]) throw new NotFoundException('Quiz not found');
+    const quiz = quizRes.rows[0];
+
+    const [enrollRow, attemptsRow, topScorersRes] = await Promise.all([
+      pool.query(
+        `SELECT COUNT(*) as total, SUM(CASE WHEN is_completed THEN 1 ELSE 0 END) as completed
+         FROM quiz_enrollments WHERE quiz_id = $1`,
+        [quizId],
+      ),
+      pool.query(
+        `SELECT COUNT(*) as total, COALESCE(AVG(score),0) as avg_score, COALESCE(MAX(score),0) as max_score
+         FROM quiz_attempts WHERE quiz_id = $1`,
+        [quizId],
+      ),
+      pool.query(
+        `SELECT u.name, u.roll_number, MAX(qa.score) as score,
+                ROW_NUMBER() OVER (ORDER BY MAX(qa.score) DESC) as rank
+         FROM quiz_attempts qa
+         JOIN users u ON qa.user_id = u.id
+         WHERE qa.quiz_id = $1
+         GROUP BY u.name, u.roll_number
+         ORDER BY score DESC
+         LIMIT 10`,
+        [quizId],
+      ),
+    ]);
+
+    const winnerInfo = await this.getWinners(quizId);
+
+    return {
+      quiz: {
+        id: quiz.id,
+        title: quiz.title,
+        category: quiz.category,
+        level: quiz.level,
+        startsAtIso: new Date(quiz.starts_at).toISOString(),
+        durationMinutes: quiz.duration_minutes,
+        winnersDeclared: !!quiz.winners_declared_at,
+        winnersDeclaredAt: quiz.winners_declared_at ? new Date(quiz.winners_declared_at).toISOString() : null,
+      },
+      stats: {
+        totalEnrolled: parseInt(enrollRow.rows[0].total) || 0,
+        totalCompleted: parseInt(enrollRow.rows[0].completed) || 0,
+        totalAttempts: parseInt(attemptsRow.rows[0].total) || 0,
+        avgScore: Math.round(parseFloat(attemptsRow.rows[0].avg_score) || 0),
+        maxScore: parseInt(attemptsRow.rows[0].max_score) || 0,
+      },
+      topScorers: topScorersRes.rows.map((r: any) => ({
+        rank: parseInt(r.rank),
+        user: r.name || r.roll_number,
+        rollNumber: r.roll_number,
+        score: parseInt(r.score) || 0,
+      })),
+      winners: winnerInfo,
+    };
   }
 
   /** Public: get the enrollment form (fields only) for a quiz */

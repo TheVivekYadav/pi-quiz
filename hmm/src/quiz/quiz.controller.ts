@@ -48,8 +48,12 @@ export class QuizController {
 
   @Get('reports/overview')
   async getReportsOverview(@Headers('Authorization') authHeader: string) {
-    const userId = await this.getUserId(authHeader);
-    return this.quizService.getReportsOverview(userId);
+    const token = this.extractToken(authHeader);
+    if (!token) throw new BadRequestException('Missing authorization token');
+    const userId = await this.authService.getUserId(token);
+    if (!userId) throw new BadRequestException('Invalid authorization token');
+    const isAdmin = await this.authService.isAdmin(token);
+    return this.quizService.getReportsOverview(userId, isAdmin ? 'admin' : 'user');
   }
 
   @Get('upcoming')
@@ -214,5 +218,35 @@ export class QuizController {
   async startQuiz(@Param('quizId') quizId: string, @Headers('Authorization') authHeader: string) {
     await this.requireAdmin(authHeader);
     return this.quizService.startQuiz(quizId);
+  }
+
+  // Admin: declare winners for a quiz
+  @Post(':quizId/declare-winners')
+  async declareWinners(
+    @Param('quizId') quizId: string,
+    @Headers('Authorization') authHeader: string,
+  ) {
+    const adminId = await this.requireAdmin(authHeader);
+    return this.quizService.adminDeclareWinners(quizId, adminId);
+  }
+
+  // Any authenticated user: get declared winners
+  @Get(':quizId/winners')
+  async getWinners(
+    @Param('quizId') quizId: string,
+    @Headers('Authorization') authHeader: string,
+  ) {
+    await this.getUserId(authHeader);
+    return this.quizService.getWinners(quizId);
+  }
+
+  // Admin: full quiz report
+  @Get(':quizId/report')
+  async getQuizReport(
+    @Param('quizId') quizId: string,
+    @Headers('Authorization') authHeader: string,
+  ) {
+    await this.requireAdmin(authHeader);
+    return this.quizService.adminGetQuizReport(quizId);
   }
 }

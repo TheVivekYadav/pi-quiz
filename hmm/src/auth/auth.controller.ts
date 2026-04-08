@@ -2,9 +2,11 @@ import {
     BadRequestException,
     Body,
     Controller,
+    ForbiddenException,
     Get,
     Headers,
     Param,
+    ParseIntPipe,
     Post,
     Query,
     Req,
@@ -165,6 +167,55 @@ export class AuthController {
     }
     const parsedLimit = Number(limit ?? 100);
     return this.authService.getLogs(auth.userId, auth.role, parsedLimit, rollNumber);
+  }
+
+  // ─── Admin endpoints ─────────────────────────────────────────────────────
+
+  private async requireAdmin(authHeader: string): Promise<number> {
+    const token = this.extractToken(authHeader);
+    if (!token) throw new BadRequestException('Missing authorization token');
+    const auth = await this.authService.verifyToken(token);
+    if (!auth) throw new BadRequestException('Invalid authorization token');
+    if (auth.role !== 'admin') throw new ForbiddenException('Admin access required');
+    return auth.userId;
+  }
+
+  @Get('admin/users')
+  async adminListUsers(
+    @Headers('Authorization') authHeader: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    await this.requireAdmin(authHeader);
+    return this.authService.adminListUsers(Number(page ?? 1), Number(limit ?? 50));
+  }
+
+  @Get('admin/users/:userId/sessions')
+  async adminListUserSessions(
+    @Param('userId', ParseIntPipe) userId: number,
+    @Headers('Authorization') authHeader: string,
+  ) {
+    await this.requireAdmin(authHeader);
+    return this.authService.adminListUserSessions(userId);
+  }
+
+  @Post('admin/sessions/:sessionId/block')
+  async adminBlockSession(
+    @Param('sessionId') sessionId: string,
+    @Headers('Authorization') authHeader: string,
+    @Body() body: { reason?: string },
+  ) {
+    const adminId = await this.requireAdmin(authHeader);
+    return this.authService.adminBlockSession(adminId, sessionId, body?.reason);
+  }
+
+  @Post('admin/sessions/:sessionId/unblock')
+  async adminUnblockSession(
+    @Param('sessionId') sessionId: string,
+    @Headers('Authorization') authHeader: string,
+  ) {
+    const adminId = await this.requireAdmin(authHeader);
+    return this.authService.adminUnblockSession(adminId, sessionId);
   }
 
   private extractToken(authHeader: string): string | null {

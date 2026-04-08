@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { login } from '../constants/auth-api';
@@ -8,6 +8,7 @@ import { useTheme } from '../hook/theme';
 export default function LoginScreen() {
     const colors = useTheme();
     const router = useRouter();
+    const { redirectTo } = useLocalSearchParams<{ redirectTo?: string }>();
     const [rollNumber, setRollNumber] = useState('');
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
@@ -43,8 +44,12 @@ export default function LoginScreen() {
             // Store auth token and user info
             setAuthToken(result.token, result.userId, result.rollNumber, result.role, result.sessionId, branch || undefined, numericYear);
 
-            // Navigate to dashboard
-            router.replace('/(tabs)' as any);
+            // Navigate back to the original destination or dashboard
+            if (redirectTo) {
+                router.replace(redirectTo as any);
+            } else {
+                router.replace('/(tabs)' as any);
+            }
         } catch (error) {
             console.error('Login failed:', error);
             Alert.alert('Login Error', 'Failed to login. Please try again.');

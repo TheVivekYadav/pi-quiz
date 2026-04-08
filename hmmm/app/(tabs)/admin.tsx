@@ -1,10 +1,11 @@
-import { isAdmin } from "@/constants/auth-session";
-import { adminDeleteQuiz, adminListQuizzes, QuizListItem } from "@/constants/quiz-api";
+import { isAdmin, getAuthToken } from "@/constants/auth-session";
+import { adminDeleteQuiz, adminDeclareWinners, adminListQuizzes, QuizListItem } from "@/constants/quiz-api";
+import { adminListUsers, AdminUserItem } from "@/constants/auth-api";
 import { useTheme } from "@/hook/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function AdminTab() {
@@ -14,6 +15,12 @@ export default function AdminTab() {
 
     const [quizzes, setQuizzes] = useState<QuizListItem[]>([]);
     const [loadingQuizzes, setLoadingQuizzes] = useState(true);
+    const [declaringId, setDeclaringId] = useState<string | null>(null);
+
+    // User sessions section
+    const [users, setUsers] = useState<AdminUserItem[]>([]);
+    const [loadingUsers, setLoadingUsers] = useState(true);
+    const [userSearch, setUserSearch] = useState("");
 
     useEffect(() => {
         if (!isAdmin()) return;
@@ -21,6 +28,16 @@ export default function AdminTab() {
             .then(setQuizzes)
             .catch((err: any) => Alert.alert("Error", err?.message || "Failed to load quizzes."))
             .finally(() => setLoadingQuizzes(false));
+
+        const token = getAuthToken();
+        if (token) {
+            adminListUsers(token)
+                .then((res) => setUsers(res.users))
+                .catch(() => {})
+                .finally(() => setLoadingUsers(false));
+        } else {
+            setLoadingUsers(false);
+        }
     }, []);
 
     const handleDelete = (quiz: QuizListItem) => {
@@ -44,6 +61,37 @@ export default function AdminTab() {
             ]
         );
     };
+
+    const handleDeclareWinners = (quiz: QuizListItem) => {
+        Alert.alert(
+            "Declare Winners",
+            `Officially declare winners for "${quiz.title}"? This cannot be undone.`,
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Declare",
+                    onPress: async () => {
+                        setDeclaringId(quiz.id);
+                        try {
+                            await adminDeclareWinners(quiz.id);
+                            Alert.alert("Success", "Winners declared!");
+                            // Refresh the quiz list (mark locally)
+                            adminListQuizzes().then(setQuizzes).catch(() => {});
+                        } catch (err: any) {
+                            Alert.alert("Error", err?.message || "Failed to declare winners.");
+                        } finally {
+                            setDeclaringId(null);
+                        }
+                    },
+                },
+            ]
+        );
+    };
+
+    const filteredUsers = users.filter((u) => {
+        const q = userSearch.toLowerCase();
+        return !q || (u.rollNumber?.toLowerCase().includes(q)) || (u.name?.toLowerCase().includes(q));
+    });
 
     if (!isAdmin()) {
         return (
@@ -116,6 +164,28 @@ export default function AdminTab() {
                             >
                                 <Ionicons name="eye-outline" size={20} color={theme.primary} />
                             </Pressable>
+                            {isPast && (
+                                <>
+                                    <Pressable
+                                        onPress={() => router.push({ pathname: "/quiz/[id]/report", params: { id: quiz.id } } as any)}
+                                        style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.7 : 1 }]}
+                                        accessibilityLabel="View report"
+                                    >
+                                        <Ionicons name="bar-chart-outline" size={20} color={theme.primary} />
+                                    </Pressable>
+                                    <Pressable
+                                        onPress={() => handleDeclareWinners(quiz)}
+                                        disabled={declaringId === quiz.id}
+                                        style={({ pressed }) => [styles.iconBtn, { opacity: (pressed || declaringId === quiz.id) ? 0.5 : 1 }]}
+                                        accessibilityLabel="Declare winners"
+                                    >
+                                        {declaringId === quiz.id
+                                            ? <ActivityIndicator size="small" color={theme.warning} />
+                                            : <Ionicons name="trophy-outline" size={20} color={theme.warning} />
+                                        }
+                                    </Pressable>
+                                </>
+                            )}
                             <Pressable
                                 onPress={() => handleDelete(quiz)}
                                 style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.7 : 1 }]}
@@ -132,6 +202,53 @@ export default function AdminTab() {
                 <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Analytics</Text>
                 <Text style={[styles.cardSub, { color: theme.textSecondary }]}>Review enrollments, attempts, and leaderboard trends.</Text>
             </View>
+
+            {/* ── User Sessions ── */}
+            <Text style={[styles.sectionHeader, { color: theme.textPrimary }]}>User Sessions</Text>
+            <TextInput
+                style={[styles.searchInput, { borderColor: theme.border, color: theme.textPrimary, backgroundColor: theme.surface }]}
+                placeholder="Search by roll number or name…"
+                placeholderTextColor={theme.textMuted}
+                value={userSearch}
+                onChangeText={setUserSearch}
+            />
+
+            {loadingUsers && <ActivityIndicator color={theme.primary} style={styles.loader} />}
+
+            {!loadingUsers && filteredUsers.length === 0 && (
+                <View style={[styles.emptyCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                    <Text style={[styles.emptyText, { color: theme.textSecondary }]}>No users found.</Text>
+                </View>
+            )}
+
+            {!loadingUsers && filteredUsers.map((user) => (
+                <Pressable
+                    key={user.userId}
+                    onPress={() => router.push({
+                        pathname: "/admin/user-sessions",
+                        params: { userId: String(user.userId), userName: user.name || user.rollNumber },
+                    } as any)}
+                    style={({ pressed }) => [
+                        styles.userRow,
+                        { backgroundColor: theme.surfaceLight, borderColor: theme.border, opacity: pressed ? 0.85 : 1 },
+                    ]}
+                >
+                    <View style={{ flex: 1 }}>
+                        <Text style={[styles.quizTitle, { color: theme.textPrimary }]}>{user.name || user.rollNumber}</Text>
+                        <Text style={[styles.quizMeta, { color: theme.textSecondary }]}>
+                            {user.rollNumber} • {user.role}
+                        </Text>
+                    </View>
+                    <View style={styles.sessionBadges}>
+                        <View style={[styles.sessionBadge, { backgroundColor: `${theme.primary}22` }]}>
+                            <Text style={[styles.sessionBadgeText, { color: theme.primary }]}>
+                                {user.activeSessions} active
+                            </Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
+                    </View>
+                </Pressable>
+            ))}
 
             <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                 <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Admin Status</Text>
@@ -183,4 +300,24 @@ const styles = StyleSheet.create({
     iconBtn: { padding: 6 },
     pastBadge: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 5, paddingVertical: 2 },
     pastBadgeText: { fontSize: 10, fontWeight: "700", textTransform: "uppercase" },
+    searchInput: {
+        borderWidth: 1,
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        fontSize: 14,
+        marginBottom: 10,
+    },
+    userRow: {
+        borderWidth: 1,
+        borderRadius: 14,
+        padding: 12,
+        marginBottom: 8,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+    },
+    sessionBadges: { flexDirection: "row", alignItems: "center", gap: 6 },
+    sessionBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+    sessionBadgeText: { fontSize: 12, fontWeight: "700" },
 });

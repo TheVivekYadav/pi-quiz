@@ -240,3 +240,25 @@ export const adminSetEnrollmentForm = (quizId: string, fields: EnrollmentFormFie
       body: JSON.stringify({ fields }),
     })
   );
+
+export const adminDeclareWinners = (quizId: string) =>
+  json<{ success: boolean; quizTitle: string; winners: { rank: number; user: string; rollNumber: string; score: number }[] }>(
+    fetch(apiUrl(`/quiz/${quizId}/declare-winners`), {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    })
+  );
+
+export const fetchQuizWinners = (quizId: string) =>
+  json<{ declared: boolean; declaredAt?: string; quizTitle: string; winners: { rank: number; user: string; rollNumber: string; score: number }[] }>(
+    fetch(apiUrl(`/quiz/${quizId}/winners`), {
+      headers: getAuthHeaders(),
+    })
+  );
+
+export const adminFetchQuizReport = (quizId: string) =>
+  json<any>(
+    fetch(apiUrl(`/quiz/${quizId}/report`), {
+      headers: getAuthHeaders(),
+    })
+  );

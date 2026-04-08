@@ -27,6 +27,9 @@ export default function RootLayout() {
       <Stack.Screen name="quiz/[id]/lobby" />
       <Stack.Screen name="quiz/[id]/question/[index]" />
       <Stack.Screen name="quiz/[id]/result" />
+      <Stack.Screen name="quiz/[id]/winners" />
+      <Stack.Screen name="quiz/[id]/report" />
+      <Stack.Screen name="admin/user-sessions" />
       <Stack.Screen name="create" />
       <Stack.Screen name="create-quiz" />
       <Stack.Screen name="forms" />
