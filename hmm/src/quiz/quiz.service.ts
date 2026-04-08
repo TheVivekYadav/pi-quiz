@@ -108,7 +108,7 @@ export class QuizService {
         id: q.id,
         title: q.title,
         category: q.category,
-        startsAtIso: q.starts_at,
+        startsAtIso: new Date(q.starts_at).toISOString(),
         durationMinutes: q.duration_minutes,
         level: q.level,
       })),
@@ -189,7 +189,7 @@ export class QuizService {
       id: row.id,
       title: row.title,
       category: row.category,
-      startsAtIso: row.starts_at,
+      startsAtIso: new Date(row.starts_at).toISOString(),
       durationMinutes: row.duration_minutes,
       level: row.level,
     }));
@@ -694,7 +694,7 @@ export class QuizService {
       id: row.id,
       title: row.title,
       category: row.category,
-      startsAtIso: row.starts_at,
+      startsAtIso: new Date(row.starts_at).toISOString(),
       durationMinutes: row.duration_minutes,
       level: row.level,
     }));

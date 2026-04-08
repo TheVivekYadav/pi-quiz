@@ -1,5 +1,5 @@
 import { isAdmin } from "@/constants/auth-session";
-import { fetchUpcomingQuizzes, QuizListItem } from "@/constants/quiz-api";
+import { adminListQuizzes, fetchUpcomingQuizzes, QuizListItem } from "@/constants/quiz-api";
 import { useTheme } from "@/hook/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -18,7 +18,11 @@ export default function QuizzesTab() {
     useEffect(() => {
         const run = async () => {
             try {
-                const payload = await fetchUpcomingQuizzes();
+                // Admins see all quizzes (past + future) so they can verify newly created ones.
+                // Regular users only see upcoming quizzes.
+                const payload = adminView
+                    ? await adminListQuizzes()
+                    : await fetchUpcomingQuizzes();
                 setItems(payload);
             } finally {
                 setLoading(false);
@@ -34,11 +38,15 @@ export default function QuizzesTab() {
             contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + 24, paddingHorizontal: 16 }}
         >
             <Text style={[styles.eyebrow, { color: theme.primary }]}>QUIZ HUB</Text>
-            <Text style={[styles.title, { color: theme.textPrimary }]}>Upcoming Quizzes</Text>
+            <Text style={[styles.title, { color: theme.textPrimary }]}>
+                {adminView ? "All Quizzes" : "Upcoming Quizzes"}
+            </Text>
 
             {loading && <ActivityIndicator color={theme.primary} size="large" />}
 
-            {!loading && items.map((quiz) => (
+            {!loading && items.map((quiz) => {
+                const isPast = adminView && new Date(quiz.startsAtIso) < new Date();
+                return (
                 <Pressable
                     key={quiz.id}
                     onPress={() => router.push({ pathname: "/quiz/[id]", params: { id: quiz.id } } as any)}
@@ -53,7 +61,14 @@ export default function QuizzesTab() {
                 >
                     <View style={styles.row}>
                         <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{quiz.title}</Text>
-                        <Text style={[styles.level, { color: theme.primary }]}>{quiz.level}</Text>
+                        <View style={styles.badges}>
+                            {isPast && (
+                                <View style={[styles.pastBadge, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                                    <Text style={[styles.pastBadgeText, { color: theme.textSecondary }]}>Past</Text>
+                                </View>
+                            )}
+                            <Text style={[styles.level, { color: theme.primary }]}>{quiz.level}</Text>
+                        </View>
                     </View>
                     <Text style={[styles.meta, { color: theme.textSecondary }]}>{quiz.category} • {new Date(quiz.startsAtIso).toLocaleString()}</Text>
                     <View style={[styles.cta, { backgroundColor: theme.buttonPrimary }]}>
@@ -61,7 +76,8 @@ export default function QuizzesTab() {
                         <Text style={[styles.ctaText, { color: theme.textInverse }]}>Open</Text>
                     </View>
                 </Pressable>
-            ))}
+                );
+            })}
 
             {!loading && items.length === 0 && (
                 <View style={[styles.emptyCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -82,6 +98,9 @@ const styles = StyleSheet.create({
     card: { borderWidth: 1, borderRadius: 18, padding: 14, marginBottom: 12 },
     row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
     cardTitle: { fontSize: 21, fontWeight: "700", flex: 1 },
+    badges: { flexDirection: "row", alignItems: "center", gap: 6 },
+    pastBadge: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+    pastBadgeText: { fontSize: 10, fontWeight: "700", textTransform: "uppercase" },
     level: { fontSize: 12, fontWeight: "700", textTransform: "uppercase" },
     meta: { marginTop: 8, fontSize: 14 },
     cta: {
