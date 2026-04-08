@@ -87,7 +87,7 @@ export class AuthService {
       [user.id],
     );
 
-    if (activeResult.rows.length >= this.maxActiveDevices) {
+    if (user.role !== 'admin' && activeResult.rows.length >= this.maxActiveDevices) {
       await this.logEvent(
         'login_blocked_max_devices',
         {
