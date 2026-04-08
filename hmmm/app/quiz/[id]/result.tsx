@@ -1,4 +1,4 @@
-import { fetchQuizLeaderboard, fetchQuizWinners } from "@/constants/quiz-api";
+import { fetchQuizLeaderboard } from "@/constants/quiz-api";
 import { getQuizResult } from "@/constants/quiz-session";
 import { useRequireAuth } from "@/hook/useRequireAuth";
 import { useTheme } from "@/hook/theme";

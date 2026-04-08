@@ -1,4 +1,4 @@
-import { adminFetchQuizReport, fetchReportsOverview } from "@/constants/quiz-api";
+import { fetchReportsOverview } from "@/constants/quiz-api";
 import { isAdmin } from "@/constants/auth-session";
 import { useTheme } from "@/hook/theme";
 import { useRouter } from "expo-router";

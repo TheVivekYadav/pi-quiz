@@ -1,4 +1,4 @@
-import { EnrollmentFormField, enrollQuiz, fetchQuizDetail, fetchQuizWinners } from "@/constants/quiz-api";
+import { EnrollmentFormField, enrollQuiz, fetchQuizDetail } from "@/constants/quiz-api";
 import { clearQuizAnswers } from "@/constants/quiz-session";
 import { useRequireAuth } from "@/hook/useRequireAuth";
 import { useTheme } from "@/hook/theme";

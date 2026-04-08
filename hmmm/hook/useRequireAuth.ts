@@ -1,5 +1,5 @@
 import { isAuthenticated } from '@/constants/auth-session';
-import { useRouter, useSegments } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 
 /**
@@ -10,7 +10,6 @@ import { useEffect } from 'react';
  */
 export function useRequireAuth(redirectBack?: string): void {
   const router = useRouter();
-  const segments = useSegments();
 
   useEffect(() => {
     if (!isAuthenticated()) {
@@ -18,5 +17,5 @@ export function useRequireAuth(redirectBack?: string): void {
       router.replace(dest as any);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [segments]);
+  }, []);
 }
