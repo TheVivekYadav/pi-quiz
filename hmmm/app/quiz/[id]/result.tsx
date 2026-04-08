@@ -4,7 +4,7 @@ import { useRequireAuth } from "@/hook/useRequireAuth";
 import { useTheme } from "@/hook/theme";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function ResultScreen() {
@@ -32,7 +32,15 @@ export default function ResultScreen() {
     if (!result) {
         return (
             <View style={[styles.center, { backgroundColor: theme.background }]}>
-                <ActivityIndicator size="large" color={theme.primary} />
+                <Text style={[{ color: theme.textSecondary, fontSize: 15, textAlign: 'center', marginBottom: 16 }]}>
+                    Result not available. It may have been cleared.
+                </Text>
+                <Pressable
+                    style={[styles.cta, { backgroundColor: theme.buttonPrimary }]}
+                    onPress={() => router.replace("/(tabs)/index" as any)}
+                >
+                    <Text style={[styles.ctaText, { color: theme.textInverse }]}>Back to Dashboard</Text>
+                </Pressable>
             </View>
         );
     }

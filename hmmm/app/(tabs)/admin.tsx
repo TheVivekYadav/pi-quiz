@@ -1,5 +1,5 @@
 import { isAdmin, getAuthToken } from "@/constants/auth-session";
-import { adminDeleteQuiz, adminDeclareWinners, adminListQuizzes, QuizListItem } from "@/constants/quiz-api";
+import { adminDeleteQuiz, adminDeclareWinners, adminListQuizzes, adminStartQuiz, QuizListItem } from "@/constants/quiz-api";
 import { adminListUsers, AdminUserItem } from "@/constants/auth-api";
 import { useTheme } from "@/hook/theme";
 import { Ionicons } from "@expo/vector-icons";

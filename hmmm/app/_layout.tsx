@@ -1,4 +1,6 @@
-import { loadPersistedAuth } from "@/constants/auth-session";
+import { getCurrentUser } from "@/constants/auth-api";
+import { clearAuth, loadPersistedAuth, setAuthToken } from "@/constants/auth-session";
+import { loadPersistedResults } from "@/constants/quiz-session";
 import { Stack } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
@@ -7,7 +9,40 @@ export default function RootLayout() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    loadPersistedAuth().catch((err) => console.error('Auth load error:', err)).finally(() => setReady(true));
+    const init = async () => {
+      await loadPersistedAuth().catch((err) => console.error('Auth load error:', err));
+      await loadPersistedResults().catch(() => {});
+
+      // Re-verify token and sync role from server so a tampered localStorage
+      // cannot grant stale admin privileges.
+      try {
+        const { getAuthToken, getAuthUser } = await import("@/constants/auth-session");
+        const token = getAuthToken();
+        const localUser = getAuthUser();
+        if (token && localUser) {
+          const me = await getCurrentUser(token);
+          if (!me.authenticated) {
+            // Token rejected by server — clear local auth
+            clearAuth();
+          } else if (me.role && me.role !== localUser.role) {
+            // Role changed on server — update local cache
+            setAuthToken(
+              token,
+              me.userId!,
+              me.rollNumber!,
+              me.role as 'admin' | 'user',
+              me.sessionId,
+              me.branch,
+              me.year,
+            );
+          }
+        }
+      } catch {
+        // Network may be down — keep cached auth as-is
+      }
+    };
+
+    init().finally(() => setReady(true));
   }, []);
 
   if (!ready) {

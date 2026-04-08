@@ -146,12 +146,12 @@ export const fetchQuizQuestion = (quizId: string, index: number) =>
     })
   );
 
-export const submitQuizAnswers = (quizId: string, answers: Record<string, string>) =>
+export const submitQuizAnswers = (quizId: string, answers: Record<string, string>, startedAt?: string) =>
   json<QuizSubmitPayload>(
     fetch(apiUrl(`/quiz/${quizId}/submit`), {
       method: "POST",
       headers: getAuthHeaders(),
-      body: JSON.stringify({ answers }),
+      body: JSON.stringify({ answers, startedAt }),
     })
   );
 

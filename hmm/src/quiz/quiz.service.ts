@@ -356,9 +356,10 @@ export class QuizService {
   ): Promise<QuizQuestionPayload> {
     const pool = this.databaseService.getPool();
     // Ensure quiz has started
-    const quizStartRes = await pool.query(`SELECT starts_at FROM quizzes WHERE id = $1`, [quizId]);
+    const quizStartRes = await pool.query(`SELECT starts_at, duration_minutes FROM quizzes WHERE id = $1`, [quizId]);
     if (!quizStartRes.rows[0]) throw new NotFoundException('Quiz not found');
     const startsAt = new Date(quizStartRes.rows[0].starts_at).getTime();
+    const durationMinutes: number = parseInt(quizStartRes.rows[0].duration_minutes) || 30;
     const now = Date.now();
     if (now < startsAt) {
       throw new ForbiddenException('Quiz has not started yet');
@@ -378,6 +379,12 @@ export class QuizService {
     );
 
     const total = parseInt(countResult.rows[0].total);
+
+    // Compute per-question timer: distribute quiz duration evenly across questions (min 10s, max 120s)
+    const totalSeconds = durationMinutes * 60;
+    const timerSeconds = total > 0
+      ? Math.min(120, Math.max(10, Math.floor(totalSeconds / total)))
+      : 30;
 
     // Get question by index
     const questionResult = await pool.query(
@@ -402,7 +409,7 @@ export class QuizService {
       },
       current: questionIndex,
       total,
-      timerSeconds: 30,
+      timerSeconds,
       highPoints: q.points > 5,
     };
   }
@@ -411,8 +418,19 @@ export class QuizService {
     quizId: string,
     userId: number,
     answers: Record<string, string>,
+    startedAtIso?: string,
   ): Promise<QuizSubmitPayload> {
     const pool = this.databaseService.getPool();
+
+    // Compute time taken from client-supplied startedAt (clamped 0–120 min)
+    const submittedAt = Date.now();
+    let timeTakenMinutes = 0;
+    if (startedAtIso) {
+      const startedAt = new Date(startedAtIso).getTime();
+      if (!isNaN(startedAt) && startedAt < submittedAt) {
+        timeTakenMinutes = Math.min(120, Math.round((submittedAt - startedAt) / 60_000));
+      }
+    }
 
     // Ensure quiz has started before accepting submissions
     const quizStartRes = await pool.query(`SELECT starts_at FROM quizzes WHERE id = $1`, [quizId]);
@@ -544,7 +562,7 @@ export class QuizService {
       breakdown: {
         correct,
         incorrect,
-        timeTakenMinutes: 0,
+        timeTakenMinutes,
       },
       badge,
       percentile: Math.max(1, percentile),

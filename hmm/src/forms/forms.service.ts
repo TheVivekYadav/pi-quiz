@@ -2,14 +2,26 @@ import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { DatabaseService } from '../database/database.service';
 
+/** Strip HTML tags from a string to prevent injection via field labels. */
+function sanitizeString(value: unknown): string {
+  return String(value ?? '').replace(/<[^>]*>/g, '').trim();
+}
+
 @Injectable()
 export class FormsService {
   constructor(private readonly databaseService: DatabaseService) {}
 
   async create(form: any) {
     const id = randomUUID();
-    const title = String(form?.title ?? 'Untitled Form');
-    const fields = Array.isArray(form?.fields) ? form.fields : [];
+    const title = sanitizeString(form?.title ?? 'Untitled Form');
+    const rawFields: any[] = Array.isArray(form?.fields) ? form.fields : [];
+
+    const fields = rawFields.map((f) => ({
+      ...f,
+      label: sanitizeString(f?.label),
+      id: sanitizeString(f?.id),
+      options: Array.isArray(f?.options) ? f.options.map(sanitizeString) : undefined,
+    }));
 
     await this.databaseService
       .getPool()
