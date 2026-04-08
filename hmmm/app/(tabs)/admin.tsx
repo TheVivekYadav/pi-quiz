@@ -1,14 +1,49 @@
 import { isAdmin } from "@/constants/auth-session";
+import { adminDeleteQuiz, adminListQuizzes, QuizListItem } from "@/constants/quiz-api";
 import { useTheme } from "@/hook/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function AdminTab() {
     const theme = useTheme();
     const router = useRouter();
     const insets = useSafeAreaInsets();
+
+    const [quizzes, setQuizzes] = useState<QuizListItem[]>([]);
+    const [loadingQuizzes, setLoadingQuizzes] = useState(true);
+
+    useEffect(() => {
+        if (!isAdmin()) return;
+        adminListQuizzes()
+            .then(setQuizzes)
+            .catch((err: any) => Alert.alert("Error", err?.message || "Failed to load quizzes."))
+            .finally(() => setLoadingQuizzes(false));
+    }, []);
+
+    const handleDelete = (quiz: QuizListItem) => {
+        Alert.alert(
+            "Delete Quiz",
+            `Are you sure you want to delete "${quiz.title}"? This cannot be undone.`,
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Delete",
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            await adminDeleteQuiz(quiz.id);
+                            setQuizzes((prev) => prev.filter((q) => q.id !== quiz.id));
+                        } catch (err: any) {
+                            Alert.alert("Error", err?.message || "Failed to delete quiz.");
+                        }
+                    },
+                },
+            ]
+        );
+    };
 
     if (!isAdmin()) {
         return (
@@ -41,6 +76,57 @@ export default function AdminTab() {
                     <Text style={[styles.actionText, { color: theme.textInverse }]}>Open Creator</Text>
                 </Pressable>
             </View>
+
+            {/* ── Quiz list ── */}
+            <Text style={[styles.sectionHeader, { color: theme.textPrimary }]}>Your Quizzes</Text>
+
+            {loadingQuizzes && <ActivityIndicator color={theme.primary} style={styles.loader} />}
+
+            {!loadingQuizzes && quizzes.length === 0 && (
+                <View style={[styles.emptyCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                    <Text style={[styles.emptyText, { color: theme.textSecondary }]}>No quizzes yet. Tap "Open Creator" to create your first quiz.</Text>
+                </View>
+            )}
+
+            {!loadingQuizzes && quizzes.map((quiz) => {
+                const isPast = new Date(quiz.startsAtIso) < new Date();
+                return (
+                    <View
+                        key={quiz.id}
+                        style={[styles.quizRow, { backgroundColor: theme.surfaceLight, borderColor: theme.border }]}
+                    >
+                        <View style={styles.quizInfo}>
+                            <View style={styles.quizTitleRow}>
+                                <Text style={[styles.quizTitle, { color: theme.textPrimary }]} numberOfLines={1}>{quiz.title}</Text>
+                                {isPast && (
+                                    <View style={[styles.pastBadge, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                                        <Text style={[styles.pastBadgeText, { color: theme.textSecondary }]}>Past</Text>
+                                    </View>
+                                )}
+                            </View>
+                            <Text style={[styles.quizMeta, { color: theme.textSecondary }]}>
+                                {quiz.category} • {quiz.level} • {new Date(quiz.startsAtIso).toLocaleString()}
+                            </Text>
+                        </View>
+                        <View style={styles.quizActions}>
+                            <Pressable
+                                onPress={() => router.push({ pathname: "/quiz/[id]", params: { id: quiz.id } } as any)}
+                                style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.7 : 1 }]}
+                                accessibilityLabel="View quiz"
+                            >
+                                <Ionicons name="eye-outline" size={20} color={theme.primary} />
+                            </Pressable>
+                            <Pressable
+                                onPress={() => handleDelete(quiz)}
+                                style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.7 : 1 }]}
+                                accessibilityLabel="Delete quiz"
+                            >
+                                <Ionicons name="trash-outline" size={20} color={theme.error} />
+                            </Pressable>
+                        </View>
+                    </View>
+                );
+            })}
 
             <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                 <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Analytics</Text>
@@ -76,4 +162,25 @@ const styles = StyleSheet.create({
         gap: 6,
     },
     actionText: { fontSize: 13, fontWeight: "700" },
+    sectionHeader: { fontSize: 18, fontWeight: "700", marginBottom: 8, marginTop: 4 },
+    loader: { marginVertical: 16 },
+    emptyCard: { borderWidth: 1, borderRadius: 14, padding: 14, marginBottom: 12 },
+    emptyText: { fontSize: 14, lineHeight: 20 },
+    quizRow: {
+        borderWidth: 1,
+        borderRadius: 14,
+        padding: 12,
+        marginBottom: 10,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+    },
+    quizInfo: { flex: 1 },
+    quizTitleRow: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
+    quizTitle: { fontSize: 15, fontWeight: "700", flexShrink: 1 },
+    quizMeta: { marginTop: 4, fontSize: 12 },
+    quizActions: { flexDirection: "row", gap: 4 },
+    iconBtn: { padding: 6 },
+    pastBadge: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 5, paddingVertical: 2 },
+    pastBadgeText: { fontSize: 10, fontWeight: "700", textTransform: "uppercase" },
 });
