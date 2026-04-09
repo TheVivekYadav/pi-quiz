@@ -299,6 +299,24 @@ export const adminUpdateQuizVisibility = (
     })
   );
 
+export const adminFetchQuizEnrollments = (quizId: string) =>
+  json<{
+    totalEnrolled: number;
+    formId: string | null;
+    formFields: any[];
+    enrollments: Array<{
+      userId: number;
+      name: string;
+      rollNumber: string;
+      enrolledAt: string;
+      formResponses: Record<string, string>;
+    }>;
+  }>(
+    fetch(apiUrl(`/quiz/${quizId}/admin/enrollments`), {
+      headers: getAuthHeaders(),
+    })
+  );
+
 export const adminSetEnrollmentForm = (quizId: string, fields: EnrollmentFormField[]) =>
   json<{ formId: string; fields: EnrollmentFormField[] }>(
     fetch(apiUrl(`/quiz/${quizId}/enrollment-form`), {

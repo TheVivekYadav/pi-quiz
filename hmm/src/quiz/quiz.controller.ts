@@ -185,6 +185,16 @@ export class QuizController {
     return this.quizService.adminGetQuizResponses(quizId);
   }
 
+  // Admin: get all enrollments for a quiz with form data
+  @Get(':quizId/admin/enrollments')
+  async getAdminEnrollments(
+    @Param('quizId') quizId: string,
+    @Headers('Authorization') authHeader: string,
+  ) {
+    await this.requireAdmin(authHeader);
+    return this.quizService.getQuizEnrollments(quizId);
+  }
+
   // User: get their own responses for a quiz
   @Get(':quizId/my-responses')
   async getMyResponses(

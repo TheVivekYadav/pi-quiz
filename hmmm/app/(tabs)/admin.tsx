@@ -335,6 +335,13 @@ export default function AdminTab() {
                                 <Ionicons name="pencil-outline" size={20} color={theme.primary} />
                             </Pressable>
                             <Pressable
+                                onPress={() => router.push({ pathname: "/admin/enrollments/[id]", params: { id: quiz.id } } as any)}
+                                style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.7 : 1 }]}
+                                accessibilityLabel="View enrollments"
+                            >
+                                <Ionicons name="people-outline" size={20} color={theme.primary} />
+                            </Pressable>
+                            <Pressable
                                 onPress={() => toggleVisibility(quiz)}
                                 disabled={visibilityUpdatingId === quiz.id}
                                 style={({ pressed }) => [styles.iconBtn, { opacity: (pressed || visibilityUpdatingId === quiz.id) ? 0.5 : 1 }]}

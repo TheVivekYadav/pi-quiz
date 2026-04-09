@@ -870,6 +870,76 @@ export class QuizService {
     };
   }
 
+  /** Admin: get all enrollments for a quiz with enrollment form responses. */
+  async getQuizEnrollments(quizId: string) {
+    const pool = this.databaseService.getPool();
+
+    // Ensure quiz exists
+    const quizCheck = await pool.query(`SELECT id, enrollment_form_id FROM quizzes WHERE id = $1`, [quizId]);
+    if (!quizCheck.rows[0]) {
+      throw new NotFoundException('Quiz not found');
+    }
+
+    const formId = quizCheck.rows[0].enrollment_form_id;
+
+    // Get all enrolled users
+    const enrollmentsResult = await pool.query(
+      `SELECT qe.user_id, qe.enrolled_at, u.id, u.name, u.roll_number
+       FROM quiz_enrollments qe
+       JOIN users u ON qe.user_id = u.id
+       WHERE qe.quiz_id = $1
+       ORDER BY qe.enrolled_at DESC`,
+      [quizId],
+    );
+
+    // Get enrollment form fields
+    let formFields: any[] = [];
+    if (formId) {
+      const formResult = await pool.query(
+        `SELECT fields FROM forms WHERE id = $1`,
+        [formId],
+      );
+      if (formResult.rows[0]) {
+        formFields = formResult.rows[0].fields || [];
+      }
+    }
+
+    // Get all form responses for this quiz
+    let responses: any[] = [];
+    if (formId) {
+      const responsesResult = await pool.query(
+        `SELECT fr.user_id, fr.form_id, fr.responses
+         FROM form_responses fr
+         WHERE fr.user_id IN (SELECT user_id FROM quiz_enrollments WHERE quiz_id = $1)
+         AND fr.form_id = $2`,
+        [quizId, formId],
+      );
+      responses = responsesResult.rows;
+    }
+
+    // Map responses by user_id
+    const responseMap = new Map<number, any>();
+    responses.forEach((r: any) => {
+      responseMap.set(r.user_id, r.responses || {});
+    });
+
+    // Build enrollments with form data
+    const enrollments = enrollmentsResult.rows.map((row: any) => ({
+      userId: row.user_id,
+      name: row.name,
+      rollNumber: row.roll_number,
+      enrolledAt: new Date(row.enrolled_at).toISOString(),
+      formResponses: responseMap.get(row.user_id) || {},
+    }));
+
+    return {
+      totalEnrolled: enrollments.length,
+      formId: formId || null,
+      formFields: formFields,
+      enrollments: enrollments,
+    };
+  }
+
   /** User: get their own answers for a quiz (most recent attempt). */
   async getUserQuizResponses(quizId: string, userId: number) {
     const pool = this.databaseService.getPool();
