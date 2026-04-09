@@ -184,6 +184,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     await this.pool.query(`ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS winners_declared_at TIMESTAMPTZ;`);
     await this.pool.query(`ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS winners_declared_by INT REFERENCES users(id);`);
     await this.pool.query(`ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS image_url TEXT;`);
+    await this.pool.query(`ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL DEFAULT TRUE;`);
 
     // Link enrollment form to quiz (nullable — a quiz may have no registration form)
     await this.pool.query(`

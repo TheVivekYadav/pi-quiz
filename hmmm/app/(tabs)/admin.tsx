@@ -1,6 +1,6 @@
 import { adminListUsers, AdminUserItem } from "@/constants/auth-api";
 import { getAuthToken, isAdmin } from "@/constants/auth-session";
-import { adminDeclareWinners, adminDeleteQuiz, adminListQuizzes, adminStartQuiz, adminUpdateQuizSchedule, QuizListItem } from "@/constants/quiz-api";
+import { adminDeclareWinners, adminDeleteQuiz, adminListQuizzes, adminStartQuiz, adminUpdateQuizSchedule, adminUpdateQuizVisibility, QuizListItem } from "@/constants/quiz-api";
 import { useTheme } from "@/hook/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -22,6 +22,7 @@ export default function AdminTab() {
     const [editingStartsAt, setEditingStartsAt] = useState("");
     const [editingDuration, setEditingDuration] = useState("");
     const [savingScheduleId, setSavingScheduleId] = useState<string | null>(null);
+    const [visibilityUpdatingId, setVisibilityUpdatingId] = useState<string | null>(null);
 
     // User sessions section
     const [users, setUsers] = useState<AdminUserItem[]>([]);
@@ -166,6 +167,21 @@ export default function AdminTab() {
         }
     };
 
+    const toggleVisibility = async (quiz: QuizListItem) => {
+        const nextVisible = !(quiz.isVisible ?? true);
+        setVisibilityUpdatingId(quiz.id);
+        try {
+            await adminUpdateQuizVisibility(quiz.id, nextVisible);
+            setQuizzes((prev) =>
+                prev.map((q) => (q.id === quiz.id ? { ...q, isVisible: nextVisible } : q))
+            );
+        } catch (err: any) {
+            Alert.alert("Error", err?.message || "Failed to update visibility.");
+        } finally {
+            setVisibilityUpdatingId(null);
+        }
+    };
+
     const filteredUsers = users.filter((u) => {
         const q = userSearch.toLowerCase();
         return !q || (u.rollNumber?.toLowerCase().includes(q)) || (u.name?.toLowerCase().includes(q));
@@ -232,6 +248,9 @@ export default function AdminTab() {
                             </View>
                             <Text style={[styles.quizMeta, { color: theme.textSecondary }]}>
                                 {quiz.category} • {quiz.level} • {new Date(quiz.startsAtIso).toLocaleString()}
+                            </Text>
+                            <Text style={[styles.quizMeta, { color: theme.textSecondary }]}>
+                                Enrolled: {quiz.enrolledCount ?? 0} • Visibility: {(quiz.isVisible ?? true) ? "Visible" : "Hidden"}
                             </Text>
 
                             {editingScheduleId === quiz.id && (
@@ -307,6 +326,21 @@ export default function AdminTab() {
                                 accessibilityLabel="Edit schedule"
                             >
                                 <Ionicons name="calendar-outline" size={20} color={theme.primary} />
+                            </Pressable>
+                            <Pressable
+                                onPress={() => toggleVisibility(quiz)}
+                                disabled={visibilityUpdatingId === quiz.id}
+                                style={({ pressed }) => [styles.iconBtn, { opacity: (pressed || visibilityUpdatingId === quiz.id) ? 0.5 : 1 }]}
+                                accessibilityLabel="Toggle quiz visibility"
+                            >
+                                {visibilityUpdatingId === quiz.id
+                                    ? <ActivityIndicator size="small" color={theme.primary} />
+                                    : <Ionicons
+                                        name={(quiz.isVisible ?? true) ? "eye-outline" : "eye-off-outline"}
+                                        size={20}
+                                        color={(quiz.isVisible ?? true) ? theme.primary : theme.textMuted}
+                                    />
+                                }
                             </Pressable>
                             {!isPast && (
                                 <Pressable

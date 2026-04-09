@@ -31,6 +31,8 @@ export interface QuizListItem {
   startsAtIso: string;
   durationMinutes: number;
   level: string;
+  enrolledCount?: number;
+  isVisible?: boolean;
 }
 
 export interface QuizQuestionPayload {
@@ -81,14 +83,14 @@ export class QuizService {
     // Get upcoming (future) quizzes as featured
     const featuredResult = await pool.query(
       `SELECT id, title, category, starts_at, duration_minutes, level FROM quizzes
-       WHERE starts_at >= NOW()
+       WHERE starts_at >= NOW() AND is_visible = TRUE
        ORDER BY starts_at ASC
        LIMIT 6`,
     );
 
     // Get categories
     const categoriesResult = await pool.query(
-      `SELECT DISTINCT category FROM quizzes ORDER BY category`,
+      `SELECT DISTINCT category FROM quizzes WHERE is_visible = TRUE ORDER BY category`,
     );
 
     return {
@@ -228,7 +230,7 @@ export class QuizService {
 
     const result = await pool.query(
       `SELECT id, title, category, starts_at, duration_minutes, level FROM quizzes
-       WHERE starts_at >= NOW()
+       WHERE starts_at >= NOW() AND is_visible = TRUE
        ORDER BY starts_at ASC
        LIMIT 10`,
     );
@@ -599,6 +601,17 @@ export class QuizService {
   async enrollUser(userId: number, quizId: string, formAnswers?: Record<string, any>) {
     const pool = this.databaseService.getPool();
 
+    const visibleCheck = await pool.query(
+      `SELECT is_visible FROM quizzes WHERE id = $1`,
+      [quizId],
+    );
+    if (!visibleCheck.rows[0]) {
+      throw new NotFoundException('Quiz not found');
+    }
+    if (!visibleCheck.rows[0].is_visible) {
+      throw new ForbiddenException('This quiz is currently hidden by admin');
+    }
+
     // Check if this quiz has an enrollment form
     const quizResult = await pool.query(
       `SELECT enrollment_form_id FROM quizzes WHERE id = $1`,
@@ -892,7 +905,13 @@ export class QuizService {
   async listAllQuizzes(): Promise<QuizListItem[]> {
     const pool = this.databaseService.getPool();
     const result = await pool.query(
-      `SELECT id, title, category, starts_at, duration_minutes, level FROM quizzes ORDER BY starts_at DESC`,
+      `SELECT q.id, q.title, q.category, q.starts_at, q.duration_minutes, q.level,
+              q.is_visible,
+              COUNT(DISTINCT qe.user_id) AS enrolled_count
+       FROM quizzes q
+       LEFT JOIN quiz_enrollments qe ON qe.quiz_id = q.id
+       GROUP BY q.id
+       ORDER BY q.starts_at DESC`,
     );
     return result.rows.map((row: any) => ({
       id: row.id,
@@ -901,7 +920,24 @@ export class QuizService {
       startsAtIso: new Date(row.starts_at).toISOString(),
       durationMinutes: row.duration_minutes,
       level: row.level,
+      enrolledCount: parseInt(row.enrolled_count) || 0,
+      isVisible: row.is_visible !== false,
     }));
+  }
+
+  /** Admin: toggle quiz visibility (hidden quizzes won't show for users). */
+  async updateQuizVisibility(quizId: string, visible: boolean): Promise<{ success: boolean }> {
+    const pool = this.databaseService.getPool();
+
+    const check = await pool.query(`SELECT id FROM quizzes WHERE id = $1`, [quizId]);
+    if (!check.rows[0]) throw new NotFoundException('Quiz not found');
+
+    await pool.query(
+      `UPDATE quizzes SET is_visible = $2, updated_at = NOW() WHERE id = $1`,
+      [quizId, visible],
+    );
+
+    return { success: true };
   }
 
   /**

@@ -8,6 +8,8 @@ export type QuizListItem = {
   startsAtIso: string;
   durationMinutes: number;
   level: "Beginner" | "Intermediate" | "Expert";
+  enrolledCount?: number;
+  isVisible?: boolean;
 };
 
 export type EnrollmentFormField = {
@@ -264,6 +266,18 @@ export const adminUpdateQuizSchedule = (
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(payload),
+    })
+  );
+
+export const adminUpdateQuizVisibility = (
+  quizId: string,
+  visible: boolean,
+) =>
+  json<{ success: boolean }>(
+    fetch(apiUrl(`/quiz/${quizId}/visibility`), {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ visible }),
     })
   );
 

@@ -346,6 +346,20 @@ export class QuizController {
     });
   }
 
+  // Admin: set quiz visibility
+  @Post(':quizId/visibility')
+  async updateQuizVisibility(
+    @Param('quizId') quizId: string,
+    @Body() body: any,
+    @Headers('Authorization') authHeader: string,
+  ) {
+    await this.requireAdmin(authHeader);
+    if (typeof body?.visible !== 'boolean') {
+      throw new BadRequestException('visible must be boolean');
+    }
+    return this.quizService.updateQuizVisibility(quizId, body.visible);
+  }
+
   // Admin: declare winners for a quiz
   @Post(':quizId/declare-winners')
   async declareWinners(
