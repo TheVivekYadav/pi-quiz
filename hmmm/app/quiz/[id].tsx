@@ -1,7 +1,7 @@
 import { EnrollmentFormField, enrollQuiz, fetchQuizDetail } from "@/constants/quiz-api";
 import { clearQuizAnswers } from "@/constants/quiz-session";
-import { useRequireAuth } from "@/hook/useRequireAuth";
 import { useTheme } from "@/hook/theme";
+import { useRequireAuth } from "@/hook/useRequireAuth";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
@@ -108,7 +108,7 @@ export default function QuizDetailScreen() {
                 }}
                 keyboardShouldPersistTaps="handled"
             >
-                <Text style={[styles.brand, { color: theme.textPrimary }]}>Intellectual Playground</Text>
+                <Text style={[styles.brand, { color: theme.textPrimary }]}>Made by verihire.live Team</Text>
                 <Text style={[styles.title, { color: theme.textPrimary }]}>{data?.title}</Text>
                 <Text style={[styles.meta, { color: theme.textSecondary }]}>
                     {data?.category} • {new Date(data?.startsAtIso).toLocaleString()}
@@ -153,108 +153,108 @@ export default function QuizDetailScreen() {
                         </Pressable>
                     </View>
                 ) : (
-                <View style={[styles.formCard, { backgroundColor: theme.surfaceLight, borderColor: theme.border }]}>
-                    <Text style={[styles.formTitle, { color: theme.textPrimary }]}>Secure Your Spot</Text>
+                    <View style={[styles.formCard, { backgroundColor: theme.surfaceLight, borderColor: theme.border }]}>
+                        <Text style={[styles.formTitle, { color: theme.textPrimary }]}>Secure Your Spot</Text>
 
-                    {/* Dynamic enrollment form fields */}
-                    {enrollmentForm && enrollmentForm.fields.length > 0 && (
-                        <View style={styles.enrollFields}>
-                            <Text style={[styles.enrollFormNote, { color: theme.textSecondary }]}>
-                                Please fill in the details below to complete your enrollment.
-                            </Text>
+                        {/* Dynamic enrollment form fields */}
+                        {enrollmentForm && enrollmentForm.fields.length > 0 && (
+                            <View style={styles.enrollFields}>
+                                <Text style={[styles.enrollFormNote, { color: theme.textSecondary }]}>
+                                    Please fill in the details below to complete your enrollment.
+                                </Text>
 
-                            {enrollmentForm.fields.map((field) => (
-                                <View key={field.id} style={styles.fieldGroup}>
-                                    <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>
-                                        {field.label}
-                                        {field.required && <Text style={{ color: theme.error }}> *</Text>}
-                                    </Text>
+                                {enrollmentForm.fields.map((field) => (
+                                    <View key={field.id} style={styles.fieldGroup}>
+                                        <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>
+                                            {field.label}
+                                            {field.required && <Text style={{ color: theme.error }}> *</Text>}
+                                        </Text>
 
-                                    {field.type === "select" ? (
-                                        /* Render select options as pressable chips */
-                                        <View style={styles.selectRow}>
-                                            {(field.options ?? []).map((opt) => {
-                                                const isSelected = formAnswers[field.id] === opt;
-                                                return (
-                                                    <Pressable
-                                                        key={opt}
-                                                        onPress={() =>
-                                                            setFormAnswers((prev) => ({ ...prev, [field.id]: opt }))
-                                                        }
-                                                        style={[
-                                                            styles.selectChip,
-                                                            {
-                                                                backgroundColor: isSelected ? theme.buttonPrimary : theme.surface,
-                                                                borderColor: isSelected ? theme.buttonPrimary : theme.border,
-                                                            },
-                                                        ]}
-                                                    >
-                                                        <Text
+                                        {field.type === "select" ? (
+                                            /* Render select options as pressable chips */
+                                            <View style={styles.selectRow}>
+                                                {(field.options ?? []).map((opt) => {
+                                                    const isSelected = formAnswers[field.id] === opt;
+                                                    return (
+                                                        <Pressable
+                                                            key={opt}
+                                                            onPress={() =>
+                                                                setFormAnswers((prev) => ({ ...prev, [field.id]: opt }))
+                                                            }
                                                             style={[
-                                                                styles.selectChipText,
-                                                                { color: isSelected ? theme.textInverse : theme.textPrimary },
+                                                                styles.selectChip,
+                                                                {
+                                                                    backgroundColor: isSelected ? theme.buttonPrimary : theme.surface,
+                                                                    borderColor: isSelected ? theme.buttonPrimary : theme.border,
+                                                                },
                                                             ]}
                                                         >
-                                                            {opt}
-                                                        </Text>
-                                                    </Pressable>
-                                                );
-                                            })}
-                                        </View>
-                                    ) : (
-                                        <TextInput
-                                            style={[
-                                                styles.fieldInput,
-                                                { borderColor: theme.border, color: theme.textPrimary, backgroundColor: theme.background },
-                                            ]}
-                                            placeholder={
-                                                field.type === "email"
-                                                    ? "you@example.com"
-                                                    : field.type === "phone"
-                                                        ? "+91 98765 43210"
-                                                        : field.type === "number"
-                                                            ? "0"
-                                                            : field.label
-                                            }
-                                            placeholderTextColor={theme.textMuted}
-                                            value={formAnswers[field.id] ?? ""}
-                                            onChangeText={(t) =>
-                                                setFormAnswers((prev) => ({ ...prev, [field.id]: t }))
-                                            }
-                                            keyboardType={
-                                                field.type === "email"
-                                                    ? "email-address"
-                                                    : field.type === "phone"
-                                                        ? "phone-pad"
-                                                        : field.type === "number"
-                                                            ? "numeric"
-                                                            : "default"
-                                            }
-                                            autoCapitalize={field.type === "email" ? "none" : "sentences"}
-                                        />
-                                    )}
-                                </View>
-                            ))}
-                        </View>
-                    )}
-
-                    <Pressable
-                        style={[styles.primaryBtn, { backgroundColor: theme.buttonPrimary }, enrolling && styles.buttonDisabled]}
-                        onPress={handleEnroll}
-                        disabled={enrolling}
-                    >
-                        {enrolling ? (
-                            <ActivityIndicator color={theme.textInverse} />
-                        ) : (
-                            <>
-                                <Text style={[styles.primaryBtnText, { color: theme.textInverse }]}>
-                                    {data?.startsAtIso && new Date(data.startsAtIso) < new Date() ? "Join Now" : "Enroll Now"}
-                                </Text>
-                                <Ionicons name="arrow-forward" size={16} color={theme.textInverse} />
-                            </>
+                                                            <Text
+                                                                style={[
+                                                                    styles.selectChipText,
+                                                                    { color: isSelected ? theme.textInverse : theme.textPrimary },
+                                                                ]}
+                                                            >
+                                                                {opt}
+                                                            </Text>
+                                                        </Pressable>
+                                                    );
+                                                })}
+                                            </View>
+                                        ) : (
+                                            <TextInput
+                                                style={[
+                                                    styles.fieldInput,
+                                                    { borderColor: theme.border, color: theme.textPrimary, backgroundColor: theme.background },
+                                                ]}
+                                                placeholder={
+                                                    field.type === "email"
+                                                        ? "you@example.com"
+                                                        : field.type === "phone"
+                                                            ? "+91 98765 43210"
+                                                            : field.type === "number"
+                                                                ? "0"
+                                                                : field.label
+                                                }
+                                                placeholderTextColor={theme.textMuted}
+                                                value={formAnswers[field.id] ?? ""}
+                                                onChangeText={(t) =>
+                                                    setFormAnswers((prev) => ({ ...prev, [field.id]: t }))
+                                                }
+                                                keyboardType={
+                                                    field.type === "email"
+                                                        ? "email-address"
+                                                        : field.type === "phone"
+                                                            ? "phone-pad"
+                                                            : field.type === "number"
+                                                                ? "numeric"
+                                                                : "default"
+                                                }
+                                                autoCapitalize={field.type === "email" ? "none" : "sentences"}
+                                            />
+                                        )}
+                                    </View>
+                                ))}
+                            </View>
                         )}
-                    </Pressable>
-                </View>
+
+                        <Pressable
+                            style={[styles.primaryBtn, { backgroundColor: theme.buttonPrimary }, enrolling && styles.buttonDisabled]}
+                            onPress={handleEnroll}
+                            disabled={enrolling}
+                        >
+                            {enrolling ? (
+                                <ActivityIndicator color={theme.textInverse} />
+                            ) : (
+                                <>
+                                    <Text style={[styles.primaryBtnText, { color: theme.textInverse }]}>
+                                        {data?.startsAtIso && new Date(data.startsAtIso) < new Date() ? "Join Now" : "Enroll Now"}
+                                    </Text>
+                                    <Ionicons name="arrow-forward" size={16} color={theme.textInverse} />
+                                </>
+                            )}
+                        </Pressable>
+                    </View>
                 )}
             </ScrollView>
         </KeyboardAvoidingView>

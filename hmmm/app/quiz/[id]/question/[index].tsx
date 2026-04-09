@@ -1,11 +1,11 @@
 import { fetchQuizQuestion, submitQuizAnswers } from "@/constants/quiz-api";
 import { getAnswer, getQuizAnswers, setAnswer, setQuizResult } from "@/constants/quiz-session";
-import { useRequireAuth } from "@/hook/useRequireAuth";
 import { useTheme } from "@/hook/theme";
+import { useRequireAuth } from "@/hook/useRequireAuth";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View, Alert } from "react-native";
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function QuestionScreen() {
@@ -116,84 +116,84 @@ export default function QuestionScreen() {
         }
     };
 
-const timerColor = timeLeft <= 10 ? theme.error : timeLeft <= 20 ? theme.warning : theme.primary;
+    const timerColor = timeLeft <= 10 ? theme.error : timeLeft <= 20 ? theme.warning : theme.primary;
 
-return (
-    <ScrollView
-        style={[styles.root, { backgroundColor: theme.background }]}
-        contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + 24, paddingHorizontal: 16 }}
-    >
-        <Text style={[styles.brand, { color: theme.textPrimary }]}>Intellectual Playground</Text>
-        <Text style={[styles.progress, { color: theme.textSecondary }]}>{data.current}/{data.total}</Text>
-        <View style={[styles.progressTrack, { backgroundColor: theme.divider }]}>
-            <View style={[styles.progressFill, { backgroundColor: theme.primary, width: `${(data.current / data.total) * 100}%` }]} />
-        </View>
-
-        <View style={[styles.card, { backgroundColor: theme.surfaceLight, borderColor: theme.border }]}>
-            <View style={styles.badges}>
-                {data.highPoints && (
-                    <Text style={[styles.badge, { backgroundColor: theme.warningMuted, color: theme.textPrimary }]}>HIGH POINTS</Text>
-                )}
-                <Text style={[
-                    styles.badge,
-                    {
-                        backgroundColor: timerExpired ? theme.error : theme.primaryMuted,
-                        color: timerExpired ? theme.textInverse : theme.textPrimary,
-                        marginLeft: "auto",
-                    },
-                ]}>
-                    {String(Math.floor(timeLeft / 60)).padStart(2, "0")}:{String(timeLeft % 60).padStart(2, "0")}
-                </Text>
+    return (
+        <ScrollView
+            style={[styles.root, { backgroundColor: theme.background }]}
+            contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + 24, paddingHorizontal: 16 }}
+        >
+            <Text style={[styles.brand, { color: theme.textPrimary }]}>Made by verihire.live Team</Text>
+            <Text style={[styles.progress, { color: theme.textSecondary }]}>{data.current}/{data.total}</Text>
+            <View style={[styles.progressTrack, { backgroundColor: theme.divider }]}>
+                <View style={[styles.progressFill, { backgroundColor: theme.primary, width: `${(data.current / data.total) * 100}%` }]} />
             </View>
 
-            {timerExpired && (
-                <Text style={[styles.timerWarning, { color: theme.error }]}>Time's up! You can still submit your current answer.</Text>
-            )}
+            <View style={[styles.card, { backgroundColor: theme.surfaceLight, borderColor: theme.border }]}>
+                <View style={styles.badges}>
+                    {data.highPoints && (
+                        <Text style={[styles.badge, { backgroundColor: theme.warningMuted, color: theme.textPrimary }]}>HIGH POINTS</Text>
+                    )}
+                    <Text style={[
+                        styles.badge,
+                        {
+                            backgroundColor: timerExpired ? theme.error : theme.primaryMuted,
+                            color: timerExpired ? theme.textInverse : theme.textPrimary,
+                            marginLeft: "auto",
+                        },
+                    ]}>
+                        {String(Math.floor(timeLeft / 60)).padStart(2, "0")}:{String(timeLeft % 60).padStart(2, "0")}
+                    </Text>
+                </View>
 
-            <Text style={[styles.question, { color: theme.textPrimary }]}>{data.question.text}</Text>
+                {timerExpired && (
+                    <Text style={[styles.timerWarning, { color: theme.error }]}>Time's up! You can still submit your current answer.</Text>
+                )}
 
-            {!!data.question.imageUrl && <Image source={{ uri: data.question.imageUrl }} style={styles.image} />}
+                <Text style={[styles.question, { color: theme.textPrimary }]}>{data.question.text}</Text>
 
-            {data.question.options.map((option: any) => {
-                const isActive = selected === option.id;
-                return (
-                    <Pressable
-                        key={option.id}
-                        onPress={() => !timerExpired && setAnswer(quizId!, data.question.id, option.id)}
-                        style={[
-                            styles.option,
-                            {
-                                backgroundColor: isActive ? theme.accent : theme.optionDefault,
-                                borderColor: isActive ? theme.textPrimary : "transparent",
-                                opacity: timerExpired && !isActive ? 0.5 : 1,
-                            },
-                        ]}
-                    >
-                        <Text style={[styles.optionText, { color: isActive ? theme.textInverse : theme.textPrimary }]}>{option.label}</Text>
-                    </Pressable>
-                );
-            })}
-        </View>
+                {!!data.question.imageUrl && <Image source={{ uri: data.question.imageUrl }} style={styles.image} />}
 
-        <Pressable
-            disabled={(!selected && !timerExpired) || submitting}
-            onPress={goNext}
-            style={[
-                styles.next,
-                {
-                    backgroundColor: ((!selected && !timerExpired) || submitting) ? theme.buttonDisabled : theme.buttonPrimary,
-                },
-            ]}
-        >
-            <Text style={[styles.nextText, { color: theme.textInverse }]}>
-                {data.current < data.total
-                    ? timerExpired ? "Skip to Next" : "Next Question"
-                    : submitting ? "Submitting..." : "Finish Quiz"}
-            </Text>
-            <Ionicons name="arrow-forward" size={18} color={theme.textInverse} />
-        </Pressable>
-    </ScrollView>
-);
+                {data.question.options.map((option: any) => {
+                    const isActive = selected === option.id;
+                    return (
+                        <Pressable
+                            key={option.id}
+                            onPress={() => !timerExpired && setAnswer(quizId!, data.question.id, option.id)}
+                            style={[
+                                styles.option,
+                                {
+                                    backgroundColor: isActive ? theme.accent : theme.optionDefault,
+                                    borderColor: isActive ? theme.textPrimary : "transparent",
+                                    opacity: timerExpired && !isActive ? 0.5 : 1,
+                                },
+                            ]}
+                        >
+                            <Text style={[styles.optionText, { color: isActive ? theme.textInverse : theme.textPrimary }]}>{option.label}</Text>
+                        </Pressable>
+                    );
+                })}
+            </View>
+
+            <Pressable
+                disabled={(!selected && !timerExpired) || submitting}
+                onPress={goNext}
+                style={[
+                    styles.next,
+                    {
+                        backgroundColor: ((!selected && !timerExpired) || submitting) ? theme.buttonDisabled : theme.buttonPrimary,
+                    },
+                ]}
+            >
+                <Text style={[styles.nextText, { color: theme.textInverse }]}>
+                    {data.current < data.total
+                        ? timerExpired ? "Skip to Next" : "Next Question"
+                        : submitting ? "Submitting..." : "Finish Quiz"}
+                </Text>
+                <Ionicons name="arrow-forward" size={18} color={theme.textInverse} />
+            </Pressable>
+        </ScrollView>
+    );
 }
 
 const styles = StyleSheet.create({
