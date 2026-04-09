@@ -1,7 +1,8 @@
+import { login } from "@/constants/auth-api";
+import { isAuthenticated, setAuthToken } from "@/constants/auth-session";
 import { EnrollmentFormField, enrollQuiz, fetchQuizDetail, fetchQuizLobby } from "@/constants/quiz-api";
 import { clearQuizAnswers } from "@/constants/quiz-session";
 import { useTheme } from "@/hook/theme";
-import { useRequireAuth } from "@/hook/useRequireAuth";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
@@ -25,7 +26,6 @@ export default function QuizDetailScreen() {
     const theme = useTheme();
     const insets = useSafeAreaInsets();
     const router = useRouter();
-    useRequireAuth(`/quiz/${quizId}`);
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [enrolling, setEnrolling] = useState(false);
@@ -72,6 +72,58 @@ export default function QuizDetailScreen() {
     const enrollmentForm: { formId: string; fields: EnrollmentFormField[] } | null =
         data?.enrollmentForm ?? null;
 
+    const findFieldValue = (fields: EnrollmentFormField[] | undefined, answers: Record<string, string>, matcher: (f: EnrollmentFormField) => boolean) => {
+        const matched = (fields ?? []).find(matcher);
+        if (!matched) return "";
+        return (answers[matched.id] ?? "").trim();
+    };
+
+    const getRollNumberFromForm = (fields: EnrollmentFormField[] | undefined, answers: Record<string, string>) => {
+        return findFieldValue(fields, answers, (f) => {
+            const id = String(f.id ?? "").toLowerCase();
+            const label = String(f.label ?? "").toLowerCase();
+            return id.includes("roll") || id.includes("reg") || label.includes("roll") || label.includes("registration number");
+        });
+    };
+
+    const ensureAuthenticatedFromEnrollmentForm = async () => {
+        if (isAuthenticated()) return;
+
+        const fields = enrollmentForm?.fields ?? [];
+        const rollNumber = getRollNumberFromForm(fields, formAnswers);
+
+        if (!rollNumber) {
+            throw new Error("Roll number is required to continue.");
+        }
+
+        const name = findFieldValue(fields, formAnswers, (f) => String(f.id ?? "").toLowerCase().includes("name") || String(f.label ?? "").toLowerCase().includes("name"));
+        const email = findFieldValue(fields, formAnswers, (f) => String(f.id ?? "").toLowerCase().includes("email") || String(f.label ?? "").toLowerCase().includes("email"));
+        const branch = findFieldValue(fields, formAnswers, (f) => String(f.id ?? "").toLowerCase().includes("branch") || String(f.label ?? "").toLowerCase().includes("branch"));
+        const yearText = findFieldValue(fields, formAnswers, (f) => String(f.id ?? "").toLowerCase().includes("year") || String(f.label ?? "").toLowerCase().includes("year"));
+        const year = yearText ? Number(yearText) : undefined;
+
+        const auth = await login(
+            rollNumber,
+            name || undefined,
+            email || undefined,
+            branch || undefined,
+            year !== undefined && !Number.isNaN(year) ? year : undefined,
+            `${Platform.OS}-device`,
+            undefined,
+            Platform.OS,
+        );
+
+        setAuthToken(
+            auth.token,
+            auth.userId,
+            auth.rollNumber,
+            auth.role,
+            auth.sessionId,
+            branch || undefined,
+            year !== undefined && !Number.isNaN(year) ? year : undefined,
+        );
+    };
+
     const shareQuizUrl = async () => {
         if (!quizId) return;
         const appUrl = `hmmm://quiz/${quizId}/lobby`;
@@ -98,6 +150,7 @@ export default function QuizDetailScreen() {
 
         setEnrolling(true);
         try {
+            await ensureAuthenticatedFromEnrollmentForm();
             await enrollQuiz(quizId, enrollmentForm ? formAnswers : undefined);
             clearQuizAnswers(quizId);
             router.push({ pathname: "/quiz/[id]/lobby", params: { id: quizId } } as any);
