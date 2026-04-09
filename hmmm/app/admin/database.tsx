@@ -50,6 +50,8 @@ export default function DatabaseBrowser() {
     const [showEditor, setShowEditor] = useState(false);
     const [showDetail, setShowDetail] = useState(false);
     const [activeRecord, setActiveRecord] = useState<any | null>(null);
+    const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
+    const [deleting, setDeleting] = useState(false);
     const [editingRecord, setEditingRecord] = useState<any | null>(null);
     const [formData, setFormData] = useState<Record<string, any>>({});
 
@@ -172,24 +174,23 @@ export default function DatabaseBrowser() {
     };
 
     const confirmDelete = (record: any) => {
-        if (!selectedTable) return;
-        Alert.alert("Delete record", "This cannot be undone.", [
-            { text: "Cancel", style: "cancel" },
-            {
-                text: "Delete",
-                style: "destructive",
-                onPress: async () => {
-                    try {
-                        await adminDeleteTableRecord(selectedTable, String(record.id));
-                        setShowDetail(false);
-                        await loadTables();
-                        await loadRecords();
-                    } catch (err: any) {
-                        Alert.alert("Error", err?.message || "Failed to delete record");
-                    }
-                },
-            },
-        ]);
+        setDeleteTarget(record);
+    };
+
+    const performDelete = async () => {
+        if (!selectedTable || !deleteTarget) return;
+        setDeleting(true);
+        try {
+            await adminDeleteTableRecord(selectedTable, String(deleteTarget.id));
+            setShowDetail(false);
+            setDeleteTarget(null);
+            await loadTables();
+            await loadRecords();
+        } catch (err: any) {
+            Alert.alert("Error", err?.message || "Failed to delete record");
+        } finally {
+            setDeleting(false);
+        }
     };
 
     const saveRecord = async () => {
@@ -373,14 +374,7 @@ export default function DatabaseBrowser() {
                                         <Pressable onPress={() => openEdit(record)}>
                                             <Text style={[styles.rowActionText, { color: theme.primary }]}>Edit</Text>
                                         </Pressable>
-                                        <Pressable
-                                            onPress={() =>
-                                                Alert.alert("Actions", "Choose an action", [
-                                                    { text: "Delete", style: "destructive", onPress: () => confirmDelete(record) },
-                                                    { text: "Cancel", style: "cancel" },
-                                                ])
-                                            }
-                                        >
+                                        <Pressable onPress={() => confirmDelete(record)}>
                                             <Ionicons name="ellipsis-vertical" size={16} color={theme.textSecondary} />
                                         </Pressable>
                                     </View>
@@ -447,6 +441,42 @@ export default function DatabaseBrowser() {
                                 style={[styles.modalBtn, { borderColor: theme.border, backgroundColor: `${theme.error}18` }]}
                             >
                                 <Text style={{ color: theme.error }}>Delete</Text>
+                            </Pressable>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            <Modal visible={!!deleteTarget} transparent animationType="fade">
+                <View style={[styles.modalOverlay, { backgroundColor: `${theme.textMuted}99` }]}> 
+                    <View style={[styles.modalContent, { backgroundColor: theme.background }]}> 
+                        <View style={styles.modalHeader}>
+                            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Delete record</Text>
+                            <Pressable onPress={() => !deleting && setDeleteTarget(null)}>
+                                <Ionicons name="close" size={22} color={theme.textPrimary} />
+                            </Pressable>
+                        </View>
+
+                        <View style={styles.formContent}>
+                            <Text style={{ color: theme.textSecondary }}>
+                                Are you sure you want to delete record #{prettyValue(deleteTarget?.id)}? This action cannot be undone.
+                            </Text>
+                        </View>
+
+                        <View style={styles.modalActions}>
+                            <Pressable
+                                disabled={deleting}
+                                onPress={() => setDeleteTarget(null)}
+                                style={[styles.modalBtn, { borderColor: theme.border, backgroundColor: theme.surfaceLight, opacity: deleting ? 0.6 : 1 }]}
+                            >
+                                <Text style={{ color: theme.textPrimary }}>Cancel</Text>
+                            </Pressable>
+                            <Pressable
+                                disabled={deleting}
+                                onPress={performDelete}
+                                style={[styles.modalBtn, { borderColor: theme.border, backgroundColor: `${theme.error}18`, opacity: deleting ? 0.6 : 1 }]}
+                            >
+                                <Text style={{ color: theme.error }}>{deleting ? "Deleting..." : "Delete"}</Text>
                             </Pressable>
                         </View>
                     </View>
