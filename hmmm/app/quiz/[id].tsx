@@ -1,4 +1,4 @@
-import { EnrollmentFormField, enrollQuiz, fetchQuizDetail } from "@/constants/quiz-api";
+import { EnrollmentFormField, enrollQuiz, fetchQuizDetail, fetchQuizLobby } from "@/constants/quiz-api";
 import { clearQuizAnswers } from "@/constants/quiz-session";
 import { useTheme } from "@/hook/theme";
 import { useRequireAuth } from "@/hook/useRequireAuth";
@@ -36,10 +36,37 @@ export default function QuizDetailScreen() {
 
     useEffect(() => {
         if (!quizId) return;
-        fetchQuizDetail(quizId)
-            .then(setData)
-            .catch(console.error)
-            .finally(() => setLoading(false));
+        let cancelled = false;
+
+        const load = async () => {
+            try {
+                const detail = await fetchQuizDetail(quizId);
+                if (cancelled) return;
+                setData(detail);
+
+                try {
+                    await fetchQuizLobby(quizId);
+                    if (!cancelled) {
+                        router.replace({ pathname: "/quiz/[id]/lobby", params: { id: quizId } } as any);
+                        return;
+                    }
+                } catch {
+                    // Not enrolled yet — stay on the detail page.
+                }
+            } catch (err) {
+                console.error(err);
+            } finally {
+                if (!cancelled) {
+                    setLoading(false);
+                }
+            }
+        };
+
+        load();
+
+        return () => {
+            cancelled = true;
+        };
     }, [quizId]);
 
     const enrollmentForm: { formId: string; fields: EnrollmentFormField[] } | null =
@@ -76,9 +103,12 @@ export default function QuizDetailScreen() {
             router.push({ pathname: "/quiz/[id]/lobby", params: { id: quizId } } as any);
         } catch (error: any) {
             const msg: string = error?.message || '';
+            if (msg.toLowerCase().includes('already enrolled')) {
+                router.replace({ pathname: "/quiz/[id]/lobby", params: { id: quizId } } as any);
+                return;
+            }
             if (msg.toLowerCase().includes('already completed')) {
-                setAlreadyCompleted(true);
-                Alert.alert("Quiz Completed", "You have already completed this quiz.");
+                router.replace({ pathname: "/quiz/[id]/lobby", params: { id: quizId } } as any);
                 return;
             }
             Alert.alert("Error", msg || "Failed to enroll. Please try again.");
