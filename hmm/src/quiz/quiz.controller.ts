@@ -326,6 +326,23 @@ export class QuizController {
     return this.quizService.startQuiz(quizId);
   }
 
+  // Admin: update quiz schedule (start time and/or duration)
+  @Post(':quizId/schedule')
+  async updateQuizSchedule(
+    @Param('quizId') quizId: string,
+    @Body() body: any,
+    @Headers('Authorization') authHeader: string,
+  ) {
+    await this.requireAdmin(authHeader);
+    return this.quizService.updateQuizSchedule(quizId, {
+      startsAt: body?.startsAt ? String(body.startsAt) : undefined,
+      durationMinutes:
+        body?.durationMinutes !== undefined && body?.durationMinutes !== null
+          ? Number(body.durationMinutes)
+          : undefined,
+    });
+  }
+
   // Admin: declare winners for a quiz
   @Post(':quizId/declare-winners')
   async declareWinners(

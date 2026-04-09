@@ -251,6 +251,18 @@ export const adminStartQuiz = (quizId: string) =>
     })
   );
 
+export const adminUpdateQuizSchedule = (
+  quizId: string,
+  payload: { startsAt?: string; durationMinutes?: number },
+) =>
+  json<{ success: boolean }>(
+    fetch(apiUrl(`/quiz/${quizId}/schedule`), {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    })
+  );
+
 export const adminSetEnrollmentForm = (quizId: string, fields: EnrollmentFormField[]) =>
   json<{ formId: string; fields: EnrollmentFormField[] }>(
     fetch(apiUrl(`/quiz/${quizId}/enrollment-form`), {

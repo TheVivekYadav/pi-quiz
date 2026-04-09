@@ -962,6 +962,56 @@ export class QuizService {
     return { success: true };
   }
 
+  /** Admin: update quiz schedule (start time and/or duration). */
+  async updateQuizSchedule(
+    quizId: string,
+    body: { startsAt?: string; durationMinutes?: number },
+  ): Promise<{ success: boolean }> {
+    const pool = this.databaseService.getPool();
+
+    const check = await pool.query(
+      `SELECT id, winners_declared_at FROM quizzes WHERE id = $1`,
+      [quizId],
+    );
+    if (!check.rows[0]) throw new NotFoundException('Quiz not found');
+
+    if (check.rows[0].winners_declared_at) {
+      throw new BadRequestException('Cannot change schedule after winners are declared');
+    }
+
+    const updates: string[] = [];
+    const values: any[] = [quizId];
+
+    if (body.startsAt !== undefined) {
+      const startsAt = new Date(body.startsAt);
+      if (isNaN(startsAt.getTime())) {
+        throw new BadRequestException('startsAt must be a valid ISO date string');
+      }
+      values.push(startsAt.toISOString());
+      updates.push(`starts_at = $${values.length}`);
+    }
+
+    if (body.durationMinutes !== undefined) {
+      const duration = Number(body.durationMinutes);
+      if (!Number.isFinite(duration) || duration < 1) {
+        throw new BadRequestException('durationMinutes must be a positive number');
+      }
+      values.push(Math.floor(duration));
+      updates.push(`duration_minutes = $${values.length}`);
+    }
+
+    if (updates.length === 0) {
+      throw new BadRequestException('At least one of startsAt or durationMinutes is required');
+    }
+
+    await pool.query(
+      `UPDATE quizzes SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $1`,
+      values,
+    );
+
+    return { success: true };
+  }
+
   // ─── Winners & Reports ───────────────────────────────────────────────────
 
   /** Admin: officially declare winners for a quiz (top-3 by max score). */

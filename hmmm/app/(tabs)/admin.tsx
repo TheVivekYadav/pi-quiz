@@ -1,6 +1,6 @@
-import { isAdmin, getAuthToken } from "@/constants/auth-session";
-import { adminDeleteQuiz, adminDeclareWinners, adminListQuizzes, adminStartQuiz, QuizListItem } from "@/constants/quiz-api";
 import { adminListUsers, AdminUserItem } from "@/constants/auth-api";
+import { getAuthToken, isAdmin } from "@/constants/auth-session";
+import { adminDeclareWinners, adminDeleteQuiz, adminListQuizzes, adminStartQuiz, adminUpdateQuizSchedule, QuizListItem } from "@/constants/quiz-api";
 import { useTheme } from "@/hook/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -18,6 +18,10 @@ export default function AdminTab() {
     const [declaringId, setDeclaringId] = useState<string | null>(null);
     const [confirmDeclareId, setConfirmDeclareId] = useState<string | null>(null);
     const [startingId, setStartingId] = useState<string | null>(null);
+    const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
+    const [editingStartsAt, setEditingStartsAt] = useState("");
+    const [editingDuration, setEditingDuration] = useState("");
+    const [savingScheduleId, setSavingScheduleId] = useState<string | null>(null);
 
     // User sessions section
     const [users, setUsers] = useState<AdminUserItem[]>([]);
@@ -35,7 +39,7 @@ export default function AdminTab() {
         if (token) {
             adminListUsers(token)
                 .then((res) => setUsers(res.users))
-                .catch(() => {})
+                .catch(() => { })
                 .finally(() => setLoadingUsers(false));
         } else {
             setLoadingUsers(false);
@@ -77,7 +81,7 @@ export default function AdminTab() {
                         try {
                             await adminStartQuiz(quiz.id);
                             Alert.alert("Started", "Quiz has been started!");
-                            adminListQuizzes().then(setQuizzes).catch(() => {});
+                            adminListQuizzes().then(setQuizzes).catch(() => { });
                         } catch (err: any) {
                             Alert.alert("Error", err?.message || "Failed to start quiz.");
                         } finally {
@@ -114,11 +118,51 @@ export default function AdminTab() {
         try {
             await adminDeclareWinners(quizId);
             Alert.alert("Success", "Winners declared!");
-            adminListQuizzes().then(setQuizzes).catch(() => {});
+            adminListQuizzes().then(setQuizzes).catch(() => { });
         } catch (err: any) {
             Alert.alert("Error", err?.message || "Failed to declare winners.");
         } finally {
             setDeclaringId(null);
+        }
+    };
+
+    const toLocalDateTimeInput = (iso: string) => {
+        const d = new Date(iso);
+        const pad = (n: number) => String(n).padStart(2, "0");
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+
+    const beginEditSchedule = (quiz: QuizListItem) => {
+        setEditingScheduleId(quiz.id);
+        setEditingStartsAt(toLocalDateTimeInput(quiz.startsAtIso));
+        setEditingDuration(String(quiz.durationMinutes));
+    };
+
+    const saveSchedule = async (quizId: string) => {
+        const startsAtDate = new Date(editingStartsAt);
+        if (isNaN(startsAtDate.getTime())) {
+            Alert.alert("Invalid date", "Please enter a valid date/time in format YYYY-MM-DDTHH:MM");
+            return;
+        }
+        const duration = parseInt(editingDuration);
+        if (isNaN(duration) || duration < 1) {
+            Alert.alert("Invalid duration", "Duration must be a positive number.");
+            return;
+        }
+
+        setSavingScheduleId(quizId);
+        try {
+            await adminUpdateQuizSchedule(quizId, {
+                startsAt: startsAtDate.toISOString(),
+                durationMinutes: duration,
+            });
+            Alert.alert("Updated", "Quiz schedule updated.");
+            setEditingScheduleId(null);
+            adminListQuizzes().then(setQuizzes).catch(() => { });
+        } catch (err: any) {
+            Alert.alert("Error", err?.message || "Failed to update quiz schedule.");
+        } finally {
+            setSavingScheduleId(null);
         }
     };
 
@@ -190,6 +234,41 @@ export default function AdminTab() {
                                 {quiz.category} • {quiz.level} • {new Date(quiz.startsAtIso).toLocaleString()}
                             </Text>
 
+                            {editingScheduleId === quiz.id && (
+                                <View style={[styles.editScheduleBox, { borderColor: theme.border, backgroundColor: theme.surface }]}>
+                                    <Text style={[styles.confirmText, { color: theme.textPrimary }]}>Edit start date/time</Text>
+                                    <TextInput
+                                        style={[styles.scheduleInput, { borderColor: theme.border, color: theme.textPrimary, backgroundColor: theme.background }]}
+                                        value={editingStartsAt}
+                                        onChangeText={setEditingStartsAt}
+                                        placeholder="YYYY-MM-DDTHH:MM"
+                                        placeholderTextColor={theme.textMuted}
+                                        autoCapitalize="none"
+                                    />
+                                    <Text style={[styles.confirmText, { color: theme.textPrimary }]}>Duration (minutes)</Text>
+                                    <TextInput
+                                        style={[styles.scheduleInput, { borderColor: theme.border, color: theme.textPrimary, backgroundColor: theme.background }]}
+                                        value={editingDuration}
+                                        onChangeText={setEditingDuration}
+                                        keyboardType="numeric"
+                                        placeholder="30"
+                                        placeholderTextColor={theme.textMuted}
+                                    />
+                                    <View style={styles.editActionsRow}>
+                                        <Pressable
+                                            onPress={() => saveSchedule(quiz.id)}
+                                            disabled={savingScheduleId === quiz.id}
+                                            style={[styles.confirmYes, { backgroundColor: theme.primary, opacity: savingScheduleId === quiz.id ? 0.6 : 1 }]}
+                                        >
+                                            <Text style={[styles.confirmYesText, { color: theme.textInverse }]}>Save</Text>
+                                        </Pressable>
+                                        <Pressable onPress={() => setEditingScheduleId(null)}>
+                                            <Text style={[styles.confirmNo, { color: theme.textSecondary }]}>Cancel</Text>
+                                        </Pressable>
+                                    </View>
+                                </View>
+                            )}
+
                             {/* Inline declare-winners confirmation (web-safe) */}
                             {confirmDeclareId === quiz.id && (
                                 <View style={styles.confirmRow}>
@@ -221,6 +300,13 @@ export default function AdminTab() {
                                 accessibilityLabel="Manage questions"
                             >
                                 <Ionicons name="list-outline" size={20} color={theme.primary} />
+                            </Pressable>
+                            <Pressable
+                                onPress={() => beginEditSchedule(quiz)}
+                                style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.7 : 1 }]}
+                                accessibilityLabel="Edit schedule"
+                            >
+                                <Ionicons name="calendar-outline" size={20} color={theme.primary} />
                             </Pressable>
                             {!isPast && (
                                 <Pressable
@@ -396,4 +482,19 @@ const styles = StyleSheet.create({
     confirmYes: { alignSelf: "flex-start", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
     confirmYesText: { fontSize: 13, fontWeight: "700" },
     confirmNo: { fontSize: 13, fontWeight: "600" },
+    editScheduleBox: {
+        marginTop: 8,
+        borderWidth: 1,
+        borderRadius: 10,
+        padding: 10,
+        gap: 6,
+    },
+    scheduleInput: {
+        borderWidth: 1,
+        borderRadius: 10,
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        fontSize: 13,
+    },
+    editActionsRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 4 },
 });
