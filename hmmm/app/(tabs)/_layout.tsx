@@ -40,17 +40,16 @@ export default function TabsLayout() {
                     ),
                 }}
             />
-            {adminView && (
-                <Tabs.Screen
-                    name="reports"
-                    options={{
-                        title: "Reports",
-                        tabBarIcon: ({ color, size }) => (
-                            <Ionicons name="bar-chart-outline" color={color} size={size} />
-                        ),
-                    }}
-                />
-            )}
+            <Tabs.Screen
+                name="reports"
+                options={{
+                    href: adminView ? undefined : null,
+                    title: "Reports",
+                    tabBarIcon: ({ color, size }) => (
+                        <Ionicons name="bar-chart-outline" color={color} size={size} />
+                    ),
+                }}
+            />
             <Tabs.Screen
                 name="settings"
                 options={{
@@ -60,17 +59,16 @@ export default function TabsLayout() {
                     ),
                 }}
             />
-            {adminView && (
-                <Tabs.Screen
-                    name="admin"
-                    options={{
-                        title: "Admin",
-                        tabBarIcon: ({ color, size }) => (
-                            <Ionicons name="shield-checkmark-outline" color={color} size={size} />
-                        ),
-                    }}
-                />
-            )}
+            <Tabs.Screen
+                name="admin"
+                options={{
+                    href: adminView ? undefined : null,
+                    title: "Admin",
+                    tabBarIcon: ({ color, size }) => (
+                        <Ionicons name="shield-checkmark-outline" color={color} size={size} />
+                    ),
+                }}
+            />
         </Tabs>
     );
 }
