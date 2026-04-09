@@ -177,8 +177,8 @@ export class QuizService {
             COUNT(*)::int AS total,
             COUNT(*) FILTER (WHERE ${currentRangeExpr('qa', 'submitted_at')})::int AS current,
             COUNT(*) FILTER (WHERE ${previousRangeExpr('qa', 'submitted_at')})::int AS previous,
-            COALESCE(ROUND(AVG(qa.accuracy_rate)) FILTER (WHERE ${currentRangeExpr('qa', 'submitted_at')}), 0)::int AS avg_accuracy_current,
-            COALESCE(ROUND(AVG(qa.accuracy_rate)) FILTER (WHERE ${previousRangeExpr('qa', 'submitted_at')}), 0)::int AS avg_accuracy_previous
+            COALESCE(ROUND(AVG(qa.accuracy_rate) FILTER (WHERE ${currentRangeExpr('qa', 'submitted_at')})), 0)::int AS avg_accuracy_current,
+            COALESCE(ROUND(AVG(qa.accuracy_rate) FILTER (WHERE ${previousRangeExpr('qa', 'submitted_at')})), 0)::int AS avg_accuracy_previous
            FROM quiz_attempts qa`,
         ),
         pool.query(
