@@ -453,8 +453,8 @@ export default function CreateQuizScreen() {
                         onPress={handleSaveForm}
                         disabled={saving}
                     >
-                        <Ionicons name="arrow-forward" size={18} color={theme.textInverse} />
                         <Text style={[styles.btnText, { color: theme.textInverse }]}>{saving ? "Saving..." : formFields.length > 0 ? "Save Form & Add Questions" : "Next: Add Questions"}</Text>
+                        <Ionicons name="arrow-forward" size={18} color={theme.textInverse} />
                     </Pressable>
 
                     {!saving && (
@@ -535,8 +535,8 @@ export default function CreateQuizScreen() {
                         onPress={handleSaveQuestions}
                         disabled={saving}
                     >
-                        <Ionicons name="rocket-outline" size={18} color={theme.textInverse} />
                         <Text style={[styles.btnText, { color: theme.textInverse }]}>{saving ? "Saving..." : "Save Questions & Publish"}</Text>
+                        <Ionicons name="rocket-outline" size={18} color={theme.textInverse} />
                     </Pressable>
 
                     {!saving && (

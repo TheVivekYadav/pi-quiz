@@ -132,7 +132,7 @@ export default function QuizReportScreen() {
                             style={[styles.confirmYes, { backgroundColor: theme.warning }]}
                         >
                             <Text style={[styles.confirmYesText, { color: "#2d2500" }]}>
-                                {declaring ? "Declaring..." : "Yes, Declare Winners"}
+                                {declaring ? "Declaring..." : "Declare"}
                             </Text>
                         </Pressable>
                         <Pressable onPress={() => setConfirmDeclare(false)} style={styles.confirmNo}>

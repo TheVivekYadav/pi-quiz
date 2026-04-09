@@ -214,6 +214,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       'CREATE INDEX IF NOT EXISTS idx_quiz_attempts_quiz_id ON quiz_attempts(quiz_id);',
     );
     await this.pool.query(
+      'CREATE INDEX IF NOT EXISTS idx_quiz_attempts_quiz_id_submitted ON quiz_attempts(quiz_id, submitted_at DESC);',
+    );
+    await this.pool.query(
       'CREATE INDEX IF NOT EXISTS idx_quiz_responses_attempt_id ON quiz_responses(attempt_id);',
     );
     await this.pool.query(
