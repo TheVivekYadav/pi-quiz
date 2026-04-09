@@ -89,8 +89,21 @@ export default function LobbyScreen() {
         );
     }
 
-    const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
-    const ss = String(seconds % 60).padStart(2, "0");
+    const formatCountdown = (totalSeconds: number) => {
+        const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+        const hours = Math.floor(safeSeconds / 3600);
+        const minutes = Math.floor((safeSeconds % 3600) / 60);
+        const secs = safeSeconds % 60;
+
+        if (hours > 0) {
+            return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+        }
+
+        return `${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+    };
+
+    const countdownText = formatCountdown(seconds);
+    const lockoutText = formatCountdown(lockedSeconds);
 
     return (
         <ScrollView
@@ -111,13 +124,8 @@ export default function LobbyScreen() {
 
             <View style={styles.timerRow}>
                 <View style={[styles.timerBox, { backgroundColor: theme.surfaceLight, borderColor: theme.primary }]}>
-                    <Text style={[styles.timerValue, { color: theme.primary }]}>{mm}</Text>
-                    <Text style={[styles.timerLabel, { color: theme.textMuted }]}>MINUTES</Text>
-                </View>
-                <Text style={[styles.colon, { color: theme.textMuted }]}>:</Text>
-                <View style={[styles.timerBox, { backgroundColor: theme.surfaceLight, borderColor: theme.primary }]}>
-                    <Text style={[styles.timerValue, { color: theme.primary }]}>{ss}</Text>
-                    <Text style={[styles.timerLabel, { color: theme.textMuted }]}>SECONDS</Text>
+                    <Text style={[styles.timerValue, { color: theme.primary }]}>{countdownText}</Text>
+                    <Text style={[styles.timerLabel, { color: theme.textMuted }]}>TIME</Text>
                 </View>
             </View>
 
@@ -159,7 +167,7 @@ export default function LobbyScreen() {
             ) : lockedSeconds > 0 ? (
                 <View style={[styles.startBtn, { alignItems: 'center', paddingVertical: 16 }]}>
                     <Text style={[styles.startText, { color: theme.textSecondary }]}>You are temporarily locked out from attempting this quiz.</Text>
-                    <Text style={{ marginTop: 8, color: theme.textMuted }}>{`Try again in ${String(Math.floor(lockedSeconds / 60)).padStart(2, '0')}:${String(lockedSeconds % 60).padStart(2, '0')}`}</Text>
+                    <Text style={{ marginTop: 8, color: theme.textMuted }}>{`Try again in ${lockoutText}`}</Text>
                 </View>
             ) : (
                 <Pressable
@@ -176,7 +184,7 @@ export default function LobbyScreen() {
                         router.replace({ pathname: "/quiz/[id]/question/[index]", params: { id: quizId, index: "1" } } as any)
                     }
                 >
-                    <Text style={[styles.startText, { color: theme.textInverse }]}>{seconds > 0 ? `Starting in ${mm}:${ss}` : 'Start Quiz'}</Text>
+                    <Text style={[styles.startText, { color: theme.textInverse }]}>{seconds > 0 ? `Starting in ${countdownText}` : 'Start Quiz'}</Text>
                 </Pressable>
             )}
         </ScrollView>
