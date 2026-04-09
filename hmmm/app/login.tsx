@@ -26,9 +26,10 @@ export default function LoginScreen() {
         setStep(2);
     };
 
-    const handleLogin = async () => {
+    const completeLogin = async (opts?: { includeOptional?: boolean }) => {
+        const includeOptional = opts?.includeOptional ?? true;
         const numericYear = year.trim() ? Number(year) : undefined;
-        if (numericYear !== undefined && (Number.isNaN(numericYear) || numericYear < 1 || numericYear > 6)) {
+        if (includeOptional && numericYear !== undefined && (Number.isNaN(numericYear) || numericYear < 1 || numericYear > 6)) {
             Alert.alert('Error', 'Year should be between 1 and 6');
             return;
         }
@@ -37,16 +38,24 @@ export default function LoginScreen() {
         try {
             const result = await login(
                 rollNumber,
-                name || undefined,
-                email || undefined,
-                branch || undefined,
-                numericYear,
+                includeOptional ? (name || undefined) : undefined,
+                includeOptional ? (email || undefined) : undefined,
+                includeOptional ? (branch || undefined) : undefined,
+                includeOptional ? numericYear : undefined,
                 `${Platform.OS}-device`,
                 undefined,
                 Platform.OS,
             );
 
-            setAuthToken(result.token, result.userId, result.rollNumber, result.role, result.sessionId, branch || undefined, numericYear);
+            setAuthToken(
+                result.token,
+                result.userId,
+                result.rollNumber,
+                result.role,
+                result.sessionId,
+                includeOptional ? (branch || undefined) : undefined,
+                includeOptional ? numericYear : undefined,
+            );
 
             // Validate redirectTo to prevent open redirect (must start with /)
             const safeRedirect = redirectTo && redirectTo.startsWith('/') ? redirectTo : null;
@@ -63,12 +72,22 @@ export default function LoginScreen() {
         }
     };
 
+    const handleLogin = () => completeLogin({ includeOptional: true });
+
+    const handleQuickLogin = () => {
+        if (!rollNumber.trim()) {
+            Alert.alert('Error', 'Please enter your roll number');
+            return;
+        }
+        completeLogin({ includeOptional: false });
+    };
+
     return (
         <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
             <View style={styles.content}>
                 {/* Header */}
                 <View style={styles.header}>
-                    
+
                     <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
                         {step === 1 ? 'Enter your roll number to continue' : 'Complete your profile (optional)'}
                     </Text>
@@ -103,10 +122,22 @@ export default function LoginScreen() {
 
                             <TouchableOpacity
                                 style={[styles.button, { backgroundColor: colors.accent }]}
+                                onPress={handleQuickLogin}
+                                disabled={loading}
+                            >
+                                {loading ? (
+                                    <ActivityIndicator color={colors.textInverse} />
+                                ) : (
+                                    <Text style={[styles.buttonText, { color: colors.textInverse }]}>Sign In</Text>
+                                )}
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[styles.secondaryButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
                                 onPress={handleContinue}
                                 disabled={loading}
                             >
-                                <Text style={[styles.buttonText, { color: colors.textInverse }]}>Continue →</Text>
+                                <Text style={[styles.secondaryButtonText, { color: colors.textPrimary }]}>Add Optional Details</Text>
                             </TouchableOpacity>
 
                             <Text style={[styles.infoText, { color: colors.textSecondary }]}>
@@ -275,6 +306,16 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         alignItems: 'center',
         marginTop: 8,
+    },
+    secondaryButton: {
+        paddingVertical: 12,
+        borderRadius: 12,
+        alignItems: 'center',
+        borderWidth: 1,
+    },
+    secondaryButtonText: {
+        fontSize: 14,
+        fontWeight: '600',
     },
     buttonDisabled: {
         opacity: 0.6,
