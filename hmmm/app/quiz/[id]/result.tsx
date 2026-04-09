@@ -82,6 +82,13 @@ export default function ResultScreen() {
             </View>
 
             <Pressable
+                style={[styles.cta, { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border }]}
+                onPress={() => quizId && router.push({ pathname: "/quiz/[id]/my-responses", params: { id: quizId } } as any)}
+            >
+                <Text style={[styles.ctaText, { color: theme.primary }]}>📋 View My Answers</Text>
+            </Pressable>
+
+            <Pressable
                 style={[styles.cta, { backgroundColor: theme.buttonPrimary }]}
                 onPress={() => quizId && router.push({ pathname: "/quiz/[id]/winners", params: { id: quizId } } as any)}
             >

@@ -94,6 +94,45 @@ export class QuizController {
     });
   }
 
+  @Get(':quizId/questions')
+  async listQuestions(
+    @Param('quizId') quizId: string,
+    @Headers('Authorization') authHeader: string,
+  ) {
+    await this.requireAdmin(authHeader);
+    return this.quizService.getQuizQuestions(quizId);
+  }
+
+  @Delete(':quizId/questions/:questionId')
+  async deleteQuestion(
+    @Param('quizId') quizId: string,
+    @Param('questionId') questionId: string,
+    @Headers('Authorization') authHeader: string,
+  ) {
+    await this.requireAdmin(authHeader);
+    return this.quizService.deleteQuestion(quizId, questionId);
+  }
+
+  // Admin: get all user responses for a quiz
+  @Get(':quizId/admin-responses')
+  async getAdminResponses(
+    @Param('quizId') quizId: string,
+    @Headers('Authorization') authHeader: string,
+  ) {
+    await this.requireAdmin(authHeader);
+    return this.quizService.adminGetQuizResponses(quizId);
+  }
+
+  // User: get their own responses for a quiz
+  @Get(':quizId/my-responses')
+  async getMyResponses(
+    @Param('quizId') quizId: string,
+    @Headers('Authorization') authHeader: string,
+  ) {
+    const userId = await this.getUserId(authHeader);
+    return this.quizService.getUserQuizResponses(quizId, userId);
+  }
+
   @Post(':quizId/questions')
   async addQuestion(
     @Param('quizId') quizId: string,

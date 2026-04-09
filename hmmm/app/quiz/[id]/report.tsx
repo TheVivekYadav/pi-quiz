@@ -3,7 +3,7 @@ import { useRequireAuth } from "@/hook/useRequireAuth";
 import { useTheme } from "@/hook/theme";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function QuizReportScreen() {
@@ -17,6 +17,7 @@ export default function QuizReportScreen() {
     const [report, setReport] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [declaring, setDeclaring] = useState(false);
+    const [confirmDeclare, setConfirmDeclare] = useState(false);
 
     const load = async () => {
         if (!quizId) return;
@@ -34,29 +35,33 @@ export default function QuizReportScreen() {
     useEffect(() => { load(); }, [quizId]);
 
     const handleDeclareWinners = () => {
-        Alert.alert(
-            "Declare Winners",
-            "Are you sure you want to officially declare winners for this quiz? This cannot be undone.",
-            [
-                { text: "Cancel", style: "cancel" },
-                {
-                    text: "Declare",
-                    onPress: async () => {
-                        if (!quizId) return;
-                        setDeclaring(true);
-                        try {
-                            await adminDeclareWinners(quizId);
-                            Alert.alert("Success", "Winners have been declared!");
-                            await load();
-                        } catch (err: any) {
-                            Alert.alert("Error", err?.message || "Failed to declare winners.");
-                        } finally {
-                            setDeclaring(false);
-                        }
-                    },
-                },
-            ]
-        );
+        if (Platform.OS === 'web') {
+            setConfirmDeclare(true);
+        } else {
+            Alert.alert(
+                "Declare Winners",
+                "Are you sure you want to officially declare winners for this quiz? This cannot be undone.",
+                [
+                    { text: "Cancel", style: "cancel" },
+                    { text: "Declare", onPress: doDeclareWinners },
+                ]
+            );
+        }
+    };
+
+    const doDeclareWinners = async () => {
+        if (!quizId) return;
+        setConfirmDeclare(false);
+        setDeclaring(true);
+        try {
+            await adminDeclareWinners(quizId);
+            Alert.alert("Success", "Winners have been declared!");
+            await load();
+        } catch (err: any) {
+            Alert.alert("Error", err?.message || "Failed to declare winners.");
+        } finally {
+            setDeclaring(false);
+        }
     };
 
     if (loading) {
@@ -115,6 +120,26 @@ export default function QuizReportScreen() {
                         <Text style={[styles.winnerLink, { color: theme.primary }]}>View Winners →</Text>
                     </Pressable>
                 </View>
+            ) : confirmDeclare ? (
+                <View style={[styles.confirmBox, { backgroundColor: `${theme.warning}22`, borderColor: theme.warning }]}>
+                    <Text style={[styles.confirmText, { color: theme.textPrimary }]}>
+                        Officially declare winners for this quiz? This cannot be undone.
+                    </Text>
+                    <View style={styles.confirmBtns}>
+                        <Pressable
+                            onPress={doDeclareWinners}
+                            disabled={declaring}
+                            style={[styles.confirmYes, { backgroundColor: theme.warning }]}
+                        >
+                            <Text style={[styles.confirmYesText, { color: "#2d2500" }]}>
+                                {declaring ? "Declaring..." : "Yes, Declare Winners"}
+                            </Text>
+                        </Pressable>
+                        <Pressable onPress={() => setConfirmDeclare(false)} style={styles.confirmNo}>
+                            <Text style={[styles.confirmNoText, { color: theme.textSecondary }]}>Cancel</Text>
+                        </Pressable>
+                    </View>
+                </View>
             ) : (
                 <Pressable
                     onPress={handleDeclareWinners}
@@ -126,6 +151,14 @@ export default function QuizReportScreen() {
                     </Text>
                 </Pressable>
             )}
+
+            {/* View responses button */}
+            <Pressable
+                onPress={() => router.push({ pathname: "/quiz/[id]/admin-responses", params: { id: quizId } } as any)}
+                style={[styles.responsesBtn, { borderColor: theme.border, backgroundColor: theme.surface }]}
+            >
+                <Text style={[styles.responsesBtnText, { color: theme.primary }]}>📋 View User Responses</Text>
+            </Pressable>
 
             {/* Top scorers */}
             <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Top Scorers</Text>
@@ -164,6 +197,15 @@ const styles = StyleSheet.create({
     winnerLink: { fontSize: 14, fontWeight: "700" },
     declareBtn: { borderRadius: 14, paddingVertical: 14, alignItems: "center", marginBottom: 16 },
     declareBtnText: { fontSize: 17, fontWeight: "700" },
+    confirmBox: { borderWidth: 1, borderRadius: 14, padding: 14, marginBottom: 16, gap: 12 },
+    confirmText: { fontSize: 15, lineHeight: 22 },
+    confirmBtns: { flexDirection: "row", gap: 10, flexWrap: "wrap" },
+    confirmYes: { borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10 },
+    confirmYesText: { fontSize: 14, fontWeight: "700" },
+    confirmNo: { justifyContent: "center" },
+    confirmNoText: { fontSize: 14, fontWeight: "600" },
+    responsesBtn: { borderWidth: 1, borderRadius: 14, paddingVertical: 13, alignItems: "center", marginBottom: 16 },
+    responsesBtnText: { fontSize: 15, fontWeight: "700" },
     sectionTitle: { fontSize: 24, fontWeight: "800", marginBottom: 10 },
     empty: { fontSize: 15 },
     scorerRow: {

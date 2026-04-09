@@ -20,7 +20,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-type Step = "meta" | "questions" | "enrollform" | "done";
+type Step = "meta" | "enrollform" | "questions" | "done";
 
 type Option = { id: string; label: string };
 
@@ -136,7 +136,7 @@ export default function CreateQuizScreen() {
                 curatorNote: curatorNote.trim() || undefined,
             });
             setQuizId(quiz.id);
-            setStep("questions");
+            setStep("enrollform");
         } catch (err: any) {
             Alert.alert("Error", err?.message || "Failed to create quiz.");
         } finally {
@@ -201,7 +201,7 @@ export default function CreateQuizScreen() {
                     points: parseInt(q.points) || 1,
                 });
             }
-            setStep("enrollform");
+            setStep("done");
         } catch (err: any) {
             Alert.alert("Error", err?.message || "Failed to save questions.");
         } finally {
@@ -209,7 +209,7 @@ export default function CreateQuizScreen() {
         }
     };
 
-    // ── Step 3: Enrollment form ─────────────────────────────────────────────
+    // ── Step 2: Enrollment form ─────────────────────────────────────────────
 
     const addField = () => {
         setFormFields((prev) => [...prev, emptyField(prev.length)]);
@@ -224,7 +224,7 @@ export default function CreateQuizScreen() {
     };
 
     const handleSkipForm = () => {
-        setStep("done");
+        setStep("questions");
     };
 
     const handleSaveForm = async () => {
@@ -266,7 +266,7 @@ export default function CreateQuizScreen() {
         setSaving(true);
         try {
             await adminSetEnrollmentForm(quizId, fieldsToSave);
-            setStep("done");
+            setStep("questions");
         } catch (err: any) {
             Alert.alert("Error", err?.message || "Failed to save enrollment form.");
         } finally {
@@ -282,10 +282,13 @@ export default function CreateQuizScreen() {
                 <Ionicons name="checkmark-circle" size={64} color={theme.success} />
                 <Text style={[styles.doneTitle, { color: theme.textPrimary }]}>Quiz Published!</Text>
                 <Text style={[styles.doneSub, { color: theme.textSecondary }]}>
-                    {questions.length} question{questions.length !== 1 ? "s" : ""} added.
                     {formFields.length > 0
-                        ? `\nEnrollment form with ${formFields.length} field${formFields.length !== 1 ? "s" : ""} attached.`
-                        : "\nNo enrollment form — users can enroll directly."}
+                        ? `Enrollment form with ${formFields.length} field${formFields.length !== 1 ? "s" : ""} attached.`
+                        : "No enrollment form — users can enroll directly."}
+                    {"\n"}
+                    {questions.length > 0
+                        ? `${questions.length} question${questions.length !== 1 ? "s" : ""} added.`
+                        : "No questions yet — add them later from the Admin panel."}
                 </Text>
                 <Pressable
                     style={[styles.btn, { backgroundColor: theme.buttonPrimary, marginTop: 24 }]}
@@ -298,15 +301,15 @@ export default function CreateQuizScreen() {
     }
 
     const stepLabel =
-        step === "meta" ? "STEP 1 OF 3" : step === "questions" ? "STEP 2 OF 3" : "STEP 3 OF 3";
+        step === "meta" ? "STEP 1 OF 3" : step === "enrollform" ? "STEP 2 OF 3" : "STEP 3 OF 3";
     const pageTitle =
-        step === "meta" ? "Quiz Details" : step === "questions" ? "Add Questions" : "Enrollment Form";
+        step === "meta" ? "Quiz Details" : step === "enrollform" ? "Enrollment Form" : "Add Questions";
     const pageSub =
         step === "meta"
-            ? "Set quiz metadata, then add your questions."
-            : step === "questions"
-            ? `Quiz created — "${title}". Add questions below.`
-            : "Design the registration form participants fill before enrolling.\nOr skip to let users enroll without a form.";
+            ? "Set quiz metadata — you'll set up the enrollment form and questions next."
+            : step === "enrollform"
+            ? "Design the registration form participants fill before enrolling.\nOr skip to let users enroll without a form."
+            : `Quiz ready — "${title}". Add questions now or skip to add them later.`;
 
     return (
         <ScrollView
@@ -358,89 +361,13 @@ export default function CreateQuizScreen() {
                         onPress={handleCreateQuiz}
                         disabled={saving}
                     >
-                        <Text style={[styles.btnText, { color: theme.textInverse }]}>{saving ? "Creating..." : "Next: Add Questions"}</Text>
+                        <Text style={[styles.btnText, { color: theme.textInverse }]}>{saving ? "Creating..." : "Next: Enrollment Form"}</Text>
                         <Ionicons name="arrow-forward" size={18} color={theme.textInverse} />
                     </Pressable>
                 </View>
             )}
 
-            {/* ── Step 2: Questions ── */}
-            {step === "questions" && (
-                <View style={styles.form}>
-                    {questions.map((q, qIdx) => (
-                        <View key={q.tempId} style={[styles.qCard, { backgroundColor: theme.surfaceLight, borderColor: theme.border }]}>
-                            <View style={styles.qHeader}>
-                                <Text style={[styles.qNum, { color: theme.primary }]}>Q{qIdx + 1}</Text>
-                                {questions.length > 1 && (
-                                    <Pressable onPress={() => removeQuestion(qIdx)}>
-                                        <Ionicons name="trash-outline" size={18} color={theme.error} />
-                                    </Pressable>
-                                )}
-                            </View>
-
-                            <TextInput
-                                style={[styles.input, { borderColor: theme.border, color: theme.textPrimary, backgroundColor: theme.surface }]}
-                                placeholder="Question text"
-                                placeholderTextColor={theme.textMuted}
-                                value={q.text}
-                                onChangeText={(t) => updateQuestion(qIdx, { text: t })}
-                                multiline
-                            />
-
-                            <Text style={[styles.label, { color: theme.textSecondary, marginTop: 10 }]}>Options — tap circle to mark correct</Text>
-                            {q.options.map((opt, oIdx) => (
-                                <View key={opt.id} style={styles.optionRow}>
-                                    <Pressable
-                                        onPress={() => updateQuestion(qIdx, { correctOptionId: opt.id })}
-                                        style={[
-                                            styles.correctBtn,
-                                            {
-                                                backgroundColor: q.correctOptionId === opt.id ? theme.success : "transparent",
-                                                borderColor: q.correctOptionId === opt.id ? theme.success : theme.border,
-                                            },
-                                        ]}
-                                    >
-                                        {q.correctOptionId === opt.id && <Ionicons name="checkmark" size={12} color={theme.textInverse} />}
-                                    </Pressable>
-                                    <TextInput
-                                        style={[styles.optionInput, { borderColor: theme.border, color: theme.textPrimary, backgroundColor: theme.surface }]}
-                                        placeholder={`Option ${oIdx + 1}`}
-                                        placeholderTextColor={theme.textMuted}
-                                        value={opt.label}
-                                        onChangeText={(t) => updateOption(qIdx, oIdx, t)}
-                                    />
-                                </View>
-                            ))}
-
-                            <View style={styles.pointsRow}>
-                                <Text style={[styles.label, { color: theme.textSecondary }]}>Points:</Text>
-                                <TextInput
-                                    style={[styles.pointsInput, { borderColor: theme.border, color: theme.textPrimary, backgroundColor: theme.surface }]}
-                                    value={q.points}
-                                    onChangeText={(t) => updateQuestion(qIdx, { points: t })}
-                                    keyboardType="numeric"
-                                />
-                            </View>
-                        </View>
-                    ))}
-
-                    <Pressable style={[styles.addBtn, { borderColor: theme.primary }]} onPress={addQuestion}>
-                        <Ionicons name="add-circle-outline" size={20} color={theme.primary} />
-                        <Text style={[styles.addBtnText, { color: theme.primary }]}>Add Another Question</Text>
-                    </Pressable>
-
-                    <Pressable
-                        style={[styles.btn, { backgroundColor: saving ? theme.buttonDisabled : theme.buttonPrimary, marginTop: 16 }]}
-                        onPress={handleSaveQuestions}
-                        disabled={saving}
-                    >
-                        <Text style={[styles.btnText, { color: theme.textInverse }]}>{saving ? "Saving..." : "Next: Enrollment Form"}</Text>
-                        <Ionicons name="arrow-forward" size={18} color={theme.textInverse} />
-                    </Pressable>
-                </View>
-            )}
-
-            {/* ── Step 3: Enrollment form builder ── */}
+            {/* ── Step 2: Enrollment form builder ── */}
             {step === "enrollform" && (
                 <View style={styles.form}>
                     {formFields.length === 0 && (
@@ -526,13 +453,95 @@ export default function CreateQuizScreen() {
                         onPress={handleSaveForm}
                         disabled={saving}
                     >
-                        <Ionicons name="rocket-outline" size={18} color={theme.textInverse} />
-                        <Text style={[styles.btnText, { color: theme.textInverse }]}>{saving ? "Publishing..." : formFields.length > 0 ? "Publish with Form" : "Publish Quiz"}</Text>
+                        <Ionicons name="arrow-forward" size={18} color={theme.textInverse} />
+                        <Text style={[styles.btnText, { color: theme.textInverse }]}>{saving ? "Saving..." : formFields.length > 0 ? "Save Form & Add Questions" : "Next: Add Questions"}</Text>
                     </Pressable>
 
                     {!saving && (
                         <Pressable style={[styles.skipBtn, { borderColor: theme.border }]} onPress={handleSkipForm}>
                             <Text style={[styles.skipBtnText, { color: theme.textSecondary }]}>Skip — no enrollment form</Text>
+                        </Pressable>
+                    )}
+                </View>
+            )}
+
+            {/* ── Step 3: Questions ── */}
+            {step === "questions" && (
+                <View style={styles.form}>
+                    {questions.map((q, qIdx) => (
+                        <View key={q.tempId} style={[styles.qCard, { backgroundColor: theme.surfaceLight, borderColor: theme.border }]}>
+                            <View style={styles.qHeader}>
+                                <Text style={[styles.qNum, { color: theme.primary }]}>Q{qIdx + 1}</Text>
+                                {questions.length > 1 && (
+                                    <Pressable onPress={() => removeQuestion(qIdx)}>
+                                        <Ionicons name="trash-outline" size={18} color={theme.error} />
+                                    </Pressable>
+                                )}
+                            </View>
+
+                            <TextInput
+                                style={[styles.input, { borderColor: theme.border, color: theme.textPrimary, backgroundColor: theme.surface }]}
+                                placeholder="Question text"
+                                placeholderTextColor={theme.textMuted}
+                                value={q.text}
+                                onChangeText={(t) => updateQuestion(qIdx, { text: t })}
+                                multiline
+                            />
+
+                            <Text style={[styles.label, { color: theme.textSecondary, marginTop: 10 }]}>Options — tap circle to mark correct</Text>
+                            {q.options.map((opt, oIdx) => (
+                                <View key={opt.id} style={styles.optionRow}>
+                                    <Pressable
+                                        onPress={() => updateQuestion(qIdx, { correctOptionId: opt.id })}
+                                        style={[
+                                            styles.correctBtn,
+                                            {
+                                                backgroundColor: q.correctOptionId === opt.id ? theme.success : "transparent",
+                                                borderColor: q.correctOptionId === opt.id ? theme.success : theme.border,
+                                            },
+                                        ]}
+                                    >
+                                        {q.correctOptionId === opt.id && <Ionicons name="checkmark" size={12} color={theme.textInverse} />}
+                                    </Pressable>
+                                    <TextInput
+                                        style={[styles.optionInput, { borderColor: theme.border, color: theme.textPrimary, backgroundColor: theme.surface }]}
+                                        placeholder={`Option ${oIdx + 1}`}
+                                        placeholderTextColor={theme.textMuted}
+                                        value={opt.label}
+                                        onChangeText={(t) => updateOption(qIdx, oIdx, t)}
+                                    />
+                                </View>
+                            ))}
+
+                            <View style={styles.pointsRow}>
+                                <Text style={[styles.label, { color: theme.textSecondary }]}>Points:</Text>
+                                <TextInput
+                                    style={[styles.pointsInput, { borderColor: theme.border, color: theme.textPrimary, backgroundColor: theme.surface }]}
+                                    value={q.points}
+                                    onChangeText={(t) => updateQuestion(qIdx, { points: t })}
+                                    keyboardType="numeric"
+                                />
+                            </View>
+                        </View>
+                    ))}
+
+                    <Pressable style={[styles.addBtn, { borderColor: theme.primary }]} onPress={addQuestion}>
+                        <Ionicons name="add-circle-outline" size={20} color={theme.primary} />
+                        <Text style={[styles.addBtnText, { color: theme.primary }]}>Add Another Question</Text>
+                    </Pressable>
+
+                    <Pressable
+                        style={[styles.btn, { backgroundColor: saving ? theme.buttonDisabled : theme.buttonPrimary, marginTop: 16 }]}
+                        onPress={handleSaveQuestions}
+                        disabled={saving}
+                    >
+                        <Ionicons name="rocket-outline" size={18} color={theme.textInverse} />
+                        <Text style={[styles.btnText, { color: theme.textInverse }]}>{saving ? "Saving..." : "Save Questions & Publish"}</Text>
+                    </Pressable>
+
+                    {!saving && (
+                        <Pressable style={[styles.skipBtn, { borderColor: theme.border }]} onPress={() => setStep("done")}>
+                            <Text style={[styles.skipBtnText, { color: theme.textSecondary }]}>Skip — add questions later</Text>
                         </Pressable>
                     )}
                 </View>
