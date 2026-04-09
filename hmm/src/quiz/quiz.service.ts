@@ -1219,6 +1219,46 @@ export class QuizService {
 
     const existingFormId: string | null = quizCheck.rows[0].enrollment_form_id ?? null;
 
+    // If enrollments already exist, keep form schema backward compatible.
+    const enrolledResult = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM quiz_enrollments WHERE quiz_id = $1`,
+      [quizId],
+    );
+    const enrolledCount = enrolledResult.rows[0]?.count ?? 0;
+
+    if (existingFormId && enrolledCount > 0) {
+      const existingFormResult = await pool.query(`SELECT fields FROM forms WHERE id = $1`, [existingFormId]);
+      const existingFields: Array<{ id: string; type: string; required?: boolean }> = existingFormResult.rows[0]?.fields ?? [];
+
+      const oldById = new Map(existingFields.map((f) => [f.id, f]));
+      const nextById = new Map(fields.map((f) => [f.id, f]));
+
+      // Existing fields cannot be removed or change type once users have enrolled.
+      for (const oldField of existingFields) {
+        const nextField = nextById.get(oldField.id);
+        if (!nextField) {
+          throw new BadRequestException(
+            `Cannot remove field "${oldField.id}" after users have enrolled.`,
+          );
+        }
+        if (String(nextField.type) !== String(oldField.type)) {
+          throw new BadRequestException(
+            `Cannot change type for field "${oldField.id}" after users have enrolled.`,
+          );
+        }
+      }
+
+      // New required fields would make existing enrollment records incomplete.
+      for (const nextField of fields) {
+        const oldField = oldById.get(nextField.id);
+        if (!oldField && nextField.required) {
+          throw new BadRequestException(
+            `Cannot add new required field "${nextField.id}" after users have enrolled. Add it as optional.`,
+          );
+        }
+      }
+    }
+
     if (existingFormId) {
       // Update the existing form's fields
       await pool.query(
