@@ -448,8 +448,8 @@ export default function DatabaseBrowser() {
             </Modal>
 
             <Modal visible={!!deleteTarget} transparent animationType="fade">
-                <View style={[styles.modalOverlay, { backgroundColor: `${theme.textMuted}99` }]}> 
-                    <View style={[styles.modalContent, { backgroundColor: theme.background }]}> 
+                <View style={[styles.modalOverlay, { backgroundColor: `${theme.textMuted}99` }]}>
+                    <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
                         <View style={styles.modalHeader}>
                             <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Delete record</Text>
                             <Pressable onPress={() => !deleting && setDeleteTarget(null)}>
