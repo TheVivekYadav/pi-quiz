@@ -121,13 +121,19 @@ export default function MyResponsesScreen() {
                                             textColor = theme.success;
                                         }
 
+                                        const getOptionPrefix = (isSelected: boolean, isCorrectOpt: boolean, isCorrectAnswer: boolean) => {
+                                            if (isSelected) return isCorrectAnswer ? "✓ " : "✗ ";
+                                            if (isCorrectOpt && !isCorrectAnswer) return "✓ ";
+                                            return "  ";
+                                        };
+
                                         return (
                                             <View
                                                 key={opt.id}
                                                 style={[styles.optionRow, { backgroundColor: bg, borderColor }]}
                                             >
                                                 <Text style={[styles.optionText, { color: textColor }]}>
-                                                    {isSelected ? (r.isCorrect ? "✓ " : "✗ ") : isCorrectOpt && !r.isCorrect ? "✓ " : "  "}
+                                                    {getOptionPrefix(isSelected, isCorrectOpt, r.isCorrect)}
                                                     {opt.label}
                                                 </Text>
                                             </View>

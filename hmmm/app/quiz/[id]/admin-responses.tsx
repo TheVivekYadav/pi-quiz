@@ -19,13 +19,14 @@ export default function AdminResponsesScreen() {
 
     const [data, setData] = useState<{ questions: Question[]; users: UserRow[] } | null>(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [expanded, setExpanded] = useState<number | null>(null);
 
     useEffect(() => {
         if (!quizId) return;
         adminFetchQuizResponses(quizId)
             .then(setData)
-            .catch(console.error)
+            .catch((err: any) => setError(err?.message || "Failed to load responses."))
             .finally(() => setLoading(false));
     }, [quizId]);
 
@@ -39,6 +40,17 @@ export default function AdminResponsesScreen() {
 
     const questions = data?.questions ?? [];
     const users = data?.users ?? [];
+
+    if (error) {
+        return (
+            <View style={[styles.center, { backgroundColor: theme.background }]}>
+                <Text style={[{ color: theme.error, fontSize: 15, textAlign: "center", marginHorizontal: 24 }]}>{error}</Text>
+                <Pressable onPress={() => router.back()} style={{ marginTop: 16 }}>
+                    <Text style={[{ color: theme.primary, fontWeight: "700" }]}>← Back</Text>
+                </Pressable>
+            </View>
+        );
+    }
 
     return (
         <ScrollView
