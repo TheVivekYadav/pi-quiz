@@ -118,41 +118,155 @@ export class QuizService {
     };
   }
 
-  async getReportsOverview(userId: number, role: 'admin' | 'user' = 'user') {
+  async getReportsOverview(
+    userId: number,
+    role: 'admin' | 'user' = 'user',
+    range: 'today' | 'week' | 'month' | 'all' = 'all',
+  ) {
     const pool = this.databaseService.getPool();
 
     // ─── Admin: platform-wide overview ──────────────────────────────────────
     if (role === 'admin') {
-      const [usersRow, quizzesRow, enrollRow, attemptsRow] = await Promise.all([
-        pool.query(`SELECT COUNT(*) as count FROM users`),
-        pool.query(`SELECT COUNT(*) as count FROM quizzes`),
-        pool.query(`SELECT COUNT(*) as count FROM quiz_enrollments`),
-        pool.query(`SELECT COUNT(*) as count, COALESCE(AVG(accuracy_rate),0) as avg_accuracy FROM quiz_attempts`),
+      const normalizedRange: 'today' | 'week' | 'month' | 'all' =
+        range === 'today' || range === 'week' || range === 'month' || range === 'all'
+          ? range
+          : 'all';
+
+      const currentWindowByRange: Record<'today' | 'week' | 'month' | 'all', string> = {
+        today: "date_trunc('day', NOW())",
+        week: "date_trunc('week', NOW())",
+        month: "date_trunc('month', NOW())",
+        all: "NOW() - INTERVAL '30 days'",
+      };
+      const previousWindowByRange: Record<'today' | 'week' | 'month' | 'all', string> = {
+        today: "date_trunc('day', NOW()) - INTERVAL '1 day'",
+        week: "date_trunc('week', NOW()) - INTERVAL '1 week'",
+        month: "date_trunc('month', NOW()) - INTERVAL '1 month'",
+        all: "NOW() - INTERVAL '60 days'",
+      };
+
+      const currentStart = currentWindowByRange[normalizedRange];
+      const previousStart = previousWindowByRange[normalizedRange];
+      const currentEnd = normalizedRange === 'all' ? 'NOW()' : null;
+
+      const currentRangeExpr = (alias: string, column: string) =>
+        currentEnd
+          ? `${alias}.${column} >= ${currentStart} AND ${alias}.${column} < ${currentEnd}`
+          : `${alias}.${column} >= ${currentStart}`;
+      const previousRangeExpr = (alias: string, column: string) =>
+        `${alias}.${column} >= ${previousStart} AND ${alias}.${column} < ${currentStart}`;
+
+      const [usersTotals, quizzesRow, enrollTotals, attemptsTotals, distributionRow, perQuizResult] = await Promise.all([
+        pool.query(
+          `SELECT
+            COUNT(*)::int AS total,
+            COUNT(*) FILTER (WHERE ${currentRangeExpr('u', 'created_at')})::int AS current,
+            COUNT(*) FILTER (WHERE ${previousRangeExpr('u', 'created_at')})::int AS previous
+           FROM users u`,
+        ),
+        pool.query(`SELECT COUNT(*)::int as count FROM quizzes`),
+        pool.query(
+          `SELECT
+            COUNT(*)::int AS total,
+            COUNT(*) FILTER (WHERE ${currentRangeExpr('qe', 'enrolled_at')})::int AS current,
+            COUNT(*) FILTER (WHERE ${previousRangeExpr('qe', 'enrolled_at')})::int AS previous
+           FROM quiz_enrollments qe`,
+        ),
+        pool.query(
+          `SELECT
+            COUNT(*)::int AS total,
+            COUNT(*) FILTER (WHERE ${currentRangeExpr('qa', 'submitted_at')})::int AS current,
+            COUNT(*) FILTER (WHERE ${previousRangeExpr('qa', 'submitted_at')})::int AS previous,
+            COALESCE(ROUND(AVG(qa.accuracy_rate)) FILTER (WHERE ${currentRangeExpr('qa', 'submitted_at')}), 0)::int AS avg_accuracy_current,
+            COALESCE(ROUND(AVG(qa.accuracy_rate)) FILTER (WHERE ${previousRangeExpr('qa', 'submitted_at')}), 0)::int AS avg_accuracy_previous
+           FROM quiz_attempts qa`,
+        ),
+        pool.query(
+          `SELECT
+            COUNT(*) FILTER (WHERE qa.accuracy_rate < 40)::int AS under_40,
+            COUNT(*) FILTER (WHERE qa.accuracy_rate >= 40 AND qa.accuracy_rate < 60)::int AS between_40_60,
+            COUNT(*) FILTER (WHERE qa.accuracy_rate >= 60 AND qa.accuracy_rate < 80)::int AS between_60_80,
+            COUNT(*) FILTER (WHERE qa.accuracy_rate >= 80)::int AS above_80
+           FROM quiz_attempts qa
+           WHERE ${currentRangeExpr('qa', 'submitted_at')}`,
+        ),
+        pool.query(
+          `SELECT q.id, q.title, q.category, q.starts_at,
+                  COUNT(DISTINCT qe.user_id) FILTER (WHERE ${currentRangeExpr('qe', 'enrolled_at')})::int AS enrolled,
+                  COUNT(DISTINCT qa.id) FILTER (WHERE ${currentRangeExpr('qa', 'submitted_at')})::int AS attempts,
+                  COALESCE(MAX(qa.score) FILTER (WHERE ${currentRangeExpr('qa', 'submitted_at')}),0)::int AS top_score,
+                  q.winners_declared_at
+           FROM quizzes q
+           LEFT JOIN quiz_enrollments qe ON qe.quiz_id = q.id
+           LEFT JOIN quiz_attempts qa ON qa.quiz_id = q.id
+           GROUP BY q.id
+           ORDER BY attempts DESC, enrolled DESC, q.starts_at DESC
+           LIMIT 20`,
+        ),
       ]);
 
-      const perQuizResult = await pool.query(
-        `SELECT q.id, q.title, q.category, q.starts_at,
-                COUNT(DISTINCT qe.user_id) AS enrolled,
-                COUNT(DISTINCT qa.id) AS attempts,
-                COALESCE(MAX(qa.score),0) AS top_score,
-                q.winners_declared_at
-         FROM quizzes q
-         LEFT JOIN quiz_enrollments qe ON qe.quiz_id = q.id
-         LEFT JOIN quiz_attempts qa ON qa.quiz_id = q.id
-         GROUP BY q.id
-         ORDER BY q.starts_at DESC
-         LIMIT 20`,
-      );
+      const usersTotal = usersTotals.rows[0]?.total ?? 0;
+      const usersCurrent = usersTotals.rows[0]?.current ?? 0;
+      const usersPrevious = usersTotals.rows[0]?.previous ?? 0;
+
+      const enrolledTotal = enrollTotals.rows[0]?.total ?? 0;
+      const enrolledCurrent = enrollTotals.rows[0]?.current ?? 0;
+      const enrolledPrevious = enrollTotals.rows[0]?.previous ?? 0;
+
+      const attemptsTotal = attemptsTotals.rows[0]?.total ?? 0;
+      const attemptsCurrent = attemptsTotals.rows[0]?.current ?? 0;
+      const attemptsPrevious = attemptsTotals.rows[0]?.previous ?? 0;
+      const avgAccuracyCurrent = attemptsTotals.rows[0]?.avg_accuracy_current ?? 0;
+      const avgAccuracyPrevious = attemptsTotals.rows[0]?.avg_accuracy_previous ?? 0;
+
+      const metricUsers = normalizedRange === 'all' ? usersTotal : usersCurrent;
+      const metricEnrolled = normalizedRange === 'all' ? enrolledTotal : enrolledCurrent;
+      const metricAttempts = normalizedRange === 'all' ? attemptsTotal : attemptsCurrent;
+
+      const attemptsPerUser = metricUsers > 0 ? Number((metricAttempts / metricUsers).toFixed(1)) : 0;
+      const enrollmentsPerUser = metricUsers > 0 ? Number((metricEnrolled / metricUsers).toFixed(1)) : 0;
+
+      const zeroAttemptQuizzes = perQuizResult.rows.filter((r: any) => (parseInt(r.attempts) || 0) === 0).length;
+      const mostActiveQuiz = perQuizResult.rows.find((r: any) => (parseInt(r.attempts) || 0) > 0);
+
+      const insights: string[] = [];
+      if (zeroAttemptQuizzes > 0) {
+        insights.push(`⚠️ ${zeroAttemptQuizzes} quizzes have no attempts in this period.`);
+      }
+      if (mostActiveQuiz) {
+        insights.push(`🔥 Most active quiz: ${mostActiveQuiz.title} (${parseInt(mostActiveQuiz.attempts) || 0} attempts).`);
+      }
+      if (avgAccuracyCurrent < avgAccuracyPrevious) {
+        insights.push(`📉 Accuracy dropped by ${Math.abs(avgAccuracyCurrent - avgAccuracyPrevious)}% versus previous period.`);
+      } else if (avgAccuracyCurrent > avgAccuracyPrevious) {
+        insights.push(`📈 Accuracy improved by ${Math.abs(avgAccuracyCurrent - avgAccuracyPrevious)}% versus previous period.`);
+      }
 
       return {
         admin: true,
+        range: normalizedRange,
         metrics: {
-          totalUsers: parseInt(usersRow.rows[0].count) || 0,
+          totalUsers: metricUsers,
           totalQuizzes: parseInt(quizzesRow.rows[0].count) || 0,
-          totalEnrolled: parseInt(enrollRow.rows[0].count) || 0,
-          totalAttempts: parseInt(attemptsRow.rows[0].count) || 0,
-          avgAccuracy: Math.round(parseFloat(attemptsRow.rows[0].avg_accuracy) || 0),
+          totalEnrolled: metricEnrolled,
+          totalAttempts: metricAttempts,
+          avgAccuracy: avgAccuracyCurrent,
+          attemptsPerUser,
+          enrollmentsPerUser,
+          trends: {
+            totalUsers: usersCurrent - usersPrevious,
+            totalEnrolled: enrolledCurrent - enrolledPrevious,
+            totalAttempts: attemptsCurrent - attemptsPrevious,
+            avgAccuracy: avgAccuracyCurrent - avgAccuracyPrevious,
+          },
         },
+        accuracyDistribution: {
+          under40: distributionRow.rows[0]?.under_40 ?? 0,
+          between40to60: distributionRow.rows[0]?.between_40_60 ?? 0,
+          between60to80: distributionRow.rows[0]?.between_60_80 ?? 0,
+          above80: distributionRow.rows[0]?.above_80 ?? 0,
+        },
+        insights,
         quizSummaries: perQuizResult.rows.map((r: any) => ({
           id: r.id,
           title: r.title,

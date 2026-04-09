@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Headers, Param, ParseIntPipe, Post, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Headers, Param, ParseIntPipe, Post, Query, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { randomUUID } from 'crypto';
 import { mkdirSync } from 'fs';
@@ -67,13 +67,16 @@ export class QuizController {
   }
 
   @Get('reports/overview')
-  async getReportsOverview(@Headers('Authorization') authHeader: string) {
+  async getReportsOverview(
+    @Headers('Authorization') authHeader: string,
+    @Query('range') range?: 'today' | 'week' | 'month' | 'all',
+  ) {
     const token = this.extractToken(authHeader);
     if (!token) throw new BadRequestException('Missing authorization token');
     const userId = await this.authService.getUserId(token);
     if (!userId) throw new BadRequestException('Invalid authorization token');
     const isAdmin = await this.authService.isAdmin(token);
-    return this.quizService.getReportsOverview(userId, isAdmin ? 'admin' : 'user');
+    return this.quizService.getReportsOverview(userId, isAdmin ? 'admin' : 'user', range ?? 'all');
   }
 
   @Get('upcoming')

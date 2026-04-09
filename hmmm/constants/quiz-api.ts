@@ -165,9 +165,9 @@ export const fetchQuizLeaderboard = (quizId: string) =>
     })
   );
 
-export const fetchReportsOverview = () =>
+export const fetchReportsOverview = (range: 'today' | 'week' | 'month' | 'all' = 'all') =>
   json<QuizReportsPayload>(
-    fetch(apiUrl("/quiz/reports/overview"), {
+    fetch(apiUrl(`/quiz/reports/overview?range=${encodeURIComponent(range)}`), {
       headers: getAuthHeaders(),
     })
   );
