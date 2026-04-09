@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
+    Image,
     KeyboardAvoidingView,
     Platform,
     Pressable,
@@ -108,6 +109,14 @@ export default function QuizDetailScreen() {
                 }}
                 keyboardShouldPersistTaps="handled"
             >
+                {data?.imageUrl && (
+                    <View style={[styles.banner, { borderColor: theme.border }]}>
+                        <Image
+                            source={{ uri: data.imageUrl }}
+                            style={styles.bannerImage}
+                        />
+                    </View>
+                )}
                 <Text style={[styles.brand, { color: theme.textPrimary }]}>Made by verihire.live Team</Text>
                 <Text style={[styles.title, { color: theme.textPrimary }]}>{data?.title}</Text>
                 <Text style={[styles.meta, { color: theme.textSecondary }]}>
@@ -264,6 +273,8 @@ export default function QuizDetailScreen() {
 const styles = StyleSheet.create({
     root: { flex: 1 },
     center: { flex: 1, alignItems: "center", justifyContent: "center" },
+    banner: { borderWidth: 1, borderRadius: 14, overflow: 'hidden', marginBottom: 16 },
+    bannerImage: { width: '100%', height: 200, resizeMode: 'cover' },
     brand: { fontSize: 20, fontWeight: "800" },
     title: { marginTop: 14, fontSize: 54, lineHeight: 56, fontWeight: "800" },
     meta: { marginTop: 10, fontSize: 14 },

@@ -68,7 +68,7 @@ export default function LoginScreen() {
             <View style={styles.content}>
                 {/* Header */}
                 <View style={styles.header}>
-                    <Text style={[styles.title, { color: colors.textPrimary }]}>Pi Quiz</Text>
+                    
                     <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
                         {step === 1 ? 'Enter your roll number to continue' : 'Complete your profile (optional)'}
                     </Text>

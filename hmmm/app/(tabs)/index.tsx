@@ -72,7 +72,6 @@ export default function DiscoverScreen() {
             style={[styles.root, { backgroundColor: theme.background }]}
             contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + 24, paddingHorizontal: 16 }}
         >
-            <Text style={[styles.brand, { color: theme.primary }]}>Pi Quiz</Text>
             <Text style={[styles.heading, { color: theme.textPrimary }]}>{greetingTitle}</Text>
             <Text style={[styles.subheading, { color: theme.textSecondary }]}>{greetingSubtitle}</Text>
             <Text style={[styles.viewer, { color: theme.textMuted }]}>Signed in as {adminView ? "Admin" : "Learner"} • {user?.rollNumber ?? "Unknown"}</Text>

@@ -95,6 +95,7 @@ export default function CreateQuizScreen() {
     });
     const [description, setDescription] = useState("");
     const [curatorNote, setCuratorNote] = useState("");
+    const [imageUrl, setImageUrl] = useState("");
 
     // Step 2 fields
     const [quizId, setQuizId] = useState<string | null>(null);
@@ -134,6 +135,7 @@ export default function CreateQuizScreen() {
                 startsAt: startDate.toISOString(),
                 description: description.trim() || undefined,
                 curatorNote: curatorNote.trim() || undefined,
+                imageUrl: imageUrl.trim() || undefined,
             });
             setQuizId(quiz.id);
             setStep("enrollform");
@@ -308,8 +310,8 @@ export default function CreateQuizScreen() {
         step === "meta"
             ? "Set quiz metadata — you'll set up the enrollment form and questions next."
             : step === "enrollform"
-            ? "Design the registration form participants fill before enrolling.\nOr skip to let users enroll without a form."
-            : `Quiz ready — "${title}". Add questions now or skip to add them later.`;
+                ? "Design the registration form participants fill before enrolling.\nOr skip to let users enroll without a form."
+                : `Quiz ready — "${title}". Add questions now or skip to add them later.`;
 
     return (
         <ScrollView
@@ -355,6 +357,7 @@ export default function CreateQuizScreen() {
                     <Field label="Start Date/Time * (YYYY-MM-DDTHH:MM)" value={startsAt} onChangeText={setStartsAt} placeholder="2024-06-01T10:00" theme={theme} />
                     <Field label="Description" value={description} onChangeText={setDescription} placeholder="Brief overview..." multiline theme={theme} />
                     <Field label="Curator Note" value={curatorNote} onChangeText={setCuratorNote} placeholder="A personal note for participants..." multiline theme={theme} />
+                    <Field label="Banner Image URL (https://...)" value={imageUrl} onChangeText={setImageUrl} placeholder="https://example.com/banner.jpg" multiline theme={theme} />
 
                     <Pressable
                         style={[styles.btn, { backgroundColor: saving ? theme.buttonDisabled : theme.buttonPrimary }]}

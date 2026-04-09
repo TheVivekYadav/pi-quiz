@@ -33,6 +33,7 @@ export type QuizDetail = {
   description: string;
   expectations: string[];
   curatorNote: string;
+  imageUrl?: string;
   seats: { status: string; available: number };
   enrollmentForm: EnrollmentForm | null;
 };
@@ -181,6 +182,7 @@ export type CreateQuizPayload = {
   description?: string;
   expectations?: string;
   curatorNote?: string;
+  imageUrl?: string;
 };
 
 export type AddQuestionPayload = {

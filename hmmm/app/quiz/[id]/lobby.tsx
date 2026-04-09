@@ -1,6 +1,6 @@
 import { fetchQuizLobby } from "@/constants/quiz-api";
-import { useRequireAuth } from "@/hook/useRequireAuth";
 import { useTheme } from "@/hook/theme";
+import { useRequireAuth } from "@/hook/useRequireAuth";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -106,7 +106,6 @@ export default function LobbyScreen() {
                 <Text style={[styles.leaveBtnText, { color: theme.textSecondary }]}>Leave Lobby</Text>
             </Pressable>
 
-            <Text style={[styles.brand, { color: theme.textPrimary }]}>Pi Quiz</Text>
             <Text style={[styles.subtitle, { color: theme.textSecondary }]}>{data.quizTitle}</Text>
             <Text style={[styles.title, { color: theme.textPrimary }]}>Starting Soon</Text>
 
