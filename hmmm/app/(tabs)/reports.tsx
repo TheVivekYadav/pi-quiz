@@ -1,8 +1,9 @@
 import { fetchReportsOverview } from "@/constants/quiz-api";
 import { isAdmin } from "@/constants/auth-session";
+import { useLoadTimeout } from "@/hook/useLoadTimeout";
 import { useTheme } from "@/hook/theme";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -13,24 +14,43 @@ export default function ReportsTab() {
     const adminView = isAdmin();
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [timedOut, setTimedOut] = useState(false);
 
-    useEffect(() => {
-        const run = async () => {
-            try {
-                const payload = await fetchReportsOverview();
-                setData(payload);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        run();
+    const load = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        setTimedOut(false);
+        try {
+            const payload = await fetchReportsOverview();
+            setData(payload);
+        } catch (err: any) {
+            setError(err?.message || 'Failed to load reports');
+        } finally {
+            setLoading(false);
+        }
     }, []);
+
+    useEffect(() => { load(); }, [load]);
+    useLoadTimeout(loading, () => { setTimedOut(true); setLoading(false); });
 
     if (loading) {
         return (
             <View style={[styles.center, { backgroundColor: theme.background }]}>
                 <ActivityIndicator size="large" color={theme.primary} />
+            </View>
+        );
+    }
+
+    if (timedOut || error) {
+        return (
+            <View style={[styles.center, { backgroundColor: theme.background }]}>
+                <Text style={{ color: '#b91c1c', fontSize: 15, textAlign: 'center', marginBottom: 16 }}>
+                    {timedOut ? 'Could not connect — tap to retry.' : `⚠ ${error}`}
+                </Text>
+                <Pressable onPress={load} style={{ backgroundColor: '#2563eb', borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 }}>
+                    <Text style={{ color: '#fff', fontWeight: '700' }}>Retry</Text>
+                </Pressable>
             </View>
         );
     }

@@ -1,4 +1,5 @@
 import { apiUrl } from "@/constants/api";
+import { isAdmin } from "@/constants/auth-session";
 import { useTheme } from "@/hook/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -117,6 +118,15 @@ export default function FillFormScreen() {
             setSubmitting(false);
         }
     };
+
+    if (!isAdmin()) {
+        return (
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.background }}>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: theme.error }}>Access denied</Text>
+                <Text style={{ marginTop: 8, color: theme.textSecondary }}>Admin access required.</Text>
+            </View>
+        );
+    }
 
     return (
         <ScrollView

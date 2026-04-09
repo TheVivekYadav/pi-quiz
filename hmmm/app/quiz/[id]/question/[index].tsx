@@ -22,6 +22,8 @@ export default function QuestionScreen() {
     const [submitting, setSubmitting] = useState(false);
     const [timeLeft, setTimeLeft] = useState(0);
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    // Track when the first question was shown to compute real timeTakenMinutes
+    const startedAtRef = useRef<string | null>(null);
 
     const clearTimer = () => {
         if (timerRef.current) {
@@ -38,6 +40,10 @@ export default function QuestionScreen() {
                 const payload = await fetchQuizQuestion(quizId, currentIndex);
                 setData(payload);
                 setTimeLeft(payload.timerSeconds ?? 30);
+                // Record when the first question loads
+                if (currentIndex === 1 && !startedAtRef.current) {
+                    startedAtRef.current = new Date().toISOString();
+                }
             } finally {
                 setLoading(false);
             }
@@ -92,7 +98,7 @@ export default function QuestionScreen() {
 
         setSubmitting(true);
         try {
-            const result = await submitQuizAnswers(quizId, getQuizAnswers(quizId));
+            const result = await submitQuizAnswers(quizId, getQuizAnswers(quizId), startedAtRef.current ?? undefined);
             setQuizResult(quizId, result);
             router.replace({ pathname: "/quiz/[id]/result", params: { id: quizId } } as any);
         } catch (err: any) {

@@ -1,5 +1,5 @@
 import { isAdmin, getAuthToken } from "@/constants/auth-session";
-import { adminDeleteQuiz, adminDeclareWinners, adminListQuizzes, QuizListItem } from "@/constants/quiz-api";
+import { adminDeleteQuiz, adminDeclareWinners, adminListQuizzes, adminStartQuiz, QuizListItem } from "@/constants/quiz-api";
 import { adminListUsers, AdminUserItem } from "@/constants/auth-api";
 import { useTheme } from "@/hook/theme";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,6 +16,7 @@ export default function AdminTab() {
     const [quizzes, setQuizzes] = useState<QuizListItem[]>([]);
     const [loadingQuizzes, setLoadingQuizzes] = useState(true);
     const [declaringId, setDeclaringId] = useState<string | null>(null);
+    const [startingId, setStartingId] = useState<string | null>(null);
 
     // User sessions section
     const [users, setUsers] = useState<AdminUserItem[]>([]);
@@ -55,6 +56,31 @@ export default function AdminTab() {
                             setQuizzes((prev) => prev.filter((q) => q.id !== quiz.id));
                         } catch (err: any) {
                             Alert.alert("Error", err?.message || "Failed to delete quiz.");
+                        }
+                    },
+                },
+            ]
+        );
+    };
+
+    const handleStartQuiz = (quiz: QuizListItem) => {
+        Alert.alert(
+            "Start Quiz",
+            `Start "${quiz.title}" immediately? All enrolled users will be able to begin.`,
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Start",
+                    onPress: async () => {
+                        setStartingId(quiz.id);
+                        try {
+                            await adminStartQuiz(quiz.id);
+                            Alert.alert("Started", "Quiz has been started!");
+                            adminListQuizzes().then(setQuizzes).catch(() => {});
+                        } catch (err: any) {
+                            Alert.alert("Error", err?.message || "Failed to start quiz.");
+                        } finally {
+                            setStartingId(null);
                         }
                     },
                 },
@@ -164,6 +190,19 @@ export default function AdminTab() {
                             >
                                 <Ionicons name="eye-outline" size={20} color={theme.primary} />
                             </Pressable>
+                            {!isPast && (
+                                <Pressable
+                                    onPress={() => handleStartQuiz(quiz)}
+                                    disabled={startingId === quiz.id}
+                                    style={({ pressed }) => [styles.iconBtn, { opacity: (pressed || startingId === quiz.id) ? 0.5 : 1 }]}
+                                    accessibilityLabel="Start quiz"
+                                >
+                                    {startingId === quiz.id
+                                        ? <ActivityIndicator size="small" color={theme.success} />
+                                        : <Ionicons name="play-circle-outline" size={20} color={theme.success} />
+                                    }
+                                </Pressable>
+                            )}
                             {isPast && (
                                 <>
                                     <Pressable

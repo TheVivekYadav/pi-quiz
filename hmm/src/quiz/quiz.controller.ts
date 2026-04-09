@@ -106,6 +106,20 @@ export class QuizController {
       throw new BadRequestException('text, options (array with ≥2 items) and correctOptionId are required');
     }
 
+    // Validate imageUrl must be an https:// URL if provided
+    if (body.imageUrl !== undefined && body.imageUrl !== null && body.imageUrl !== '') {
+      let validUrl = false;
+      try {
+        const parsed = new URL(String(body.imageUrl));
+        validUrl = parsed.protocol === 'https:';
+      } catch {
+        validUrl = false;
+      }
+      if (!validUrl) {
+        throw new BadRequestException('imageUrl must be a valid https:// URL');
+      }
+    }
+
     return this.quizService.addQuestion(quizId, {
       text: String(body.text),
       imageUrl: body.imageUrl ? String(body.imageUrl) : undefined,
@@ -205,7 +219,7 @@ export class QuizController {
     @Headers('Authorization') authHeader: string,
   ) {
     const userId = await this.getUserId(authHeader);
-    return this.quizService.submitQuiz(quizId, userId, body.answers || {});
+    return this.quizService.submitQuiz(quizId, userId, body.answers || {}, body.startedAt);
   }
 
   @Get(':quizId')

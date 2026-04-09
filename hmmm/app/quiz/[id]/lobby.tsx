@@ -3,9 +3,11 @@ import { useRequireAuth } from "@/hook/useRequireAuth";
 import { useTheme } from "@/hook/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+const POLL_INTERVAL_MS = 5_000;
 
 export default function LobbyScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
@@ -18,20 +20,44 @@ export default function LobbyScreen() {
     const [data, setData] = useState<any>(null);
     const [seconds, setSeconds] = useState(0);
     const [lockedSeconds, setLockedSeconds] = useState(0);
+    const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
+    const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    const loadLobby = async () => {
         if (!quizId) return;
-
-        const run = async () => {
+        try {
             const payload = await fetchQuizLobby(quizId);
             setData(payload);
             setSeconds(payload.startsInSeconds ?? 0);
             setLockedSeconds(payload.enrollment?.lockedSeconds ?? 0);
-        };
+            setError(null);
+        } catch (err: any) {
+            setError(err?.message || 'Failed to load lobby');
+        }
+    };
 
-        run();
+    // Initial load + polling while countdown > 0
+    useEffect(() => {
+        loadLobby();
+
+        pollRef.current = setInterval(() => {
+            // Only re-fetch while there is still a countdown (server may start quiz early)
+            setSeconds((prev) => {
+                if (prev > 0) {
+                    loadLobby();
+                }
+                return prev;
+            });
+        }, POLL_INTERVAL_MS);
+
+        return () => {
+            if (pollRef.current) clearInterval(pollRef.current);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [quizId]);
 
+    // Local countdown ticker
     useEffect(() => {
         if (seconds > 0) {
             const timer = setInterval(() => setSeconds((prev) => Math.max(0, prev - 1)), 1000);
@@ -49,7 +75,16 @@ export default function LobbyScreen() {
     if (!data) {
         return (
             <View style={[styles.center, { backgroundColor: theme.background }]}>
-                <ActivityIndicator size="large" color={theme.primary} />
+                {error ? (
+                    <>
+                        <Text style={[styles.errorText, { color: theme.error }]}>{error}</Text>
+                        <Pressable onPress={loadLobby} style={[styles.retryBtn, { backgroundColor: theme.buttonPrimary }]}>
+                            <Text style={[styles.retryText, { color: theme.textInverse }]}>Retry</Text>
+                        </Pressable>
+                    </>
+                ) : (
+                    <ActivityIndicator size="large" color={theme.primary} />
+                )}
             </View>
         );
     }
@@ -62,7 +97,16 @@ export default function LobbyScreen() {
             style={[styles.root, { backgroundColor: theme.background }]}
             contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + 24, paddingHorizontal: 16 }}
         >
-            <Text style={[styles.brand, { color: theme.textPrimary }]}>Intellectual Playground</Text>
+            {/* Leave lobby */}
+            <Pressable
+                onPress={() => quizId && router.replace({ pathname: "/quiz/[id]", params: { id: quizId } } as any)}
+                style={styles.leaveBtn}
+            >
+                <Ionicons name="arrow-back" size={16} color={theme.textSecondary} />
+                <Text style={[styles.leaveBtnText, { color: theme.textSecondary }]}>Leave Lobby</Text>
+            </Pressable>
+
+            <Text style={[styles.brand, { color: theme.textPrimary }]}>Pi Quiz</Text>
             <Text style={[styles.subtitle, { color: theme.textSecondary }]}>{data.quizTitle}</Text>
             <Text style={[styles.title, { color: theme.textPrimary }]}>Starting Soon</Text>
 
@@ -142,7 +186,12 @@ export default function LobbyScreen() {
 
 const styles = StyleSheet.create({
     root: { flex: 1 },
-    center: { flex: 1, alignItems: "center", justifyContent: "center" },
+    center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
+    errorText: { fontSize: 15, textAlign: "center", marginBottom: 16 },
+    retryBtn: { borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 },
+    retryText: { fontSize: 15, fontWeight: "700" },
+    leaveBtn: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
+    leaveBtnText: { fontSize: 14, fontWeight: "600" },
     brand: { fontSize: 20, fontWeight: "800" },
     subtitle: { marginTop: 12, fontSize: 15, letterSpacing: 2, textTransform: "uppercase" },
     title: { marginTop: 8, fontSize: 58, lineHeight: 60, fontWeight: "800" },

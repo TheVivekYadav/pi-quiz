@@ -11,6 +11,7 @@ import {
     Query,
     Req,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { AuthService, AuthToken } from './auth.service.js';
 
@@ -18,6 +19,7 @@ import { AuthService, AuthToken } from './auth.service.js';
 export class AuthController {
   constructor(private authService: AuthService) {}
 
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @Post('login')
   async login(
     @Body()
