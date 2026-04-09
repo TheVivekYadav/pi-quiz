@@ -20,6 +20,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - uploads_data:/app/uploads
     networks:
       - shared-net
 
@@ -56,6 +58,7 @@ services:
 
 volumes:
   pg_data:
+  uploads_data:
 
 networks:
   shared-net:
