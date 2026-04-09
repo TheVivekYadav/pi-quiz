@@ -54,6 +54,12 @@ export class QuizController {
     return `${proto}://${host}`.replace(/\/$/, '');
   }
 
+  private getPublicApiBaseUrl(req: any): string {
+    const configured = process.env.PUBLIC_API_BASE_URL?.trim();
+    if (configured) return configured.replace(/\/$/, '');
+    return `${this.getPublicBaseUrl(req)}/api`;
+  }
+
   @Get('home')
   async getHome(@Headers('Authorization') authHeader: string) {
     const userId = await this.getUserId(authHeader);
@@ -146,7 +152,7 @@ export class QuizController {
 
     return {
       success: true,
-      url: `${this.getPublicBaseUrl(req)}/uploads/banners/${file.filename}`,
+      url: `${this.getPublicApiBaseUrl(req)}/uploads/banners/${file.filename}`,
     };
   }
 

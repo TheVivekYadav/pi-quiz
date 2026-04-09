@@ -12,6 +12,11 @@ pit.engineer {
     reverse_proxy api:3000
   }
 
+  @uploads path /uploads /uploads/*
+  handle @uploads {
+    reverse_proxy api:3000
+  }
+
   handle {
     reverse_proxy web:80
   }
