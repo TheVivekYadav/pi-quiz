@@ -318,6 +318,14 @@ export const adminFetchQuizEnrollments = (quizId: string) =>
     })
   );
 
+export const adminRemoveQuizEnrollment = (quizId: string, userId: number) =>
+  json<{ success: boolean }>(
+    fetch(apiUrl(`/quiz/${quizId}/admin/enrollments/${userId}`), {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    })
+  );
+
 export const adminSetEnrollmentForm = (quizId: string, fields: EnrollmentFormField[]) =>
   json<{ formId: string; fields: EnrollmentFormField[] }>(
     fetch(apiUrl(`/quiz/${quizId}/enrollment-form`), {

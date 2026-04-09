@@ -1062,6 +1062,49 @@ export class QuizService {
     };
   }
 
+  /** Admin: remove a user's enrollment from a quiz. */
+  async adminRemoveEnrollment(quizId: string, userId: number): Promise<{ success: boolean }> {
+    const pool = this.databaseService.getPool();
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      const quizCheck = await client.query(`SELECT id FROM quizzes WHERE id = $1`, [quizId]);
+      if (!quizCheck.rows[0]) throw new NotFoundException('Quiz not found');
+
+      const enrollmentResult = await client.query(
+        `SELECT id, form_response_id FROM quiz_enrollments WHERE quiz_id = $1 AND user_id = $2`,
+        [quizId, userId],
+      );
+      const enrollment = enrollmentResult.rows[0];
+      if (!enrollment) throw new NotFoundException('Enrollment not found');
+
+      const attemptsResult = await client.query(
+        `SELECT COUNT(*)::int AS count FROM quiz_attempts WHERE quiz_id = $1 AND user_id = $2`,
+        [quizId, userId],
+      );
+      const attemptsCount = attemptsResult.rows[0]?.count ?? 0;
+      if (attemptsCount > 0) {
+        throw new BadRequestException('Cannot remove enrollment after user has attempted this quiz');
+      }
+
+      await client.query(`DELETE FROM quiz_enrollments WHERE id = $1`, [enrollment.id]);
+
+      if (enrollment.form_response_id) {
+        await client.query(`DELETE FROM responses WHERE id = $1`, [enrollment.form_response_id]);
+      }
+
+      await client.query('COMMIT');
+      return { success: true };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   /** User: get their own answers for a quiz (most recent attempt). */
   async getUserQuizResponses(quizId: string, userId: number) {
     const pool = this.databaseService.getPool();

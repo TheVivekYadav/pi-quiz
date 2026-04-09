@@ -198,6 +198,17 @@ export class QuizController {
     return this.quizService.getQuizEnrollments(quizId);
   }
 
+  // Admin: remove a single user's enrollment from a quiz
+  @Delete(':quizId/admin/enrollments/:userId')
+  async removeAdminEnrollment(
+    @Param('quizId') quizId: string,
+    @Param('userId', ParseIntPipe) userId: number,
+    @Headers('Authorization') authHeader: string,
+  ) {
+    await this.requireAdmin(authHeader);
+    return this.quizService.adminRemoveEnrollment(quizId, userId);
+  }
+
   // User: get their own responses for a quiz
   @Get(':quizId/my-responses')
   async getMyResponses(

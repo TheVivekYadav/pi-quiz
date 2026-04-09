@@ -1,4 +1,4 @@
-import { adminFetchQuizEnrollments, fetchQuizDetail } from "@/constants/quiz-api";
+import { adminFetchQuizEnrollments, adminRemoveQuizEnrollment, fetchQuizDetail } from "@/constants/quiz-api";
 import { useTheme } from "@/hook/theme";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -27,6 +27,7 @@ export default function QuizEnrollmentsScreen() {
     const [searchQuery, setSearchQuery] = useState("");
     const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
     const [expandedEnrollmentId, setExpandedEnrollmentId] = useState<number | null>(null);
+    const [removingUserId, setRemovingUserId] = useState<number | null>(null);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -148,9 +149,48 @@ export default function QuizEnrollmentsScreen() {
                 <View style={[styles.actionPill, { backgroundColor: `${theme.primary}12`, borderColor: theme.border }]}>
                     <Text style={[styles.actionPillText, { color: theme.primary }]}>View details</Text>
                 </View>
-                <View style={[styles.actionPill, { backgroundColor: `${theme.textMuted}12`, borderColor: theme.border }]}>
-                    <Text style={[styles.actionPillText, { color: theme.textSecondary }]}>Tap card to expand</Text>
-                </View>
+                <Pressable
+                    disabled={removingUserId === item.userId}
+                    onPress={() => {
+                        Alert.alert(
+                            "Remove Enrollment",
+                            `Remove ${item.name || item.rollNumber} from this quiz?`,
+                            [
+                                { text: "Cancel", style: "cancel" },
+                                {
+                                    text: "Remove",
+                                    style: "destructive",
+                                    onPress: async () => {
+                                        if (!quizId) return;
+                                        setRemovingUserId(item.userId);
+                                        try {
+                                            await adminRemoveQuizEnrollment(quizId, item.userId);
+                                            setEnrollmentData((prev: any) => {
+                                                if (!prev) return prev;
+                                                const nextEnrollments = (prev.enrollments ?? []).filter((e: any) => e.userId !== item.userId);
+                                                return {
+                                                    ...prev,
+                                                    totalEnrolled: Math.max(0, Number(prev.totalEnrolled ?? 0) - 1),
+                                                    enrollments: nextEnrollments,
+                                                };
+                                            });
+                                            if (expandedEnrollmentId === item.userId) {
+                                                setExpandedEnrollmentId(null);
+                                            }
+                                        } catch (err: any) {
+                                            Alert.alert("Cannot remove", err?.message || "Failed to remove enrollment.");
+                                        } finally {
+                                            setRemovingUserId(null);
+                                        }
+                                    },
+                                },
+                            ],
+                        );
+                    }}
+                    style={[styles.actionPill, { backgroundColor: `${theme.error}14`, borderColor: theme.border }]}
+                >
+                    <Text style={[styles.actionPillText, { color: theme.error }]}> {removingUserId === item.userId ? "Removing..." : "Remove"} </Text>
+                </Pressable>
             </View>
 
             {expandedEnrollmentId === item.userId && enrollmentData.formFields?.length > 0 && (
