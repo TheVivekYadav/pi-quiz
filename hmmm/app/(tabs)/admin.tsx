@@ -5,7 +5,7 @@ import { useTheme } from "@/hook/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function AdminTab() {
@@ -16,6 +16,7 @@ export default function AdminTab() {
     const [quizzes, setQuizzes] = useState<QuizListItem[]>([]);
     const [loadingQuizzes, setLoadingQuizzes] = useState(true);
     const [declaringId, setDeclaringId] = useState<string | null>(null);
+    const [confirmDeclareId, setConfirmDeclareId] = useState<string | null>(null);
     const [startingId, setStartingId] = useState<string | null>(null);
 
     // User sessions section
@@ -89,29 +90,36 @@ export default function AdminTab() {
     };
 
     const handleDeclareWinners = (quiz: QuizListItem) => {
-        Alert.alert(
-            "Declare Winners",
-            `Officially declare winners for "${quiz.title}"? This cannot be undone.`,
-            [
-                { text: "Cancel", style: "cancel" },
-                {
-                    text: "Declare",
-                    onPress: async () => {
-                        setDeclaringId(quiz.id);
-                        try {
-                            await adminDeclareWinners(quiz.id);
-                            Alert.alert("Success", "Winners declared!");
-                            // Refresh the quiz list (mark locally)
-                            adminListQuizzes().then(setQuizzes).catch(() => {});
-                        } catch (err: any) {
-                            Alert.alert("Error", err?.message || "Failed to declare winners.");
-                        } finally {
-                            setDeclaringId(null);
-                        }
+        if (Platform.OS === 'web') {
+            // On web, Alert.alert with multiple buttons may not work reliably — use inline confirm state
+            setConfirmDeclareId(quiz.id);
+        } else {
+            Alert.alert(
+                "Declare Winners",
+                `Officially declare winners for "${quiz.title}"? This cannot be undone.`,
+                [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                        text: "Declare",
+                        onPress: () => doDeclareWinners(quiz.id),
                     },
-                },
-            ]
-        );
+                ]
+            );
+        }
+    };
+
+    const doDeclareWinners = async (quizId: string) => {
+        setConfirmDeclareId(null);
+        setDeclaringId(quizId);
+        try {
+            await adminDeclareWinners(quizId);
+            Alert.alert("Success", "Winners declared!");
+            adminListQuizzes().then(setQuizzes).catch(() => {});
+        } catch (err: any) {
+            Alert.alert("Error", err?.message || "Failed to declare winners.");
+        } finally {
+            setDeclaringId(null);
+        }
     };
 
     const filteredUsers = users.filter((u) => {
@@ -181,6 +189,22 @@ export default function AdminTab() {
                             <Text style={[styles.quizMeta, { color: theme.textSecondary }]}>
                                 {quiz.category} • {quiz.level} • {new Date(quiz.startsAtIso).toLocaleString()}
                             </Text>
+
+                            {/* Inline declare-winners confirmation (web-safe) */}
+                            {confirmDeclareId === quiz.id && (
+                                <View style={styles.confirmRow}>
+                                    <Text style={[styles.confirmText, { color: theme.textPrimary }]}>Declare winners? Cannot be undone.</Text>
+                                    <Pressable
+                                        onPress={() => doDeclareWinners(quiz.id)}
+                                        style={[styles.confirmYes, { backgroundColor: theme.warning }]}
+                                    >
+                                        <Text style={[styles.confirmYesText, { color: "#2d2500" }]}>Yes, Declare</Text>
+                                    </Pressable>
+                                    <Pressable onPress={() => setConfirmDeclareId(null)}>
+                                        <Text style={[styles.confirmNo, { color: theme.textSecondary }]}>Cancel</Text>
+                                    </Pressable>
+                                </View>
+                            )}
                         </View>
                         <View style={styles.quizActions}>
                             <Pressable
@@ -189,6 +213,14 @@ export default function AdminTab() {
                                 accessibilityLabel="View quiz"
                             >
                                 <Ionicons name="eye-outline" size={20} color={theme.primary} />
+                            </Pressable>
+                            {/* Manage questions — always available */}
+                            <Pressable
+                                onPress={() => router.push({ pathname: "/quiz/[id]/manage-questions", params: { id: quiz.id } } as any)}
+                                style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.7 : 1 }]}
+                                accessibilityLabel="Manage questions"
+                            >
+                                <Ionicons name="list-outline" size={20} color={theme.primary} />
                             </Pressable>
                             {!isPast && (
                                 <Pressable
@@ -359,4 +391,9 @@ const styles = StyleSheet.create({
     sessionBadges: { flexDirection: "row", alignItems: "center", gap: 6 },
     sessionBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
     sessionBadgeText: { fontSize: 12, fontWeight: "700" },
+    confirmRow: { marginTop: 6, gap: 6 },
+    confirmText: { fontSize: 13, fontWeight: "600" },
+    confirmYes: { alignSelf: "flex-start", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
+    confirmYesText: { fontSize: 13, fontWeight: "700" },
+    confirmNo: { fontSize: 13, fontWeight: "600" },
 });

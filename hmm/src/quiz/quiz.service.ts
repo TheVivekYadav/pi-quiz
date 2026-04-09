@@ -776,6 +776,114 @@ export class QuizService {
     return { success: true };
   }
 
+  /** Admin: list all questions for a quiz. */
+  async getQuizQuestions(quizId: string) {
+    const pool = this.databaseService.getPool();
+    const quizCheck = await pool.query(`SELECT id FROM quizzes WHERE id = $1`, [quizId]);
+    if (!quizCheck.rows[0]) throw new NotFoundException('Quiz not found');
+
+    const result = await pool.query(
+      `SELECT id, question_text, image_url, options, correct_option_id, points, question_index
+       FROM quiz_questions WHERE quiz_id = $1 ORDER BY question_index ASC`,
+      [quizId],
+    );
+    return result.rows.map((q: any) => ({
+      id: q.id,
+      text: q.question_text,
+      imageUrl: q.image_url,
+      options: q.options,
+      correctOptionId: q.correct_option_id,
+      points: q.points,
+      questionIndex: q.question_index,
+    }));
+  }
+
+  /** Admin: delete a single question. */
+  async deleteQuestion(quizId: string, questionId: string): Promise<{ success: boolean }> {
+    const pool = this.databaseService.getPool();
+    const result = await pool.query(
+      `DELETE FROM quiz_questions WHERE id = $1 AND quiz_id = $2 RETURNING id`,
+      [questionId, quizId],
+    );
+    if (!result.rows[0]) throw new NotFoundException('Question not found');
+    return { success: true };
+  }
+
+  /** Admin: get all users' answers for every question in a quiz. */
+  async adminGetQuizResponses(quizId: string) {
+    const pool = this.databaseService.getPool();
+
+    const questionsResult = await pool.query(
+      `SELECT id, question_text, options, correct_option_id, question_index
+       FROM quiz_questions WHERE quiz_id = $1 ORDER BY question_index ASC`,
+      [quizId],
+    );
+
+    // Latest attempt per user's response per question
+    const responsesResult = await pool.query(
+      `SELECT DISTINCT ON (u.id, qr.question_id)
+              u.id AS user_id, u.name, u.roll_number,
+              qr.question_id, qr.selected_option_id
+       FROM quiz_attempts qa
+       JOIN users u ON qa.user_id = u.id
+       JOIN quiz_responses qr ON qr.attempt_id = qa.id
+       WHERE qa.quiz_id = $1
+       ORDER BY u.id, qr.question_id, qa.submitted_at DESC`,
+      [quizId],
+    );
+
+    const userMap = new Map<number, { userId: number; name: string; rollNumber: string; answers: Record<string, string> }>();
+    for (const row of responsesResult.rows) {
+      if (!userMap.has(row.user_id)) {
+        userMap.set(row.user_id, { userId: row.user_id, name: row.name, rollNumber: row.roll_number, answers: {} });
+      }
+      userMap.get(row.user_id)!.answers[row.question_id] = row.selected_option_id;
+    }
+
+    return {
+      questions: questionsResult.rows.map((q: any) => ({
+        id: q.id,
+        text: q.question_text,
+        options: q.options,
+        correctOptionId: q.correct_option_id,
+        questionIndex: q.question_index,
+      })),
+      users: Array.from(userMap.values()),
+    };
+  }
+
+  /** User: get their own answers for a quiz (most recent attempt). */
+  async getUserQuizResponses(quizId: string, userId: number) {
+    const pool = this.databaseService.getPool();
+
+    const attemptResult = await pool.query(
+      `SELECT id FROM quiz_attempts WHERE quiz_id = $1 AND user_id = $2 ORDER BY submitted_at DESC LIMIT 1`,
+      [quizId, userId],
+    );
+    if (!attemptResult.rows[0]) throw new NotFoundException('No attempt found for this quiz');
+    const attemptId = attemptResult.rows[0].id;
+
+    const result = await pool.query(
+      `SELECT qq.id, qq.question_text, qq.options, qq.correct_option_id, qq.question_index,
+              qr.selected_option_id
+       FROM quiz_questions qq
+       LEFT JOIN quiz_responses qr ON qr.question_id = qq.id AND qr.attempt_id = $1
+       WHERE qq.quiz_id = $2
+       ORDER BY qq.question_index ASC`,
+      [attemptId, quizId],
+    );
+
+    return result.rows.map((q: any) => ({
+      id: q.id,
+      text: q.question_text,
+      options: q.options,
+      correctOptionId: q.correct_option_id,
+      questionIndex: q.question_index,
+      selectedOptionId: q.selected_option_id ?? null,
+      isCorrect: q.selected_option_id === q.correct_option_id,
+    }));
+  }
+
   async listAllQuizzes(): Promise<QuizListItem[]> {
     const pool = this.databaseService.getPool();
     const result = await pool.query(

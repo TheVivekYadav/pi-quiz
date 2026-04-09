@@ -262,3 +262,43 @@ export const adminFetchQuizReport = (quizId: string) =>
       headers: getAuthHeaders(),
     })
   );
+
+export const adminListQuestions = (quizId: string) =>
+  json<{ id: string; text: string; imageUrl?: string; options: { id: string; label: string }[]; correctOptionId: string; points: number; questionIndex: number }[]>(
+    fetch(apiUrl(`/quiz/${quizId}/questions`), {
+      headers: getAuthHeaders(),
+    })
+  );
+
+export const adminDeleteQuestion = (quizId: string, questionId: string) =>
+  json<{ success: boolean }>(
+    fetch(apiUrl(`/quiz/${quizId}/questions/${questionId}`), {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    })
+  );
+
+export const adminFetchQuizResponses = (quizId: string) =>
+  json<{
+    questions: { id: string; text: string; options: { id: string; label: string }[]; correctOptionId: string; questionIndex: number }[];
+    users: { userId: number; name: string; rollNumber: string; answers: Record<string, string> }[];
+  }>(
+    fetch(apiUrl(`/quiz/${quizId}/admin-responses`), {
+      headers: getAuthHeaders(),
+    })
+  );
+
+export const fetchMyQuizResponses = (quizId: string) =>
+  json<{
+    id: string;
+    text: string;
+    options: { id: string; label: string }[];
+    correctOptionId: string;
+    questionIndex: number;
+    selectedOptionId: string | null;
+    isCorrect: boolean;
+  }[]>(
+    fetch(apiUrl(`/quiz/${quizId}/my-responses`), {
+      headers: getAuthHeaders(),
+    })
+  );
