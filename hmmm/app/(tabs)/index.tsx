@@ -66,6 +66,7 @@ export default function DiscoverScreen() {
         : data?.greeting?.subtitle ?? "Continue your learning journey";
 
     const featuredItems = data?.featuredQuizzes ?? data?.featured ?? [];
+    const enrolledQuizIds = new Set((data?.continueLearning ?? []).map((item: any) => item.id));
 
     return (
         <ScrollView
@@ -88,8 +89,20 @@ export default function DiscoverScreen() {
                     <Text style={[styles.levelChip, { color: theme.primary }]}>{quiz.level}</Text>
                     <Text style={[styles.featureTitle, { color: theme.textPrimary }]}>{quiz.title}</Text>
                     <Text style={[styles.featureDesc, { color: theme.textSecondary }]}>{quiz.description}</Text>
-                    <Pressable style={[styles.enrollBtn, { backgroundColor: theme.buttonPrimary }]} onPress={() => router.push(`/quiz/${quiz.id}` as any)}>
-                        <Text style={[styles.enrollText, { color: theme.textInverse }]}>Enroll Now</Text>
+                    <Pressable
+                        style={[
+                            styles.enrollBtn,
+                            { backgroundColor: enrolledQuizIds.has(quiz.id) ? theme.success : theme.buttonPrimary },
+                        ]}
+                        onPress={() =>
+                            enrolledQuizIds.has(quiz.id)
+                                ? router.push({ pathname: "/quiz/[id]/lobby", params: { id: quiz.id } } as any)
+                                : router.push(`/quiz/${quiz.id}` as any)
+                        }
+                    >
+                        <Text style={[styles.enrollText, { color: theme.textInverse }]}>
+                            {enrolledQuizIds.has(quiz.id) ? "Enter Lobby" : "Enroll Now"}
+                        </Text>
                     </Pressable>
                 </View>
             ))}
