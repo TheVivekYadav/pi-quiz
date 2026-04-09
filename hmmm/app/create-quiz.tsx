@@ -4,13 +4,15 @@
  *  Step 2: Questions (text, options, correct answer, points)
  *  Step 3: Enrollment form (custom fields — label, type, required; or skip)
  */
-import { adminAddQuestion, adminCreateQuiz, adminSetEnrollmentForm, EnrollmentFormField } from "@/constants/quiz-api";
+import { adminAddQuestion, adminCreateQuiz, adminSetEnrollmentForm, EnrollmentFormField, uploadQuizBannerImage } from "@/constants/quiz-api";
 import { useTheme } from "@/hook/theme";
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
     Alert,
+    Image,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -96,6 +98,8 @@ export default function CreateQuizScreen() {
     const [description, setDescription] = useState("");
     const [curatorNote, setCuratorNote] = useState("");
     const [imageUrl, setImageUrl] = useState("");
+    const [bannerPreview, setBannerPreview] = useState<string | null>(null);
+    const [bannerUploading, setBannerUploading] = useState(false);
 
     // Step 2 fields
     const [quizId, setQuizId] = useState<string | null>(null);
@@ -143,6 +147,41 @@ export default function CreateQuizScreen() {
             Alert.alert("Error", err?.message || "Failed to create quiz.");
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handlePickBannerImage = async () => {
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!permission.granted) {
+            Alert.alert("Permission needed", "Please allow photo library access to upload a banner image.");
+            return;
+        }
+
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            quality: 0.85,
+            allowsEditing: true,
+            aspect: [16, 9],
+        });
+
+        if (result.canceled || !result.assets?.length) return;
+
+        const asset = result.assets[0];
+        setBannerPreview(asset.uri);
+        setBannerUploading(true);
+        try {
+            const uploaded = await uploadQuizBannerImage({
+                uri: asset.uri,
+                name: asset.fileName ?? `banner-${Date.now()}.jpg`,
+                type: asset.mimeType ?? "image/jpeg",
+            });
+            setImageUrl(uploaded.url);
+            setBannerPreview(uploaded.url);
+        } catch (err: any) {
+            setBannerPreview(null);
+            Alert.alert("Upload failed", err?.message || "Could not upload banner image.");
+        } finally {
+            setBannerUploading(false);
         }
     };
 
@@ -357,7 +396,33 @@ export default function CreateQuizScreen() {
                     <Field label="Start Date/Time * (YYYY-MM-DDTHH:MM)" value={startsAt} onChangeText={setStartsAt} placeholder="2024-06-01T10:00" theme={theme} />
                     <Field label="Description" value={description} onChangeText={setDescription} placeholder="Brief overview..." multiline theme={theme} />
                     <Field label="Curator Note" value={curatorNote} onChangeText={setCuratorNote} placeholder="A personal note for participants..." multiline theme={theme} />
-                    <Field label="Banner Image URL (https://...)" value={imageUrl} onChangeText={setImageUrl} placeholder="https://example.com/banner.jpg" multiline theme={theme} />
+                    <View>
+                        <Text style={[styles.label, { color: theme.textSecondary }]}>Banner Image</Text>
+                        <Pressable
+                            onPress={handlePickBannerImage}
+                            disabled={bannerUploading}
+                            style={({ pressed }) => [
+                                styles.uploadBtn,
+                                {
+                                    backgroundColor: bannerUploading ? theme.buttonDisabled : theme.buttonPrimary,
+                                    opacity: pressed ? 0.92 : 1,
+                                },
+                            ]}
+                        >
+                            <Ionicons name="cloud-upload-outline" size={18} color={theme.textInverse} />
+                            <Text style={[styles.btnText, { color: theme.textInverse }]}>
+                                {bannerUploading ? "Uploading..." : bannerPreview ? "Replace Banner Image" : "Upload Banner Image"}
+                            </Text>
+                        </Pressable>
+                        {bannerPreview && (
+                            <View style={[styles.bannerPreviewCard, { borderColor: theme.border, backgroundColor: theme.surface }]}>
+                                <Image source={{ uri: bannerPreview }} style={styles.bannerPreviewImage} />
+                                <Text style={[styles.bannerPreviewText, { color: theme.textSecondary }]} numberOfLines={1}>
+                                    {imageUrl}
+                                </Text>
+                            </View>
+                        )}
+                    </View>
 
                     <Pressable
                         style={[styles.btn, { backgroundColor: saving ? theme.buttonDisabled : theme.buttonPrimary }]}
@@ -615,6 +680,24 @@ const styles = StyleSheet.create({
         marginTop: 8,
     },
     btnText: { fontSize: 16, fontWeight: "700" },
+    uploadBtn: {
+        borderRadius: 14,
+        paddingVertical: 12,
+        paddingHorizontal: 14,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        marginTop: 8,
+    },
+    bannerPreviewCard: {
+        borderWidth: 1,
+        borderRadius: 14,
+        overflow: "hidden",
+        marginTop: 12,
+    },
+    bannerPreviewImage: { width: "100%", height: 180, resizeMode: "cover" },
+    bannerPreviewText: { fontSize: 12, paddingHorizontal: 10, paddingVertical: 8 },
     skipBtn: {
         borderRadius: 14,
         paddingVertical: 12,

@@ -183,6 +183,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     // Add winners tracking to quizzes
     await this.pool.query(`ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS winners_declared_at TIMESTAMPTZ;`);
     await this.pool.query(`ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS winners_declared_by INT REFERENCES users(id);`);
+    await this.pool.query(`ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS image_url TEXT;`);
 
     // Link enrollment form to quiz (nullable — a quiz may have no registration form)
     await this.pool.query(`

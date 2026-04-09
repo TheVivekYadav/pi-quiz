@@ -21,6 +21,7 @@ export interface QuizDetail {
   description?: string;
   expectations?: string;
   curatorNote?: string;
+  imageUrl?: string;
 }
 
 export interface QuizListItem {
@@ -269,6 +270,7 @@ export class QuizService {
       description: quiz.description,
       expectations: quiz.expectations,
       curatorNote: quiz.curator_note,
+      imageUrl: quiz.image_url,
       enrollmentForm: quiz.form_id
         ? { id: quiz.form_id, fields: quiz.form_fields ?? [] }
         : null,
@@ -677,14 +679,15 @@ export class QuizService {
     description?: string;
     expectations?: string;
     curatorNote?: string;
+    imageUrl?: string;
   }): Promise<QuizDetail> {
     const pool = this.databaseService.getPool();
     const id = randomUUID();
 
     await pool.query(
       `INSERT INTO quizzes
-         (id, title, topic, category, level, duration_minutes, starts_at, description, expectations, curator_note, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+         (id, title, topic, category, level, duration_minutes, starts_at, description, expectations, curator_note, image_url, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
       [
         id,
         body.title,
@@ -696,6 +699,7 @@ export class QuizService {
         body.description ?? null,
         body.expectations ?? null,
         body.curatorNote ?? null,
+        body.imageUrl ?? null,
         createdByUserId,
       ],
     );
@@ -711,6 +715,7 @@ export class QuizService {
       description: body.description,
       expectations: body.expectations,
       curatorNote: body.curatorNote,
+      imageUrl: body.imageUrl,
     };
   }
 

@@ -1,4 +1,9 @@
-import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Headers, Param, ParseIntPipe, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Headers, Param, ParseIntPipe, Post, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { randomUUID } from 'crypto';
+import { mkdirSync } from 'fs';
+import { diskStorage } from 'multer';
+import { extname, join } from 'path';
 import { AuthService } from '../auth/auth.service.js';
 import { QuizService } from './quiz.service.js';
 
@@ -38,6 +43,15 @@ export class QuizController {
     if (!authHeader) return null;
     const parts = authHeader.split(' ');
     return parts.length === 2 && parts[0] === 'Bearer' ? parts[1] : null;
+  }
+
+  private getPublicBaseUrl(req: any): string {
+    const configured = process.env.PUBLIC_BASE_URL?.trim();
+    if (configured) return configured.replace(/\/$/, '');
+
+    const proto = String(req.headers['x-forwarded-proto'] ?? req.protocol ?? 'http').split(',')[0].trim();
+    const host = String(req.headers['x-forwarded-host'] ?? req.headers.host ?? req.get?.('host') ?? '').split(',')[0].trim();
+    return `${proto}://${host}`.replace(/\/$/, '');
   }
 
   @Get('home')
@@ -91,7 +105,46 @@ export class QuizController {
       description: body.description ? String(body.description) : undefined,
       expectations: body.expectations ? String(body.expectations) : undefined,
       curatorNote: body.curatorNote ? String(body.curatorNote) : undefined,
+      imageUrl: body.imageUrl ? String(body.imageUrl) : undefined,
     });
+  }
+
+  @Post('banner-upload')
+  @UseInterceptors(FileInterceptor('file', {
+    storage: diskStorage({
+      destination: (_req, _file, cb) => {
+        const uploadDir = join(process.cwd(), 'uploads', 'banners');
+        mkdirSync(uploadDir, { recursive: true });
+        cb(null, uploadDir);
+      },
+      filename: (_req, file, cb) => {
+        const safeExt = extname(file.originalname || '').toLowerCase() || '.jpg';
+        cb(null, `${randomUUID()}${safeExt}`);
+      },
+    }),
+    fileFilter: (_req, file, cb) => {
+      if (!file.mimetype?.startsWith('image/')) {
+        return cb(new BadRequestException('Only image files are allowed') as any, false);
+      }
+      cb(null, true);
+    },
+    limits: { fileSize: 8 * 1024 * 1024 },
+  }))
+  async uploadBannerImage(
+    @UploadedFile() file: Express.Multer.File,
+    @Headers('Authorization') authHeader: string,
+    @Req() req: any,
+  ) {
+    await this.requireAdmin(authHeader);
+
+    if (!file) {
+      throw new BadRequestException('Banner image file is required');
+    }
+
+    return {
+      success: true,
+      url: `${this.getPublicBaseUrl(req)}/uploads/banners/${file.filename}`,
+    };
   }
 
   @Get(':quizId/questions')

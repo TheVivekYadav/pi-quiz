@@ -89,10 +89,10 @@ export type QuizReportsPayload = {
   insights?: string[];
 };
 
-const getAuthHeaders = () => {
+const getAuthHeaders = (includeJsonContentType = true) => {
   const token = getAuthToken();
   return {
-    'Content-Type': 'application/json',
+    ...(includeJsonContentType ? { 'Content-Type': 'application/json' } : {}),
     ...(token && { 'Authorization': `Bearer ${token}` }),
   };
 };
@@ -169,6 +169,23 @@ export const fetchReportsOverview = () =>
       headers: getAuthHeaders(),
     })
   );
+
+export const uploadQuizBannerImage = async (file: { uri: string; name?: string; type?: string }) => {
+  const formData = new FormData();
+  formData.append('file', {
+    uri: file.uri,
+    name: file.name ?? `banner-${Date.now()}.jpg`,
+    type: file.type ?? 'image/jpeg',
+  } as any);
+
+  return json<{ success: boolean; url: string }>(
+    fetch(apiUrl('/quiz/banner-upload'), {
+      method: 'POST',
+      headers: getAuthHeaders(false),
+      body: formData,
+    })
+  );
+};
 
 // ─── Admin API ──────────────────────────────────────────────────────────────
 
