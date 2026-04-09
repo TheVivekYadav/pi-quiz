@@ -479,10 +479,23 @@ export class QuizController {
     @Param('tableName') tableName: string,
     @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
     @Query('offset', new ParseIntPipe({ optional: true })) offset?: number,
+    @Query('search') search?: string,
+    @Query('role') role?: string,
+    @Query('nullOnly') nullOnly?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortDir') sortDir?: 'asc' | 'desc',
     @Headers('Authorization') authHeader?: string,
   ) {
     await this.requireAdmin(authHeader || '');
-    return this.quizService.getTableRecords(tableName, limit || 50, offset || 0);
+    return this.quizService.getTableRecords(tableName, {
+      limit: limit || 50,
+      offset: offset || 0,
+      search: search?.trim() || undefined,
+      role: role?.trim() || undefined,
+      nullOnly: nullOnly === 'true',
+      sortBy: sortBy?.trim() || undefined,
+      sortDir: sortDir === 'asc' ? 'asc' : 'desc',
+    });
   }
 
   // Admin: insert record

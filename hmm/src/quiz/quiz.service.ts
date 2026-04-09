@@ -1612,6 +1612,19 @@ export class QuizService {
     'responses',
   ];
 
+  private readonly TABLE_COLUMN_PRIORITIES: Record<string, string[]> = {
+    users: ['id', 'roll_number', 'name', 'role'],
+    quizzes: ['id', 'title', 'category', 'is_visible'],
+    quiz_enrollments: ['id', 'user_id', 'quiz_id', 'is_completed'],
+    quiz_attempts: ['id', 'user_id', 'quiz_id', 'submitted_at'],
+    quiz_questions: ['id', 'quiz_id', 'question_index', 'points'],
+    quiz_responses: ['id', 'attempt_id', 'question_id', 'selected_option_id'],
+    responses: ['id', 'form_id', 'submitted_at'],
+    forms: ['id', 'title', 'created_at'],
+    user_sessions: ['id', 'user_id', 'platform', 'created_at'],
+    auth_logs: ['id', 'user_id', 'event_type', 'created_at'],
+  };
+
   private validateTableName(tableName: string): void {
     if (!this.ALLOWED_TABLES.includes(tableName)) {
       throw new BadRequestException(`Table "${tableName}" is not accessible`);
@@ -1619,7 +1632,17 @@ export class QuizService {
   }
 
   async getDatabaseTables() {
-    return this.ALLOWED_TABLES.map((name) => ({ name }));
+    const pool = this.databaseService.getPool();
+    const tables = await Promise.all(
+      this.ALLOWED_TABLES.map(async (name) => {
+        const countRes = await pool.query(`SELECT COUNT(*)::int AS count FROM ${name}`);
+        return {
+          name,
+          count: countRes.rows[0]?.count ?? 0,
+        };
+      }),
+    );
+    return tables;
   }
 
   async getTableSchema(tableName: string) {
@@ -1645,23 +1668,95 @@ export class QuizService {
     };
   }
 
-  async getTableRecords(tableName: string, limit: number, offset: number) {
+  async getTableRecords(
+    tableName: string,
+    options: {
+      limit: number;
+      offset: number;
+      search?: string;
+      role?: string;
+      nullOnly?: boolean;
+      sortBy?: string;
+      sortDir?: 'asc' | 'desc';
+    },
+  ) {
     this.validateTableName(tableName);
     const pool = this.databaseService.getPool();
 
-    const countResult = await pool.query(`SELECT COUNT(*) FROM ${tableName}`);
+    const safeLimit = Math.max(1, Math.min(200, Number(options.limit || 50)));
+    const safeOffset = Math.max(0, Number(options.offset || 0));
+
+    const schemaResult = await pool.query(
+      `SELECT column_name
+       FROM information_schema.columns
+       WHERE table_name = $1
+       ORDER BY ordinal_position`,
+      [tableName],
+    );
+    const columnNames: string[] = schemaResult.rows.map((r: any) => r.column_name);
+
+    const preferred = this.TABLE_COLUMN_PRIORITIES[tableName] ?? [];
+    const fallback = columnNames.filter((c) => c !== 'id').slice(0, 3);
+    const displayColumns = [
+      ...preferred.filter((c) => columnNames.includes(c)),
+      ...fallback.filter((c) => !preferred.includes(c)),
+    ].slice(0, 4);
+
+    const whereClauses: string[] = [];
+    const whereValues: any[] = [];
+
+    if (options.search) {
+      const searchColumns = displayColumns.length > 0 ? displayColumns : columnNames.slice(0, 4);
+      const searchExprs = searchColumns.map((col) => `${col}::text ILIKE $${whereValues.length + 1}`);
+      whereValues.push(`%${options.search}%`);
+      whereClauses.push(`(${searchExprs.join(' OR ')})`);
+    }
+
+    if (options.role && columnNames.includes('role')) {
+      whereValues.push(options.role);
+      whereClauses.push(`role = $${whereValues.length}`);
+    }
+
+    if (options.nullOnly && displayColumns.length > 0) {
+      whereClauses.push(`(${displayColumns.map((col) => `${col} IS NULL`).join(' OR ')})`);
+    }
+
+    const whereSql = whereClauses.length ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
+    const hasSortBy = !!options.sortBy && columnNames.includes(options.sortBy);
+    const hasCreatedAt = columnNames.includes('created_at');
+    const hasId = columnNames.includes('id');
+    const sortColumn = hasSortBy
+      ? options.sortBy!
+      : hasCreatedAt
+        ? 'created_at'
+        : hasId
+          ? 'id'
+          : columnNames[0];
+    const sortDirection = options.sortDir === 'asc' ? 'ASC' : 'DESC';
+
+    const countResult = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM ${tableName} ${whereSql}`,
+      whereValues,
+    );
     const total = parseInt(countResult.rows[0]?.count ?? 0, 10);
 
     const recordsResult = await pool.query(
-      `SELECT * FROM ${tableName} ORDER BY id DESC LIMIT $1 OFFSET $2`,
-      [limit, offset],
+      `SELECT *
+       FROM ${tableName}
+       ${whereSql}
+       ORDER BY ${sortColumn} ${sortDirection}
+       LIMIT $${whereValues.length + 1}
+       OFFSET $${whereValues.length + 2}`,
+      [...whereValues, safeLimit, safeOffset],
     );
 
     return {
       table: tableName,
       total,
-      limit,
-      offset,
+      limit: safeLimit,
+      offset: safeOffset,
+      displayColumns,
       records: recordsResult.rows,
     };
   }

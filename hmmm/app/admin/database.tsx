@@ -2,11 +2,10 @@ import { adminCreateTableRecord, adminDeleteTableRecord, adminGetDatabaseTables,
 import { useTheme } from "@/hook/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
-    FlatList,
     Modal,
     Pressable,
     ScrollView,
@@ -19,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface TableInfo {
     name: string;
+    count: number;
 }
 
 interface Column {
@@ -38,24 +38,47 @@ export default function DatabaseBrowser() {
     const [selectedTable, setSelectedTable] = useState<string | null>(null);
     const [schema, setSchema] = useState<Column[]>([]);
     const [records, setRecords] = useState<any[]>([]);
+    const [displayColumns, setDisplayColumns] = useState<string[]>([]);
     const [totalRecords, setTotalRecords] = useState(0);
     const [loadingRecords, setLoadingRecords] = useState(false);
     const [offset, setOffset] = useState(0);
-    const [limit] = useState(20);
-    const [showNewRecord, setShowNewRecord] = useState(false);
+    const [limit] = useState(25);
+    const [search, setSearch] = useState("");
+    const [roleFilter, setRoleFilter] = useState<"all" | "admin" | "user">("all");
+    const [nullOnly, setNullOnly] = useState(false);
+    const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+    const [showEditor, setShowEditor] = useState(false);
+    const [showDetail, setShowDetail] = useState(false);
+    const [activeRecord, setActiveRecord] = useState<any | null>(null);
     const [editingRecord, setEditingRecord] = useState<any | null>(null);
-    const [formData, setFormData] = useState<any>({});
+    const [formData, setFormData] = useState<Record<string, any>>({});
 
     useEffect(() => {
         loadTables();
     }, []);
 
     useEffect(() => {
-        if (selectedTable) {
-            loadSchema();
-            loadRecords();
-        }
+        if (!selectedTable) return;
+        setOffset(0);
+        setSearch("");
+        setRoleFilter("all");
+        setNullOnly(false);
+        loadSchema();
     }, [selectedTable]);
+
+    useEffect(() => {
+        if (!selectedTable) return;
+        loadRecords();
+    }, [selectedTable, offset, roleFilter, nullOnly, sortDir]);
+
+    useEffect(() => {
+        if (!selectedTable) return;
+        const timer = setTimeout(() => {
+            setOffset(0);
+            loadRecords();
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [search]);
 
     const loadTables = async () => {
         try {
@@ -82,9 +105,16 @@ export default function DatabaseBrowser() {
         if (!selectedTable) return;
         setLoadingRecords(true);
         try {
-            const data = await adminGetTableRecords(selectedTable, limit, offset);
+            const data = await adminGetTableRecords(selectedTable, limit, offset, {
+                search: search.trim() || undefined,
+                role: selectedTable === "users" && roleFilter !== "all" ? roleFilter : undefined,
+                nullOnly,
+                sortBy: schema.some((c) => c.name === "created_at") ? "created_at" : "id",
+                sortDir,
+            });
             setRecords(data.records);
             setTotalRecords(data.total);
+            setDisplayColumns(data.displayColumns || []);
         } catch (err: any) {
             Alert.alert("Error", err?.message || "Failed to load records");
         } finally {
@@ -92,39 +122,68 @@ export default function DatabaseBrowser() {
         }
     };
 
-    const handleSaveRecord = async () => {
-        if (!selectedTable) return;
-
-        try {
-            if (editingRecord) {
-                await adminUpdateTableRecord(selectedTable, editingRecord.id, formData);
-                Alert.alert("Success", "Record updated");
-            } else {
-                await adminCreateTableRecord(selectedTable, formData);
-                Alert.alert("Success", "Record created");
-            }
-            setShowNewRecord(false);
-            setEditingRecord(null);
-            setFormData({});
-            loadRecords();
-        } catch (err: any) {
-            Alert.alert("Error", err?.message || "Failed to save record");
-        }
+    const prettyValue = (value: any) => {
+        if (value === null || value === undefined || value === "") return "—";
+        if (typeof value === "object") return JSON.stringify(value);
+        return String(value);
     };
 
-    const handleDeleteRecord = (record: any) => {
-        if (!selectedTable) return;
+    const coerceValue = (rawValue: string, column: Column) => {
+        const v = rawValue.trim();
+        if (!v) return column.nullable ? null : "";
 
-        Alert.alert("Delete Record", "Are you sure?", [
+        const t = column.type.toLowerCase();
+        if (t.includes("int") || t.includes("numeric") || t.includes("double") || t.includes("real")) {
+            const n = Number(v);
+            return Number.isNaN(n) ? v : n;
+        }
+        if (t.includes("bool")) {
+            if (v.toLowerCase() === "true") return true;
+            if (v.toLowerCase() === "false") return false;
+        }
+        if (t.includes("json")) {
+            try {
+                return JSON.parse(v);
+            } catch {
+                return v;
+            }
+        }
+        return v;
+    };
+
+    const visibleColumns = useMemo(() => {
+        if (displayColumns.length > 0) return displayColumns;
+        return schema.slice(0, 4).map((c) => c.name);
+    }, [displayColumns, schema]);
+
+    const hasPrev = offset > 0;
+    const hasNext = offset + records.length < totalRecords;
+
+    const openCreate = () => {
+        setEditingRecord(null);
+        setFormData({});
+        setShowEditor(true);
+    };
+
+    const openEdit = (record: any) => {
+        setEditingRecord(record);
+        setFormData(record);
+        setShowEditor(true);
+    };
+
+    const confirmDelete = (record: any) => {
+        if (!selectedTable) return;
+        Alert.alert("Delete record", "This cannot be undone.", [
             { text: "Cancel", style: "cancel" },
             {
                 text: "Delete",
                 style: "destructive",
                 onPress: async () => {
                     try {
-                        await adminDeleteTableRecord(selectedTable, record.id);
-                        Alert.alert("Success", "Record deleted");
-                        loadRecords();
+                        await adminDeleteTableRecord(selectedTable, String(record.id));
+                        setShowDetail(false);
+                        await loadTables();
+                        await loadRecords();
                     } catch (err: any) {
                         Alert.alert("Error", err?.message || "Failed to delete record");
                     }
@@ -133,153 +192,303 @@ export default function DatabaseBrowser() {
         ]);
     };
 
-    const openEditRecord = (record: any) => {
-        setEditingRecord(record);
-        setFormData(record);
-        setShowNewRecord(true);
+    const saveRecord = async () => {
+        if (!selectedTable) return;
+
+        const payload: Record<string, any> = {};
+        schema
+            .filter((col) => col.name !== "id")
+            .forEach((col) => {
+                payload[col.name] = coerceValue(String(formData[col.name] ?? ""), col);
+            });
+
+        try {
+            if (editingRecord) {
+                await adminUpdateTableRecord(selectedTable, String(editingRecord.id), payload);
+            } else {
+                await adminCreateTableRecord(selectedTable, payload);
+            }
+            setShowEditor(false);
+            setEditingRecord(null);
+            setFormData({});
+            await loadTables();
+            await loadRecords();
+        } catch (err: any) {
+            Alert.alert("Error", err?.message || "Failed to save record");
+        }
     };
-
-    const closeModal = () => {
-        setShowNewRecord(false);
-        setEditingRecord(null);
-        setFormData({});
-    };
-
-    const renderTableSelector = () => (
-        <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.background }]}>
-            <View style={styles.header}>
-                <Pressable onPress={() => router.back()}>
-                    <Ionicons name="chevron-back" size={24} color={theme.primary} />
-                </Pressable>
-                <Text style={[styles.headerText, { color: theme.textPrimary }]}>Database Browser</Text>
-                <View style={{ width: 24 }} />
-            </View>
-
-            {loadingTables ? (
-                <ActivityIndicator size="large" color={theme.primary} style={{ marginTop: 20 }} />
-            ) : (
-                <FlatList
-                    data={tables}
-                    keyExtractor={(item) => item.name}
-                    renderItem={({ item }) => (
-                        <Pressable
-                            onPress={() => setSelectedTable(item.name)}
-                            style={[styles.tableButton, { backgroundColor: theme.border }]}
-                        >
-                            <Text style={[styles.tableButtonText, { color: theme.textPrimary }]}>{item.name}</Text>
-                            <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
-                        </Pressable>
-                    )}
-                    contentContainerStyle={styles.listContent}
-                />
-            )}
-        </View>
-    );
 
     if (!selectedTable) {
-        return renderTableSelector();
+        return (
+            <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.background }]}>
+                <View style={styles.header}>
+                    <Pressable onPress={() => router.back()}>
+                        <Ionicons name="chevron-back" size={22} color={theme.primary} />
+                    </Pressable>
+                    <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Data Explorer</Text>
+                    <View style={{ width: 22 }} />
+                </View>
+
+                {loadingTables ? (
+                    <ActivityIndicator size="large" color={theme.primary} style={{ marginTop: 20 }} />
+                ) : (
+                    <ScrollView contentContainerStyle={styles.tableListWrap}>
+                        {tables.map((item) => (
+                            <Pressable
+                                key={item.name}
+                                onPress={() => setSelectedTable(item.name)}
+                                style={[styles.tableRow, { borderColor: theme.border, backgroundColor: theme.surfaceLight }]}
+                            >
+                                <Text style={[styles.tableName, { color: theme.textPrimary }]}>{item.name}</Text>
+                                <View style={[styles.countPill, { backgroundColor: theme.border }]}>
+                                    <Text style={[styles.countText, { color: theme.textSecondary }]}>{item.count}</Text>
+                                </View>
+                            </Pressable>
+                        ))}
+                    </ScrollView>
+                )}
+            </View>
+        );
     }
 
     return (
         <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.background }]}>
             <View style={styles.header}>
                 <Pressable onPress={() => setSelectedTable(null)}>
-                    <Ionicons name="chevron-back" size={24} color={theme.primary} />
+                    <Ionicons name="chevron-back" size={22} color={theme.primary} />
                 </Pressable>
-                <Text style={[styles.headerText, { color: theme.textPrimary }]}>
-                    {selectedTable} ({totalRecords})
-                </Text>
-                <Pressable onPress={() => { setShowNewRecord(true); setFormData({}); setEditingRecord(null); }}>
-                    <Ionicons name="add" size={24} color={theme.primary} />
+                <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>{selectedTable}</Text>
+                <Pressable onPress={openCreate}>
+                    <Ionicons name="add" size={22} color={theme.primary} />
                 </Pressable>
+            </View>
+
+            <View style={[styles.toolbar, { borderColor: theme.border }]}>
+                <TextInput
+                    value={search}
+                    onChangeText={setSearch}
+                    placeholder="Search"
+                    placeholderTextColor={theme.textMuted}
+                    style={[styles.searchInput, { borderColor: theme.border, color: theme.textPrimary, backgroundColor: theme.surfaceLight }]}
+                />
+
+                <View style={styles.filtersRow}>
+                    {selectedTable === "users" && (
+                        <>
+                            {(["all", "admin", "user"] as const).map((role) => (
+                                <Pressable
+                                    key={role}
+                                    onPress={() => {
+                                        setOffset(0);
+                                        setRoleFilter(role);
+                                    }}
+                                    style={[
+                                        styles.chip,
+                                        {
+                                            borderColor: theme.border,
+                                            backgroundColor: roleFilter === role ? theme.primary : theme.surfaceLight,
+                                        },
+                                    ]}
+                                >
+                                    <Text style={{ color: roleFilter === role ? "#fff" : theme.textSecondary, fontSize: 12 }}>{role}</Text>
+                                </Pressable>
+                            ))}
+                        </>
+                    )}
+
+                    <Pressable
+                        onPress={() => {
+                            setOffset(0);
+                            setNullOnly((v) => !v);
+                        }}
+                        style={[styles.chip, { borderColor: theme.border, backgroundColor: nullOnly ? theme.primary : theme.surfaceLight }]}
+                    >
+                        <Text style={{ color: nullOnly ? "#fff" : theme.textSecondary, fontSize: 12 }}>Nulls</Text>
+                    </Pressable>
+
+                    <Pressable
+                        onPress={() => setSortDir((s) => (s === "asc" ? "desc" : "asc"))}
+                        style={[styles.chip, { borderColor: theme.border, backgroundColor: theme.surfaceLight }]}
+                    >
+                        <Text style={{ color: theme.textSecondary, fontSize: 12 }}>{sortDir === "asc" ? "Asc" : "Desc"}</Text>
+                    </Pressable>
+                </View>
             </View>
 
             {loadingRecords ? (
                 <ActivityIndicator size="large" color={theme.primary} style={{ marginTop: 20 }} />
             ) : (
-                <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent}>
-                    {records.map((record, idx) => (
-                        <View key={idx} style={[styles.recordCard, { backgroundColor: theme.border }]}>
-                            <View style={styles.recordContent}>
-                                {Object.entries(record).map(([key, value]) => (
-                                    <View key={key} style={styles.recordField}>
-                                        <Text style={[styles.fieldName, { color: theme.textSecondary }]}>{key}:</Text>
-                                        <Text style={[styles.fieldValue, { color: theme.textPrimary }]}>
-                                            {typeof value === "object"
-                                                ? JSON.stringify(value)
-                                                : String(value).substring(0, 50)}
-                                        </Text>
-                                    </View>
+                <>
+                    <ScrollView horizontal style={{ flex: 1 }} contentContainerStyle={styles.gridWrap}>
+                        <View>
+                            <View style={[styles.gridHeaderRow, { borderColor: theme.border, backgroundColor: theme.surfaceLight }]}>
+                                {visibleColumns.map((col) => (
+                                    <Text key={col} style={[styles.gridHeaderCell, { color: theme.textSecondary }]} numberOfLines={1}>
+                                        {col.replaceAll("_", " ")}
+                                    </Text>
                                 ))}
+                                <Text style={[styles.gridActionHead, { color: theme.textSecondary }]}>actions</Text>
                             </View>
-                            <View style={styles.recordActions}>
-                                <Pressable onPress={() => openEditRecord(record)} style={[styles.actionBtn, { backgroundColor: `${theme.primary}20` }]}>
-                                    <Ionicons name="pencil" size={16} color={theme.primary} />
+
+                            {records.map((record, idx) => (
+                                <Pressable
+                                    key={String(record.id ?? idx)}
+                                    onPress={() => {
+                                        setActiveRecord(record);
+                                        setShowDetail(true);
+                                    }}
+                                    style={[
+                                        styles.gridDataRow,
+                                        {
+                                            borderColor: theme.border,
+                                            backgroundColor: idx % 2 ? theme.surfaceLight : theme.background,
+                                        },
+                                    ]}
+                                >
+                                    {visibleColumns.map((col, index) => (
+                                        <Text
+                                            key={`${record.id}-${col}`}
+                                            style={[
+                                                styles.gridDataCell,
+                                                {
+                                                    color: index === 0 ? theme.textPrimary : index === 1 ? theme.textSecondary : theme.textMuted,
+                                                    fontWeight: index === 0 ? "700" : index === 1 ? "600" : "400",
+                                                },
+                                            ]}
+                                            numberOfLines={1}
+                                        >
+                                            {prettyValue(record[col])}
+                                        </Text>
+                                    ))}
+
+                                    <View style={styles.gridActions}>
+                                        <Pressable
+                                            onPress={() => {
+                                                setActiveRecord(record);
+                                                setShowDetail(true);
+                                            }}
+                                        >
+                                            <Text style={[styles.rowActionText, { color: theme.primary }]}>View</Text>
+                                        </Pressable>
+                                        <Pressable onPress={() => openEdit(record)}>
+                                            <Text style={[styles.rowActionText, { color: theme.primary }]}>Edit</Text>
+                                        </Pressable>
+                                        <Pressable
+                                            onPress={() =>
+                                                Alert.alert("Actions", "Choose an action", [
+                                                    { text: "Delete", style: "destructive", onPress: () => confirmDelete(record) },
+                                                    { text: "Cancel", style: "cancel" },
+                                                ])
+                                            }
+                                        >
+                                            <Ionicons name="ellipsis-vertical" size={16} color={theme.textSecondary} />
+                                        </Pressable>
+                                    </View>
                                 </Pressable>
-                                <Pressable onPress={() => handleDeleteRecord(record)} style={[styles.actionBtn, { backgroundColor: `${theme.error}20` }]}>
-                                    <Ionicons name="trash" size={16} color={theme.error} />
-                                </Pressable>
-                            </View>
+                            ))}
                         </View>
-                    ))}
+                    </ScrollView>
 
-                    {records.length === 0 && (
-                        <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-                            No records found
+                    <View style={[styles.paginationBar, { borderColor: theme.border, backgroundColor: theme.surfaceLight }]}>
+                        <Text style={{ color: theme.textSecondary, fontSize: 12 }}>
+                            {Math.min(offset + 1, totalRecords)}-{Math.min(offset + records.length, totalRecords)} of {totalRecords}
                         </Text>
-                    )}
-
-                    {totalRecords > records.length && (
-                        <Pressable
-                            onPress={() => setOffset(offset + limit)}
-                            style={[styles.loadMoreBtn, { backgroundColor: theme.border }]}
-                        >
-                            <Text style={[styles.loadMoreText, { color: theme.primary }]}>
-                                Load More ({offset + records.length} / {totalRecords})
-                            </Text>
-                        </Pressable>
-                    )}
-                </ScrollView>
+                        <View style={styles.paginationActions}>
+                            <Pressable
+                                disabled={!hasPrev}
+                                onPress={() => setOffset((v) => Math.max(0, v - limit))}
+                                style={[styles.pageButton, { borderColor: theme.border, opacity: hasPrev ? 1 : 0.45 }]}
+                            >
+                                <Text style={{ color: theme.textPrimary }}>Prev</Text>
+                            </Pressable>
+                            <Pressable
+                                disabled={!hasNext}
+                                onPress={() => setOffset((v) => v + limit)}
+                                style={[styles.pageButton, { borderColor: theme.border, opacity: hasNext ? 1 : 0.45 }]}
+                            >
+                                <Text style={{ color: theme.textPrimary }}>Next</Text>
+                            </Pressable>
+                        </View>
+                    </View>
+                </>
             )}
 
-            {/* Add/Edit Record Modal */}
-            <Modal visible={showNewRecord} animationType="slide" transparent>
-                <View style={[styles.modalOverlay, { backgroundColor: `${theme.textMuted}80` }]}>
+            <Modal visible={showDetail} transparent animationType="slide">
+                <View style={[styles.modalOverlay, { backgroundColor: `${theme.textMuted}99` }]}>
                     <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
                         <View style={styles.modalHeader}>
-                            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
-                                {editingRecord ? "Edit Record" : "Add Record"}
-                            </Text>
-                            <Pressable onPress={closeModal}>
-                                <Ionicons name="close" size={24} color={theme.textPrimary} />
+                            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Record #{prettyValue(activeRecord?.id)}</Text>
+                            <Pressable onPress={() => setShowDetail(false)}>
+                                <Ionicons name="close" size={22} color={theme.textPrimary} />
+                            </Pressable>
+                        </View>
+
+                        <ScrollView style={styles.formScroll} contentContainerStyle={styles.formContent}>
+                            {schema.map((col) => (
+                                <View key={col.name} style={styles.formField}>
+                                    <Text style={[styles.formLabel, { color: theme.textSecondary }]}>{col.name}</Text>
+                                    <Text style={[styles.detailValue, { color: theme.textPrimary }]}>{prettyValue(activeRecord?.[col.name])}</Text>
+                                </View>
+                            ))}
+                        </ScrollView>
+
+                        <View style={styles.modalActions}>
+                            <Pressable
+                                onPress={() => {
+                                    setShowDetail(false);
+                                    if (activeRecord) openEdit(activeRecord);
+                                }}
+                                style={[styles.modalBtn, { borderColor: theme.border, backgroundColor: theme.surfaceLight }]}
+                            >
+                                <Text style={{ color: theme.textPrimary }}>Edit</Text>
+                            </Pressable>
+                            <Pressable
+                                onPress={() => activeRecord && confirmDelete(activeRecord)}
+                                style={[styles.modalBtn, { borderColor: theme.border, backgroundColor: `${theme.error}18` }]}
+                            >
+                                <Text style={{ color: theme.error }}>Delete</Text>
+                            </Pressable>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            <Modal visible={showEditor} transparent animationType="slide">
+                <View style={[styles.modalOverlay, { backgroundColor: `${theme.textMuted}99` }]}>
+                    <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
+                        <View style={styles.modalHeader}>
+                            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>{editingRecord ? "Edit record" : "Add record"}</Text>
+                            <Pressable
+                                onPress={() => {
+                                    setShowEditor(false);
+                                    setEditingRecord(null);
+                                    setFormData({});
+                                }}
+                            >
+                                <Ionicons name="close" size={22} color={theme.textPrimary} />
                             </Pressable>
                         </View>
 
                         <ScrollView style={styles.formScroll} contentContainerStyle={styles.formContent}>
                             {schema
-                                .filter((col) => col.name !== "id") // Skip ID fields
+                                .filter((col) => col.name !== "id")
                                 .map((col) => (
                                     <View key={col.name} style={styles.formField}>
-                                        <Text style={[styles.formLabel, { color: theme.textPrimary }]}>
-                                            {col.name} {!col.nullable && "*"}
-                                        </Text>
+                                        <Text style={[styles.formLabel, { color: theme.textPrimary }]}>{col.name}</Text>
                                         <TextInput
                                             style={[
                                                 styles.formInput,
                                                 {
-                                                    backgroundColor: theme.border,
+                                                    backgroundColor: theme.surfaceLight,
                                                     color: theme.textPrimary,
-                                                    borderColor: theme.primary,
+                                                    borderColor: theme.border,
                                                 },
                                             ]}
                                             placeholder={col.type}
-                                            placeholderTextColor={theme.textSecondary}
-                                            value={String(formData[col.name] || "")}
-                                            onChangeText={(text) =>
-                                                setFormData((prev: any) => ({ ...prev, [col.name]: text }))
-                                            }
-                                            multiline={col.type.includes("text")}
-                                            editable={col.name !== "id"}
+                                            placeholderTextColor={theme.textMuted}
+                                            value={String(formData[col.name] ?? "")}
+                                            onChangeText={(text) => setFormData((prev) => ({ ...prev, [col.name]: text }))}
+                                            multiline={col.type.includes("text") || col.type.includes("json")}
                                         />
                                     </View>
                                 ))}
@@ -287,16 +496,17 @@ export default function DatabaseBrowser() {
 
                         <View style={styles.modalActions}>
                             <Pressable
-                                onPress={closeModal}
-                                style={[styles.modalBtn, { backgroundColor: theme.border }]}
+                                onPress={() => {
+                                    setShowEditor(false);
+                                    setEditingRecord(null);
+                                    setFormData({});
+                                }}
+                                style={[styles.modalBtn, { borderColor: theme.border, backgroundColor: theme.surfaceLight }]}
                             >
-                                <Text style={[styles.modalBtnText, { color: theme.textPrimary }]}>Cancel</Text>
+                                <Text style={{ color: theme.textPrimary }}>Cancel</Text>
                             </Pressable>
-                            <Pressable
-                                onPress={handleSaveRecord}
-                                style={[styles.modalBtn, { backgroundColor: theme.primary }]}
-                            >
-                                <Text style={[styles.modalBtnText, { color: "#fff" }]}>Save</Text>
+                            <Pressable onPress={saveRecord} style={[styles.modalBtn, { borderColor: theme.border, backgroundColor: theme.primary }]}>
+                                <Text style={{ color: "#fff" }}>Save</Text>
                             </Pressable>
                         </View>
                     </View>
@@ -314,88 +524,133 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
-        paddingHorizontal: 16,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+    },
+    headerTitle: {
+        fontSize: 17,
+        fontWeight: "700",
+    },
+    tableListWrap: {
+        paddingHorizontal: 14,
+        paddingBottom: 18,
+        gap: 8,
+    },
+    tableRow: {
+        borderWidth: 1,
+        borderRadius: 10,
+        paddingHorizontal: 12,
         paddingVertical: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: "#e0e0e0",
-    },
-    headerText: {
-        fontSize: 18,
-        fontWeight: "600",
-        flex: 1,
-        textAlign: "center",
-    },
-    listContent: {
-        padding: 16,
-    },
-    tableButton: {
         flexDirection: "row",
-        justifyContent: "space-between",
         alignItems: "center",
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        borderRadius: 8,
-        marginBottom: 12,
-        borderWidth: 1,
-        borderColor: "#e0e0e0",
+        justifyContent: "space-between",
     },
-    tableButtonText: {
-        fontSize: 16,
-        fontWeight: "500",
-    },
-    scrollContainer: {
-        flex: 1,
-    },
-    scrollContent: {
-        padding: 16,
-    },
-    recordCard: {
-        borderRadius: 8,
-        padding: 12,
-        marginBottom: 12,
-        borderWidth: 1,
-        borderColor: "#e0e0e0",
-    },
-    recordContent: {
-        marginBottom: 12,
-    },
-    recordField: {
-        marginBottom: 8,
-    },
-    fieldName: {
-        fontSize: 12,
+    tableName: {
+        fontSize: 14,
         fontWeight: "600",
+    },
+    countPill: {
+        borderRadius: 999,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+    },
+    countText: {
+        fontSize: 12,
+        fontWeight: "700",
+    },
+    toolbar: {
+        borderTopWidth: 1,
+        borderBottomWidth: 1,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        gap: 8,
+    },
+    searchInput: {
+        borderWidth: 1,
+        borderRadius: 8,
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        fontSize: 14,
+    },
+    filtersRow: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: 8,
+    },
+    chip: {
+        borderWidth: 1,
+        borderRadius: 999,
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+    },
+    gridWrap: {
+        paddingHorizontal: 12,
+        paddingBottom: 10,
+        minWidth: 680,
+    },
+    gridHeaderRow: {
+        borderWidth: 1,
+        borderRadius: 8,
+        flexDirection: "row",
+        alignItems: "center",
+        paddingHorizontal: 8,
+        paddingVertical: 8,
+        marginTop: 8,
+        marginBottom: 6,
+    },
+    gridHeaderCell: {
+        width: 150,
+        fontSize: 11,
+        fontWeight: "700",
         textTransform: "uppercase",
     },
-    fieldValue: {
-        fontSize: 14,
-        marginTop: 2,
+    gridActionHead: {
+        width: 150,
+        fontSize: 11,
+        fontWeight: "700",
+        textTransform: "uppercase",
     },
-    recordActions: {
+    gridDataRow: {
+        borderWidth: 1,
+        borderRadius: 8,
+        flexDirection: "row",
+        alignItems: "center",
+        paddingHorizontal: 8,
+        paddingVertical: 8,
+        marginBottom: 6,
+    },
+    gridDataCell: {
+        width: 150,
+        fontSize: 13,
+        paddingRight: 8,
+    },
+    gridActions: {
+        width: 150,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+    },
+    rowActionText: {
+        fontSize: 12,
+        fontWeight: "700",
+    },
+    paginationBar: {
+        borderTopWidth: 1,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+    },
+    paginationActions: {
         flexDirection: "row",
         gap: 8,
     },
-    actionBtn: {
-        padding: 8,
-        borderRadius: 6,
-    },
-    emptyText: {
-        textAlign: "center",
-        fontSize: 14,
-        marginVertical: 20,
-    },
-    loadMoreBtn: {
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        borderRadius: 8,
-        alignItems: "center",
+    pageButton: {
         borderWidth: 1,
-        borderColor: "#e0e0e0",
-        marginBottom: 20,
-    },
-    loadMoreText: {
-        fontSize: 14,
-        fontWeight: "600",
+        borderRadius: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
     },
     modalOverlay: {
         flex: 1,
@@ -430,13 +685,16 @@ const styles = StyleSheet.create({
         marginBottom: 16,
     },
     formLabel: {
-        fontSize: 14,
-        fontWeight: "600",
+        fontSize: 13,
+        fontWeight: "700",
         marginBottom: 6,
+    },
+    detailValue: {
+        fontSize: 14,
     },
     formInput: {
         borderWidth: 1,
-        borderRadius: 6,
+        borderRadius: 8,
         paddingHorizontal: 12,
         paddingVertical: 8,
         fontSize: 14,
@@ -455,10 +713,5 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         alignItems: "center",
         borderWidth: 1,
-        borderColor: "#e0e0e0",
-    },
-    modalBtnText: {
-        fontSize: 14,
-        fontWeight: "600",
     },
 });

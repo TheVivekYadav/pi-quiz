@@ -403,7 +403,7 @@ export const fetchMyQuizResponses = (quizId: string) =>
 // ─── Database CRUD Management ──────────────────────────────────────────
 
 export const adminGetDatabaseTables = () =>
-  json<{ name: string }[]>(
+  json<{ name: string; count: number }[]>(
     fetch(apiUrl(`/quiz/admin/database/tables`), {
       headers: getAuthHeaders(),
     })
@@ -428,15 +428,31 @@ export const adminGetTableRecords = (
   tableName: string,
   limit: number = 50,
   offset: number = 0,
+  opts?: {
+    search?: string;
+    role?: string;
+    nullOnly?: boolean;
+    sortBy?: string;
+    sortDir?: 'asc' | 'desc';
+  },
 ) =>
   json<{
     table: string;
     total: number;
     limit: number;
     offset: number;
+    displayColumns: string[];
     records: any[];
   }>(
-    fetch(apiUrl(`/quiz/admin/database/${tableName}/records?limit=${limit}&offset=${offset}`), {
+    fetch(apiUrl(`/quiz/admin/database/${tableName}/records?${new URLSearchParams({
+      limit: String(limit),
+      offset: String(offset),
+      ...(opts?.search ? { search: opts.search } : {}),
+      ...(opts?.role ? { role: opts.role } : {}),
+      ...(opts?.nullOnly ? { nullOnly: 'true' } : {}),
+      ...(opts?.sortBy ? { sortBy: opts.sortBy } : {}),
+      ...(opts?.sortDir ? { sortDir: opts.sortDir } : {}),
+    }).toString()}`), {
       headers: getAuthHeaders(),
     })
   );
