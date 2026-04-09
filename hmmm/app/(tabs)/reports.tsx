@@ -74,7 +74,7 @@ export default function ReportsTab() {
 
     if (!adminView) {
         return (
-            <View style={[styles.center, { backgroundColor: theme.background }]}> 
+            <View style={[styles.center, { backgroundColor: theme.background }]}>
                 <Text style={{ color: '#b91c1c', fontSize: 18, fontWeight: '800', marginBottom: 8 }}>Access denied</Text>
                 <Text style={{ color: theme.textSecondary, fontSize: 14, textAlign: 'center' }}>
                     Reports are available for admins only.
