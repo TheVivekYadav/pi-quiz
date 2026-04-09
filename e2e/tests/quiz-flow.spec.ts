@@ -13,7 +13,6 @@ import {
   submitQuiz,
   declareWinners,
 } from '../fixtures/api';
-import { injectAuth } from '../fixtures/test';
 import { QuizDetailPage } from '../pages/QuizDetailPage';
 
 test.describe('Full quiz flow', () => {
