@@ -231,6 +231,26 @@ export default function AdminTab() {
             <Text style={[styles.eyebrow, { color: theme.primary }]}>ADMIN CONSOLE</Text>
             <Text style={[styles.title, { color: theme.textPrimary }]}>Manage Platform</Text>
 
+            {/* Database Management */}
+            <View style={[styles.card, { backgroundColor: theme.surfaceLight, borderColor: theme.border }]}>
+                <View style={styles.quizHeaderRow}>
+                    <View style={styles.quizHeaderCopy}>
+                        <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Database Management</Text>
+                        <Text style={[styles.cardSub, { color: theme.textSecondary }]}>Browse and edit all tables.</Text>
+                    </View>
+                    <Pressable
+                        onPress={() => router.push("/admin/database" as any)}
+                        style={({ pressed }) => [
+                            styles.createQuizButton,
+                            { backgroundColor: theme.primary, opacity: pressed ? 0.92 : 1 },
+                        ]}
+                    >
+                        <Ionicons name="server" size={18} color={theme.textInverse} />
+                        <Text style={[styles.createQuizButtonText, { color: theme.textInverse }]}>Browser</Text>
+                    </Pressable>
+                </View>
+            </View>
+
             <View style={[styles.card, { backgroundColor: theme.surfaceLight, borderColor: theme.border }]}>
                 <View style={styles.quizHeaderRow}>
                     <View style={styles.quizHeaderCopy}>

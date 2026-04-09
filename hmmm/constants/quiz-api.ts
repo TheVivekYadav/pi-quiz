@@ -400,3 +400,86 @@ export const fetchMyQuizResponses = (quizId: string) =>
       headers: getAuthHeaders(),
     })
   );
+// ─── Database CRUD Management ──────────────────────────────────────────
+
+export const adminGetDatabaseTables = () =>
+  json<{ name: string }[]>(
+    fetch(apiUrl(`/quiz/admin/database/tables`), {
+      headers: getAuthHeaders(),
+    })
+  );
+
+export const adminGetTableSchema = (tableName: string) =>
+  json<{
+    table: string;
+    columns: Array<{
+      name: string;
+      type: string;
+      nullable: boolean;
+      default: string | null;
+    }>;
+  }>(
+    fetch(apiUrl(`/quiz/admin/database/${tableName}/schema`), {
+      headers: getAuthHeaders(),
+    })
+  );
+
+export const adminGetTableRecords = (
+  tableName: string,
+  limit: number = 50,
+  offset: number = 0,
+) =>
+  json<{
+    table: string;
+    total: number;
+    limit: number;
+    offset: number;
+    records: any[];
+  }>(
+    fetch(apiUrl(`/quiz/admin/database/${tableName}/records?limit=${limit}&offset=${offset}`), {
+      headers: getAuthHeaders(),
+    })
+  );
+
+export const adminCreateTableRecord = (tableName: string, data: any) =>
+  json<{ success: boolean; record: any }>(
+    fetch(apiUrl(`/quiz/admin/database/${tableName}/records`), {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    })
+  );
+
+export const adminUpdateTableRecord = (
+  tableName: string,
+  recordId: string,
+  data: any,
+) =>
+  json<{ success: boolean; record: any }>(
+    fetch(apiUrl(`/quiz/admin/database/${tableName}/records/${recordId}`), {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    })
+  );
+
+export const adminDeleteTableRecord = (tableName: string, recordId: string) =>
+  json<{ success: boolean; deletedId: string }>(
+    fetch(apiUrl(`/quiz/admin/database/${tableName}/records/${recordId}`), {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    })
+  );
+
+export const adminExecuteQuery = (query: string, params?: any[]) =>
+  json<{
+    success: boolean;
+    rowCount: number;
+    rows: any[];
+  }>(
+    fetch(apiUrl(`/quiz/admin/database/query`), {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ query, params }),
+    })
+  );

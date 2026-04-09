@@ -453,4 +453,79 @@ export class QuizController {
     await this.requireAdmin(authHeader);
     return this.quizService.adminGetQuizReport(quizId);
   }
+
+  // ─── Database CRUD Management ──────────────────────────────────────────
+
+  // Admin: list all tables
+  @Get('admin/database/tables')
+  async listDatabaseTables(@Headers('Authorization') authHeader: string) {
+    await this.requireAdmin(authHeader);
+    return this.quizService.getDatabaseTables();
+  }
+
+  // Admin: get table schema
+  @Get('admin/database/:tableName/schema')
+  async getTableSchema(
+    @Param('tableName') tableName: string,
+    @Headers('Authorization') authHeader: string,
+  ) {
+    await this.requireAdmin(authHeader);
+    return this.quizService.getTableSchema(tableName);
+  }
+
+  // Admin: get table records with pagination
+  @Get('admin/database/:tableName/records')
+  async getTableRecords(
+    @Param('tableName') tableName: string,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+    @Query('offset', new ParseIntPipe({ optional: true })) offset?: number,
+    @Headers('Authorization') authHeader?: string,
+  ) {
+    await this.requireAdmin(authHeader || '');
+    return this.quizService.getTableRecords(tableName, limit || 50, offset || 0);
+  }
+
+  // Admin: insert record
+  @Post('admin/database/:tableName/records')
+  async createTableRecord(
+    @Param('tableName') tableName: string,
+    @Body() data: any,
+    @Headers('Authorization') authHeader: string,
+  ) {
+    await this.requireAdmin(authHeader);
+    return this.quizService.createTableRecord(tableName, data);
+  }
+
+  // Admin: update record
+  @Post('admin/database/:tableName/records/:recordId')
+  async updateTableRecord(
+    @Param('tableName') tableName: string,
+    @Param('recordId') recordId: string,
+    @Body() data: any,
+    @Headers('Authorization') authHeader: string,
+  ) {
+    await this.requireAdmin(authHeader);
+    return this.quizService.updateTableRecord(tableName, recordId, data);
+  }
+
+  // Admin: delete record
+  @Delete('admin/database/:tableName/records/:recordId')
+  async deleteTableRecord(
+    @Param('tableName') tableName: string,
+    @Param('recordId') recordId: string,
+    @Headers('Authorization') authHeader: string,
+  ) {
+    await this.requireAdmin(authHeader);
+    return this.quizService.deleteTableRecord(tableName, recordId);
+  }
+
+  // Admin: execute raw query (read-only)
+  @Post('admin/database/query')
+  async executeQuery(
+    @Body() payload: { query: string; params?: any[] },
+    @Headers('Authorization') authHeader: string,
+  ) {
+    await this.requireAdmin(authHeader);
+    return this.quizService.executeQuery(payload.query, payload.params);
+  }
 }

@@ -1596,4 +1596,158 @@ export class QuizService {
       fields: result.rows[0].fields ?? [],
     };
   }
+
+  // ─── Database CRUD Management ──────────────────────────────────────────
+
+  private readonly ALLOWED_TABLES = [
+    'users',
+    'user_sessions',
+    'auth_logs',
+    'quizzes',
+    'quiz_questions',
+    'quiz_enrollments',
+    'quiz_attempts',
+    'quiz_responses',
+    'forms',
+    'responses',
+  ];
+
+  private validateTableName(tableName: string): void {
+    if (!this.ALLOWED_TABLES.includes(tableName)) {
+      throw new BadRequestException(`Table "${tableName}" is not accessible`);
+    }
+  }
+
+  async getDatabaseTables() {
+    return this.ALLOWED_TABLES.map((name) => ({ name }));
+  }
+
+  async getTableSchema(tableName: string) {
+    this.validateTableName(tableName);
+    const pool = this.databaseService.getPool();
+
+    const result = await pool.query(
+      `SELECT column_name, data_type, is_nullable, column_default
+       FROM information_schema.columns
+       WHERE table_name = $1
+       ORDER BY ordinal_position`,
+      [tableName],
+    );
+
+    return {
+      table: tableName,
+      columns: result.rows.map((row: any) => ({
+        name: row.column_name,
+        type: row.data_type,
+        nullable: row.is_nullable === 'YES',
+        default: row.column_default,
+      })),
+    };
+  }
+
+  async getTableRecords(tableName: string, limit: number, offset: number) {
+    this.validateTableName(tableName);
+    const pool = this.databaseService.getPool();
+
+    const countResult = await pool.query(`SELECT COUNT(*) FROM ${tableName}`);
+    const total = parseInt(countResult.rows[0]?.count ?? 0, 10);
+
+    const recordsResult = await pool.query(
+      `SELECT * FROM ${tableName} ORDER BY id DESC LIMIT $1 OFFSET $2`,
+      [limit, offset],
+    );
+
+    return {
+      table: tableName,
+      total,
+      limit,
+      offset,
+      records: recordsResult.rows,
+    };
+  }
+
+  async createTableRecord(tableName: string, data: any) {
+    this.validateTableName(tableName);
+    const pool = this.databaseService.getPool();
+
+    const columns = Object.keys(data);
+    const values = Object.values(data);
+    const placeholders = columns.map((_, i) => `$${i + 1}`).join(',');
+    const columnList = columns.join(',');
+
+    const query = `INSERT INTO ${tableName} (${columnList}) VALUES (${placeholders}) RETURNING *`;
+
+    try {
+      const result = await pool.query(query, values);
+      return {
+        success: true,
+        record: result.rows[0],
+      };
+    } catch (error: any) {
+      throw new BadRequestException(`Failed to insert record: ${error.message}`);
+    }
+  }
+
+  async updateTableRecord(tableName: string, recordId: string, data: any) {
+    this.validateTableName(tableName);
+    const pool = this.databaseService.getPool();
+
+    const updates = Object.keys(data)
+      .map((key, i) => `${key} = $${i + 1}`)
+      .join(',');
+    const values = [...Object.values(data), recordId];
+
+    const query = `UPDATE ${tableName} SET ${updates} WHERE id = $${Object.keys(data).length + 1} RETURNING *`;
+
+    try {
+      const result = await pool.query(query, values);
+      if (!result.rows[0]) {
+        throw new NotFoundException('Record not found');
+      }
+      return {
+        success: true,
+        record: result.rows[0],
+      };
+    } catch (error: any) {
+      throw new BadRequestException(`Failed to update record: ${error.message}`);
+    }
+  }
+
+  async deleteTableRecord(tableName: string, recordId: string) {
+    this.validateTableName(tableName);
+    const pool = this.databaseService.getPool();
+
+    try {
+      const result = await pool.query(`DELETE FROM ${tableName} WHERE id = $1 RETURNING id`, [recordId]);
+      if (!result.rows[0]) {
+        throw new NotFoundException('Record not found');
+      }
+      return {
+        success: true,
+        deletedId: recordId,
+      };
+    } catch (error: any) {
+      throw new BadRequestException(`Failed to delete record: ${error.message}`);
+    }
+  }
+
+  async executeQuery(query: string, params?: any[]) {
+    const pool = this.databaseService.getPool();
+
+    // Security: only allow SELECT statements
+    if (!/^\s*SELECT\s+/i.test(query.trim())) {
+      throw new BadRequestException('Only SELECT queries are allowed');
+    }
+
+    try {
+      const result = await pool.query(query, params);
+      return {
+        success: true,
+        rowCount: result.rows.length,
+        rows: result.rows,
+      };
+    } catch (error: any) {
+      throw new BadRequestException(`Query failed: ${error.message}`);
+    }
+  }
 }
