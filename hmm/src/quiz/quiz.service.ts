@@ -1136,12 +1136,12 @@ export class QuizService {
   async updateQuizMetadata(quizId: string, payload: any): Promise<{ success: boolean }> {
     const pool = this.databaseService.getPool();
 
-    const check = await pool.query(`SELECT winners_declared FROM quizzes WHERE id = $1`, [quizId]);
+    const check = await pool.query(`SELECT winners_declared_at FROM quizzes WHERE id = $1`, [quizId]);
     const row = check.rows[0];
     if (!row) throw new NotFoundException('Quiz not found');
 
     // Don't allow edits if winners are declared
-    if (row.winners_declared) {
+    if (row.winners_declared_at) {
       throw new BadRequestException('Cannot edit quiz after winners are declared');
     }
 
