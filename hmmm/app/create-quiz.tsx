@@ -13,6 +13,7 @@ import { useState } from "react";
 import {
     Alert,
     Image,
+    Platform,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -158,7 +159,7 @@ export default function CreateQuizScreen() {
         }
 
         const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            mediaTypes: ['images'],
             quality: 0.85,
             allowsEditing: true,
             aspect: [16, 9],
@@ -174,6 +175,7 @@ export default function CreateQuizScreen() {
                 uri: asset.uri,
                 name: asset.fileName ?? `banner-${Date.now()}.jpg`,
                 type: asset.mimeType ?? "image/jpeg",
+                webFile: Platform.OS === 'web' ? (asset as any).file : undefined,
             });
             setImageUrl(uploaded.url);
             setBannerPreview(uploaded.url);

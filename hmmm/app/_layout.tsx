@@ -11,7 +11,7 @@ export default function RootLayout() {
   useEffect(() => {
     const init = async () => {
       await loadPersistedAuth().catch((err) => console.error('Auth load error:', err));
-      await loadPersistedResults().catch(() => {});
+      await loadPersistedResults().catch(() => { });
 
       // Re-verify token and sync role from server so a tampered localStorage
       // cannot grant stale admin privileges.
@@ -67,7 +67,7 @@ export default function RootLayout() {
       <Stack.Screen name="admin/user-sessions" />
       <Stack.Screen name="create" />
       <Stack.Screen name="create-quiz" />
-      <Stack.Screen name="forms" />
+      <Stack.Screen name="forms/index" />
       <Stack.Screen name="fill/[id]" />
       <Stack.Screen name="responses/[id]" />
     </Stack>

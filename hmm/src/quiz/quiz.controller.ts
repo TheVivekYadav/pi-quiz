@@ -123,7 +123,10 @@ export class QuizController {
       },
     }),
     fileFilter: (_req, file, cb) => {
-      if (!file.mimetype?.startsWith('image/')) {
+      const mime = String(file.mimetype ?? '').toLowerCase();
+      const ext = extname(file.originalname ?? '').toLowerCase();
+      const imageExts = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp']);
+      if (!(mime.startsWith('image/') || imageExts.has(ext))) {
         return cb(new BadRequestException('Only image files are allowed') as any, false);
       }
       cb(null, true);

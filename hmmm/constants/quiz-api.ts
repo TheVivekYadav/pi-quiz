@@ -170,13 +170,17 @@ export const fetchReportsOverview = () =>
     })
   );
 
-export const uploadQuizBannerImage = async (file: { uri: string; name?: string; type?: string }) => {
+export const uploadQuizBannerImage = async (file: { uri?: string; name?: string; type?: string; webFile?: File }) => {
   const formData = new FormData();
-  formData.append('file', {
-    uri: file.uri,
-    name: file.name ?? `banner-${Date.now()}.jpg`,
-    type: file.type ?? 'image/jpeg',
-  } as any);
+  if (file.webFile) {
+    formData.append('file', file.webFile);
+  } else {
+    formData.append('file', {
+      uri: file.uri,
+      name: file.name ?? `banner-${Date.now()}.jpg`,
+      type: file.type ?? 'image/jpeg',
+    } as any);
+  }
 
   return json<{ success: boolean; url: string }>(
     fetch(apiUrl('/quiz/banner-upload'), {
