@@ -884,7 +884,7 @@ export class QuizService {
 
     // Get all enrolled users
     const enrollmentsResult = await pool.query(
-      `SELECT qe.user_id, qe.enrolled_at, u.id, u.name, u.roll_number
+      `SELECT qe.user_id, qe.enrolled_at, qe.form_response_id, u.id, u.name, u.roll_number
        FROM quiz_enrollments qe
        JOIN users u ON qe.user_id = u.id
        WHERE qe.quiz_id = $1
@@ -904,33 +904,41 @@ export class QuizService {
       }
     }
 
-    // Get all form responses for this quiz
-    let responses: any[] = [];
-    if (formId) {
-      const responsesResult = await pool.query(
-        `SELECT fr.user_id, fr.form_id, fr.responses
-         FROM form_responses fr
-         WHERE fr.user_id IN (SELECT user_id FROM quiz_enrollments WHERE quiz_id = $1)
-         AND fr.form_id = $2`,
-        [quizId, formId],
-      );
-      responses = responsesResult.rows;
-    }
-
-    // Map responses by user_id
-    const responseMap = new Map<number, any>();
-    responses.forEach((r: any) => {
-      responseMap.set(r.user_id, r.responses || {});
-    });
-
     // Build enrollments with form data
     const enrollments = enrollmentsResult.rows.map((row: any) => ({
       userId: row.user_id,
       name: row.name,
       rollNumber: row.roll_number,
       enrolledAt: new Date(row.enrolled_at).toISOString(),
-      formResponses: responseMap.get(row.user_id) || {},
+      formResponseId: row.form_response_id ?? null,
+      formResponses: {},
     }));
+
+    if (enrollments.length > 0) {
+      const responseIds = enrollments
+        .map((row: any) => row.formResponseId)
+        .filter((responseId: string | null) => !!responseId);
+
+      if (responseIds.length > 0) {
+        const responsesResult = await pool.query(
+          `SELECT id, answers
+           FROM responses
+           WHERE id = ANY($1::text[])`,
+          [responseIds],
+        );
+
+        const responseMap = new Map<string, any>();
+        responsesResult.rows.forEach((response: any) => {
+          responseMap.set(response.id, response.answers || {});
+        });
+
+        for (const enrollment of enrollments) {
+          enrollment.formResponses = enrollment.formResponseId
+            ? responseMap.get(enrollment.formResponseId) || {}
+            : {};
+        }
+      }
+    }
 
     return {
       totalEnrolled: enrollments.length,

@@ -32,3 +32,7 @@ pit.engineer {
 www.pit.engineer {
   redir https://pit.engineer{uri} permanent
 }
+
+http:// {
+  redir https://{host}{uri} permanent
+}
