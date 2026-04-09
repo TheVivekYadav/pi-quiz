@@ -257,6 +257,24 @@ export const adminStartQuiz = (quizId: string) =>
     })
   );
 
+export const adminUpdateQuizMetadata = (
+  quizId: string,
+  payload: {
+    title?: string;
+    description?: string;
+    category?: string;
+    level?: "Beginner" | "Intermediate" | "Expert";
+    durationMinutes?: number;
+  },
+) =>
+  json<{ success: boolean }>(
+    fetch(apiUrl(`/quiz/${quizId}/metadata`), {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    })
+  );
+
 export const adminUpdateQuizSchedule = (
   quizId: string,
   payload: { startsAt?: string; durationMinutes?: number },

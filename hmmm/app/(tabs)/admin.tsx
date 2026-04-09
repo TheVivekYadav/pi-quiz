@@ -328,6 +328,13 @@ export default function AdminTab() {
                                 <Ionicons name="calendar-outline" size={20} color={theme.primary} />
                             </Pressable>
                             <Pressable
+                                onPress={() => router.push({ pathname: "/admin/edit/[id]", params: { id: quiz.id } } as any)}
+                                style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.7 : 1 }]}
+                                accessibilityLabel="Edit metadata"
+                            >
+                                <Ionicons name="pencil-outline" size={20} color={theme.primary} />
+                            </Pressable>
+                            <Pressable
                                 onPress={() => toggleVisibility(quiz)}
                                 disabled={visibilityUpdatingId === quiz.id}
                                 style={({ pressed }) => [styles.iconBtn, { opacity: (pressed || visibilityUpdatingId === quiz.id) ? 0.5 : 1 }]}

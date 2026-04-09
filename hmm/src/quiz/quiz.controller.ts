@@ -352,6 +352,30 @@ export class QuizController {
     });
   }
 
+  // Admin: update quiz metadata
+  @Post(':quizId/metadata')
+  async updateQuizMetadata(
+    @Param('quizId') quizId: string,
+    @Body() body: any,
+    @Headers('Authorization') authHeader: string,
+  ) {
+    await this.requireAdmin(authHeader);
+    const payload: any = {};
+    if (body?.title !== undefined) payload.title = String(body.title).trim();
+    if (body?.description !== undefined) payload.description = String(body.description).trim();
+    if (body?.category !== undefined) payload.category = String(body.category).trim();
+    if (body?.level !== undefined && ['Beginner', 'Intermediate', 'Expert'].includes(body.level)) {
+      payload.level = body.level;
+    }
+    if (body?.durationMinutes !== undefined) {
+      payload.durationMinutes = Number(body.durationMinutes);
+      if (payload.durationMinutes < 1 || payload.durationMinutes > 1440) {
+        throw new BadRequestException('durationMinutes must be between 1 and 1440');
+      }
+    }
+    return this.quizService.updateQuizMetadata(quizId, payload);
+  }
+
   // Admin: set quiz visibility
   @Post(':quizId/visibility')
   async updateQuizVisibility(

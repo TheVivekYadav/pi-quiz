@@ -940,6 +940,64 @@ export class QuizService {
     return { success: true };
   }
 
+  /** Admin: update quiz metadata (title, description, category, level, durationMinutes). */
+  async updateQuizMetadata(quizId: string, payload: any): Promise<{ success: boolean }> {
+    const pool = this.databaseService.getPool();
+
+    const check = await pool.query(`SELECT winners_declared FROM quizzes WHERE id = $1`, [quizId]);
+    const row = check.rows[0];
+    if (!row) throw new NotFoundException('Quiz not found');
+
+    // Don't allow edits if winners are declared
+    if (row.winners_declared) {
+      throw new BadRequestException('Cannot edit quiz after winners are declared');
+    }
+
+    const updates: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
+
+    if (payload.title !== undefined) {
+      updates.push(`title = $${paramIndex}`);
+      values.push(payload.title);
+      paramIndex++;
+    }
+    if (payload.description !== undefined) {
+      updates.push(`description = $${paramIndex}`);
+      values.push(payload.description);
+      paramIndex++;
+    }
+    if (payload.category !== undefined) {
+      updates.push(`category = $${paramIndex}`);
+      values.push(payload.category);
+      paramIndex++;
+    }
+    if (payload.level !== undefined) {
+      updates.push(`level = $${paramIndex}`);
+      values.push(payload.level);
+      paramIndex++;
+    }
+    if (payload.durationMinutes !== undefined) {
+      updates.push(`duration_minutes = $${paramIndex}`);
+      values.push(payload.durationMinutes);
+      paramIndex++;
+    }
+
+    if (updates.length === 0) {
+      return { success: true }; // No changes
+    }
+
+    updates.push('updated_at = NOW()');
+    values.push(quizId);
+
+    await pool.query(
+      `UPDATE quizzes SET ${updates.join(', ')} WHERE id = $${paramIndex}`,
+      values,
+    );
+
+    return { success: true };
+  }
+
   /**
    * Admin: Create (or replace) the enrollment form for a quiz.
    * fields is an array of { id, label, type, required, options? }
