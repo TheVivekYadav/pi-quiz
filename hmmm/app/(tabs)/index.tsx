@@ -1,8 +1,7 @@
 import { getAuthUser, isAdmin } from "@/constants/auth-session";
 import { fetchQuizHome } from "@/constants/quiz-api";
-import { useLoadTimeout } from "@/hook/useLoadTimeout";
 import { useTheme } from "@/hook/theme";
-import { Ionicons } from "@expo/vector-icons";
+import { useLoadTimeout } from "@/hook/useLoadTimeout";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -67,28 +66,6 @@ export default function DiscoverScreen() {
         : data?.greeting?.subtitle ?? "Continue your learning journey";
 
     const featuredItems = data?.featuredQuizzes ?? data?.featured ?? [];
-    const categories = (data?.categories ?? []).map((cat: any, idx: number) => {
-        if (typeof cat === "string") {
-            const iconMap: Record<string, keyof typeof Ionicons.glyphMap> = {
-                science: "flask-outline",
-                trivia: "bulb-outline",
-                mathematics: "calculator-outline",
-                history: "book-outline",
-                coding: "code-slash-outline",
-            };
-            return {
-                id: `${cat}-${idx}`,
-                title: cat,
-                icon: iconMap[cat.toLowerCase()] ?? "library-outline",
-            };
-        }
-
-        return {
-            id: cat.id ?? `cat-${idx}`,
-            title: cat.title ?? "Category",
-            icon: cat.icon ?? "library-outline",
-        };
-    });
 
     return (
         <ScrollView
@@ -105,45 +82,6 @@ export default function DiscoverScreen() {
                     <Text style={{ color: '#b91c1c', fontSize: 13 }}>⚠ {error}</Text>
                 </View>
             )}
-
-            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Continue Learning</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
-                {(data?.continueLearning ?? []).map((item: any) => (
-                    <Pressable
-                        key={item.id}
-                        onPress={() => router.push(`/quiz/${item.id}` as any)}
-                        style={[styles.continueCard, { backgroundColor: theme.surfaceLight, borderColor: theme.border }]}
-                    >
-                        <Text style={[styles.tag, { color: theme.primary }]}>{item.category}</Text>
-                        <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{item.title}</Text>
-                        <View style={[styles.progressTrack, { backgroundColor: theme.divider }]}>
-                            <View style={[styles.progressFill, { width: `${item.progress ?? 0}%`, backgroundColor: theme.primary }]} />
-                        </View>
-                    </Pressable>
-                ))}
-                {!data?.continueLearning?.length && (
-                    <View style={[styles.emptyCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                        <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>No enrolled quizzes yet</Text>
-                        <Text style={[styles.emptyText, { color: theme.textSecondary }]}>Go to Quizzes and enroll in your first quiz.</Text>
-                        <Pressable
-                            onPress={() => router.push("/(tabs)/quizzes" as any)}
-                            style={[styles.browseCta, { backgroundColor: theme.buttonPrimary }]}
-                        >
-                            <Text style={[styles.browseCtaText, { color: theme.textInverse }]}>Browse Quizzes →</Text>
-                        </Pressable>
-                    </View>
-                )}
-            </ScrollView>
-
-            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Explore Categories</Text>
-            <View style={styles.grid}>
-                {categories.map((cat: any) => (
-                    <View key={cat.id} style={[styles.gridCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                        <Ionicons name={cat.icon as any} size={20} color={theme.primary} />
-                        <Text style={[styles.gridText, { color: theme.textPrimary }]}>{cat.title}</Text>
-                    </View>
-                ))}
-            </View>
 
             <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Featured Quizzes</Text>
             {featuredItems.map((quiz: any) => (
@@ -178,21 +116,6 @@ const styles = StyleSheet.create({
     subheading: { marginTop: 8, fontSize: 16, lineHeight: 24 },
     viewer: { marginTop: 6, fontSize: 13, fontWeight: "600" },
     sectionTitle: { marginTop: 22, marginBottom: 10, fontSize: 30, fontWeight: "800" },
-    continueCard: { width: 250, borderWidth: 1, borderRadius: 18, padding: 14 },
-    tag: { fontSize: 11, fontWeight: "700", marginBottom: 8, textTransform: "uppercase" },
-    cardTitle: { fontSize: 20, fontWeight: "700" },
-    progressTrack: { height: 6, borderRadius: 6, marginTop: 14 },
-    progressFill: { height: 6, borderRadius: 6 },
-    grid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-    gridCard: {
-        width: "48%",
-        borderWidth: 1,
-        borderRadius: 14,
-        paddingVertical: 18,
-        alignItems: "center",
-        gap: 8,
-    },
-    gridText: { fontSize: 13, fontWeight: "600" },
     featureCard: { borderWidth: 1, borderRadius: 18, padding: 14, marginBottom: 12 },
     levelChip: { fontSize: 12, fontWeight: "700", textTransform: "uppercase" },
     featureTitle: { marginTop: 6, fontSize: 25, fontWeight: "800" },
