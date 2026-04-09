@@ -306,7 +306,7 @@ export default function AdminTab() {
                         <View style={styles.quizInfo}>
                             <View style={styles.quizTitleRow}>
                                 <Text style={[styles.quizTitle, { color: theme.textPrimary }]} numberOfLines={1}>{quiz.title}</Text>
-                                <View style={[styles.statusBadge, { backgroundColor: status.background, borderColor: theme.border }]}> 
+                                <View style={[styles.statusBadge, { backgroundColor: status.background, borderColor: theme.border }]}>
                                     <Text style={[styles.statusBadgeText, { color: status.color }]}>{status.label}</Text>
                                 </View>
                             </View>
@@ -361,96 +361,96 @@ export default function AdminTab() {
                                     <Text style={[styles.confirmText, { color: theme.textPrimary }]}>Declare winners? Cannot be undone.</Text>
                                     <Pressable
                                         onPress={() => doDeclareWinners(quiz.id)}
-                                style={({ pressed }) => [styles.primaryActionBtn, { borderColor: theme.border, backgroundColor: theme.surface, opacity: pressed ? 0.85 : 1 }]}
+                                        style={({ pressed }) => [styles.primaryActionBtn, { borderColor: theme.border, backgroundColor: theme.surface, opacity: pressed ? 0.85 : 1 }]}
                                     >
                                         <Text style={[styles.confirmYesText, { color: "#2d2500" }]}>Yes, Declare</Text>
-                                <Ionicons name="eye-outline" size={16} color={theme.primary} />
-                                <Text style={[styles.primaryActionText, { color: theme.primary }]}>View</Text>
-                                    <Pressable onPress={() => setConfirmDeclareId(null)}>
+                                        <Ionicons name="eye-outline" size={16} color={theme.primary} />
+                                        <Text style={[styles.primaryActionText, { color: theme.primary }]}>View</Text>
+                                        <Pressable onPress={() => setConfirmDeclareId(null)}>
+                                        </Pressable>
+                                        onPress={() => router.push({ pathname: "/admin/edit/[id]", params: { id: quiz.id } } as any)}
+                                        style={({ pressed }) => [styles.primaryActionBtn, { borderColor: theme.border, backgroundColor: theme.surface, opacity: pressed ? 0.85 : 1 }]}
+                                        accessibilityLabel="Edit metadata"
+                                        <View style={styles.quizActions}>
+                                            <Ionicons name="pencil-outline" size={16} color={theme.primary} />
+                                            <Text style={[styles.primaryActionText, { color: theme.primary }]}>Edit</Text>
+                                            onPress={() => router.push({ pathname: "/quiz/[id]", params: { id: quiz.id } } as any)}
+                                            style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.7 : 1 }]}
+                                            onPress={() => showStart ? handleStartQuiz(quiz) : router.push({ pathname: "/quiz/[id]/report", params: { id: quiz.id } } as any)}
+                                            disabled={startingId === quiz.id}
+                                            style={({ pressed }) => [styles.primaryActionBtn, { backgroundColor: showStart ? theme.success : theme.buttonPrimary, opacity: (pressed || startingId === quiz.id) ? 0.85 : 1 }]}
+                                            accessibilityLabel={showStart ? "Start quiz" : "View report"}
                                     </Pressable>
-                                onPress={() => router.push({ pathname: "/admin/edit/[id]", params: { id: quiz.id } } as any)}
-                                style={({ pressed }) => [styles.primaryActionBtn, { borderColor: theme.border, backgroundColor: theme.surface, opacity: pressed ? 0.85 : 1 }]}
-                                accessibilityLabel="Edit metadata"
-                        <View style={styles.quizActions}>
-                                <Ionicons name="pencil-outline" size={16} color={theme.primary} />
-                                <Text style={[styles.primaryActionText, { color: theme.primary }]}>Edit</Text>
-                                onPress={() => router.push({ pathname: "/quiz/[id]", params: { id: quiz.id } } as any)}
-                                style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.7 : 1 }]}
-                                onPress={() => showStart ? handleStartQuiz(quiz) : router.push({ pathname: "/quiz/[id]/report", params: { id: quiz.id } } as any)}
-                                disabled={startingId === quiz.id}
-                                style={({ pressed }) => [styles.primaryActionBtn, { backgroundColor: showStart ? theme.success : theme.buttonPrimary, opacity: (pressed || startingId === quiz.id) ? 0.85 : 1 }]}
-                                accessibilityLabel={showStart ? "Start quiz" : "View report"}
-                            </Pressable>
-                                {showStart ? <Ionicons name="play" size={16} color={theme.textInverse} /> : <Ionicons name="bar-chart-outline" size={16} color={theme.textInverse} />}
-                                <Text style={[styles.primaryActionText, { color: theme.textInverse }]}>{showStart ? "Start" : "Report"}</Text>
-                            <Pressable
-                                onPress={() => router.push({ pathname: "/quiz/[id]/manage-questions", params: { id: quiz.id } } as any)}
-                                onPress={() => setOpenMenuQuizId((current) => (current === quiz.id ? null : quiz.id))}
-                                style={({ pressed }) => [styles.menuButton, { borderColor: theme.border, backgroundColor: theme.surface, opacity: pressed ? 0.85 : 1 }]}
-                                accessibilityLabel="Open more actions"
+                                    {showStart ? <Ionicons name="play" size={16} color={theme.textInverse} /> : <Ionicons name="bar-chart-outline" size={16} color={theme.textInverse} />}
+                                    <Text style={[styles.primaryActionText, { color: theme.textInverse }]}>{showStart ? "Start" : "Report"}</Text>
+                                    <Pressable
+                                        onPress={() => router.push({ pathname: "/quiz/[id]/manage-questions", params: { id: quiz.id } } as any)}
+                                        onPress={() => setOpenMenuQuizId((current) => (current === quiz.id ? null : quiz.id))}
+                                        style={({ pressed }) => [styles.menuButton, { borderColor: theme.border, backgroundColor: theme.surface, opacity: pressed ? 0.85 : 1 }]}
+                                        accessibilityLabel="Open more actions"
                                 <Ionicons name="list-outline" size={20} color={theme.primary} />
-                                <Ionicons name="ellipsis-horizontal" size={16} color={theme.textPrimary} />
-                                <Text style={[styles.primaryActionText, { color: theme.textPrimary }]}>More</Text>
-                            <Pressable
+                                    <Ionicons name="ellipsis-horizontal" size={16} color={theme.textPrimary} />
+                                    <Text style={[styles.primaryActionText, { color: theme.textPrimary }]}>More</Text>
+                                    <Pressable
                                             ? <ActivityIndicator size="small" color={theme.warning} />
 
-                        {isOpenMenu && (
-                            <View style={[styles.menuPanel, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
-                                <Pressable onPress={() => { setOpenMenuQuizId(null); beginEditSchedule(quiz); }} style={styles.menuItem}>
-                                    <Ionicons name="calendar-outline" size={16} color={theme.primary} />
-                                    <Text style={[styles.menuText, { color: theme.textPrimary }]}>Schedule</Text>
-                                </Pressable>
-                                <Pressable onPress={() => { setOpenMenuQuizId(null); router.push({ pathname: "/admin/enrollments/[id]", params: { id: quiz.id } } as any); }} style={styles.menuItem}>
-                                    <Ionicons name="people-outline" size={16} color={theme.primary} />
-                                    <Text style={[styles.menuText, { color: theme.textPrimary }]}>Manage Users</Text>
-                                </Pressable>
-                                <Pressable onPress={() => { setOpenMenuQuizId(null); toggleVisibility(quiz); }} style={styles.menuItem}>
-                                    <Ionicons name={(quiz.isVisible ?? true) ? "eye-off-outline" : "eye-outline"} size={16} color={theme.primary} />
-                                    <Text style={[styles.menuText, { color: theme.textPrimary }]}>{(quiz.isVisible ?? true) ? "Hide quiz" : "Make visible"}</Text>
-                                </Pressable>
-                                <Pressable onPress={() => { setOpenMenuQuizId(null); router.push({ pathname: "/quiz/[id]/report", params: { id: quiz.id } } as any); }} style={styles.menuItem}>
-                                    <Ionicons name="bar-chart-outline" size={16} color={theme.primary} />
-                                    <Text style={[styles.menuText, { color: theme.textPrimary }]}>Analytics</Text>
-                                </Pressable>
-                                <Pressable onPress={() => { setOpenMenuQuizId(null); router.push({ pathname: "/quiz/[id]/manage-questions", params: { id: quiz.id } } as any); }} style={styles.menuItem}>
-                                    <Ionicons name="list-outline" size={16} color={theme.primary} />
-                                    <Text style={[styles.menuText, { color: theme.textPrimary }]}>Manage Questions</Text>
-                                </Pressable>
-                                {isPast && (
-                                    <Pressable onPress={() => { setOpenMenuQuizId(null); handleDeclareWinners(quiz); }} style={styles.menuItem}>
-                                        <Ionicons name="trophy-outline" size={16} color={theme.warning} />
-                                        <Text style={[styles.menuText, { color: theme.textPrimary }]}>Declare winners</Text>
-                                    </Pressable>
-                                )}
-                                <Pressable onPress={() => { setOpenMenuQuizId(null); handleDelete(quiz); }} style={styles.menuItem}>
-                                    <Ionicons name="trash-outline" size={16} color={theme.error} />
-                                    <Text style={[styles.menuText, { color: theme.error }]}>Delete</Text>
-                                </Pressable>
-                            </View>
-                        )}
-                                            : <Ionicons name="trophy-outline" size={20} color={theme.warning} />
+                                    {isOpenMenu && (
+                                        <View style={[styles.menuPanel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                                            <Pressable onPress={() => { setOpenMenuQuizId(null); beginEditSchedule(quiz); }} style={styles.menuItem}>
+                                                <Ionicons name="calendar-outline" size={16} color={theme.primary} />
+                                                <Text style={[styles.menuText, { color: theme.textPrimary }]}>Schedule</Text>
+                                            </Pressable>
+                                            <Pressable onPress={() => { setOpenMenuQuizId(null); router.push({ pathname: "/admin/enrollments/[id]", params: { id: quiz.id } } as any); }} style={styles.menuItem}>
+                                                <Ionicons name="people-outline" size={16} color={theme.primary} />
+                                                <Text style={[styles.menuText, { color: theme.textPrimary }]}>Manage Users</Text>
+                                            </Pressable>
+                                            <Pressable onPress={() => { setOpenMenuQuizId(null); toggleVisibility(quiz); }} style={styles.menuItem}>
+                                                <Ionicons name={(quiz.isVisible ?? true) ? "eye-off-outline" : "eye-outline"} size={16} color={theme.primary} />
+                                                <Text style={[styles.menuText, { color: theme.textPrimary }]}>{(quiz.isVisible ?? true) ? "Hide quiz" : "Make visible"}</Text>
+                                            </Pressable>
+                                            <Pressable onPress={() => { setOpenMenuQuizId(null); router.push({ pathname: "/quiz/[id]/report", params: { id: quiz.id } } as any); }} style={styles.menuItem}>
+                                                <Ionicons name="bar-chart-outline" size={16} color={theme.primary} />
+                                                <Text style={[styles.menuText, { color: theme.textPrimary }]}>Analytics</Text>
+                                            </Pressable>
+                                            <Pressable onPress={() => { setOpenMenuQuizId(null); router.push({ pathname: "/quiz/[id]/manage-questions", params: { id: quiz.id } } as any); }} style={styles.menuItem}>
+                                                <Ionicons name="list-outline" size={16} color={theme.primary} />
+                                                <Text style={[styles.menuText, { color: theme.textPrimary }]}>Manage Questions</Text>
+                                            </Pressable>
+                                            {isPast && (
+                                                <Pressable onPress={() => { setOpenMenuQuizId(null); handleDeclareWinners(quiz); }} style={styles.menuItem}>
+                                                    <Ionicons name="trophy-outline" size={16} color={theme.warning} />
+                                                    <Text style={[styles.menuText, { color: theme.textPrimary }]}>Declare winners</Text>
+                                                </Pressable>
+                                            )}
+                                            <Pressable onPress={() => { setOpenMenuQuizId(null); handleDelete(quiz); }} style={styles.menuItem}>
+                                                <Ionicons name="trash-outline" size={16} color={theme.error} />
+                                                <Text style={[styles.menuText, { color: theme.error }]}>Delete</Text>
+                                            </Pressable>
+                                        </View>
+                                    )}
+                                    : <Ionicons name="trophy-outline" size={20} color={theme.warning} />
                                         }
-                                    </Pressable>
+                                </Pressable>
                                 </>
                             )}
-                            <Pressable
-                                onPress={() => handleDelete(quiz)}
-                                style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.7 : 1 }]}
-                                accessibilityLabel="Delete quiz"
-                            >
-                                <Ionicons name="trash-outline" size={20} color={theme.error} />
-                            </Pressable>
-                        </View>
+                        <Pressable
+                            onPress={() => handleDelete(quiz)}
+                            style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.7 : 1 }]}
+                            accessibilityLabel="Delete quiz"
+                        >
+                            <Ionicons name="trash-outline" size={20} color={theme.error} />
+                        </Pressable>
                     </View>
-                );
-            })}
+                    </View>
+    );
+})}
 
-            <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Analytics</Text>
-                <Text style={[styles.cardSub, { color: theme.textSecondary }]}>Review enrollments, attempts, and leaderboard trends.</Text>
-            </View>
+<View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+    <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Analytics</Text>
+    <Text style={[styles.cardSub, { color: theme.textSecondary }]}>Review enrollments, attempts, and leaderboard trends.</Text>
+</View>
 
-            {/* ── User Sessions ── */}
+{/* ── User Sessions ── */ }
             <Text style={[styles.sectionHeader, { color: theme.textPrimary }]}>User Sessions</Text>
             <TextInput
                 style={[styles.searchInput, { borderColor: theme.border, color: theme.textPrimary, backgroundColor: theme.surface }]}
@@ -460,48 +460,52 @@ export default function AdminTab() {
                 onChangeText={setUserSearch}
             />
 
-            {loadingUsers && <ActivityIndicator color={theme.primary} style={styles.loader} />}
+{ loadingUsers && <ActivityIndicator color={theme.primary} style={styles.loader} /> }
 
-            {!loadingUsers && filteredUsers.length === 0 && (
-                <View style={[styles.emptyCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                    <Text style={[styles.emptyText, { color: theme.textSecondary }]}>No users found.</Text>
-                </View>
-            )}
+{
+    !loadingUsers && filteredUsers.length === 0 && (
+        <View style={[styles.emptyCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>No users found.</Text>
+        </View>
+    )
+}
 
-            {!loadingUsers && filteredUsers.map((user) => (
-                <Pressable
-                    key={user.userId}
-                    onPress={() => router.push({
-                        pathname: "/admin/user-sessions",
-                        params: { userId: String(user.userId), userName: user.name || user.rollNumber },
-                    } as any)}
-                    style={({ pressed }) => [
-                        styles.userRow,
-                        { backgroundColor: theme.surfaceLight, borderColor: theme.border, opacity: pressed ? 0.85 : 1 },
-                    ]}
-                >
-                    <View style={{ flex: 1 }}>
-                        <Text style={[styles.quizTitle, { color: theme.textPrimary }]}>{user.name || user.rollNumber}</Text>
-                        <Text style={[styles.quizMeta, { color: theme.textSecondary }]}>
-                            {user.rollNumber} • {user.role}
-                        </Text>
-                    </View>
-                    <View style={styles.sessionBadges}>
-                        <View style={[styles.sessionBadge, { backgroundColor: `${theme.primary}22` }]}>
-                            <Text style={[styles.sessionBadgeText, { color: theme.primary }]}>
-                                {user.activeSessions} active
-                            </Text>
-                        </View>
-                        <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
-                    </View>
-                </Pressable>
-            ))}
-
-            <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Admin Status</Text>
-                <Text style={[styles.cardSub, { color: theme.textSecondary }]}>You are signed in with admin privileges.</Text>
+{
+    !loadingUsers && filteredUsers.map((user) => (
+        <Pressable
+            key={user.userId}
+            onPress={() => router.push({
+                pathname: "/admin/user-sessions",
+                params: { userId: String(user.userId), userName: user.name || user.rollNumber },
+            } as any)}
+            style={({ pressed }) => [
+                styles.userRow,
+                { backgroundColor: theme.surfaceLight, borderColor: theme.border, opacity: pressed ? 0.85 : 1 },
+            ]}
+        >
+            <View style={{ flex: 1 }}>
+                <Text style={[styles.quizTitle, { color: theme.textPrimary }]}>{user.name || user.rollNumber}</Text>
+                <Text style={[styles.quizMeta, { color: theme.textSecondary }]}>
+                    {user.rollNumber} • {user.role}
+                </Text>
             </View>
-        </ScrollView>
+            <View style={styles.sessionBadges}>
+                <View style={[styles.sessionBadge, { backgroundColor: `${theme.primary}22` }]}>
+                    <Text style={[styles.sessionBadgeText, { color: theme.primary }]}>
+                        {user.activeSessions} active
+                    </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
+            </View>
+        </Pressable>
+    ))
+}
+
+<View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+    <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Admin Status</Text>
+    <Text style={[styles.cardSub, { color: theme.textSecondary }]}>You are signed in with admin privileges.</Text>
+</View>
+        </ScrollView >
     );
 }
 
