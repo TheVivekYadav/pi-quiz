@@ -21,6 +21,7 @@ export default function LobbyScreen() {
     const [seconds, setSeconds] = useState(0);
     const [lockedSeconds, setLockedSeconds] = useState(0);
     const [error, setError] = useState<string | null>(null);
+    const [rulesExpanded, setRulesExpanded] = useState(true);
 
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -91,19 +92,32 @@ export default function LobbyScreen() {
 
     const formatCountdown = (totalSeconds: number) => {
         const safeSeconds = Math.max(0, Math.floor(totalSeconds));
-        const hours = Math.floor(safeSeconds / 3600);
+        const days = Math.floor(safeSeconds / 86400);
+        const hours = Math.floor((safeSeconds % 86400) / 3600);
         const minutes = Math.floor((safeSeconds % 3600) / 60);
         const secs = safeSeconds % 60;
 
-        if (hours > 0) {
-            return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
-        }
-
-        return `${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+        return { days, hours, minutes, secs };
     };
 
-    const countdownText = formatCountdown(seconds);
-    const lockoutText = formatCountdown(lockedSeconds);
+    const countdownParts = formatCountdown(seconds);
+    const lockoutParts = formatCountdown(lockedSeconds);
+
+    const renderTimeChip = (value: number, label: string, keyName: string) => (
+        <View key={keyName} style={[styles.timeChip, { backgroundColor: theme.surfaceLight, borderColor: theme.primary }]}>
+            <Text style={[styles.timeValue, { color: theme.primary }]}>{String(value).padStart(2, "0")}</Text>
+            <Text style={[styles.timeLabel, { color: theme.textMuted }]}>{label}</Text>
+        </View>
+    );
+
+    const renderCountdown = (parts: { days: number; hours: number; minutes: number; secs: number }) => {
+        const chips: any[] = [];
+        if (parts.days > 0) chips.push(renderTimeChip(parts.days, "DAYS", "days"));
+        if (parts.days > 0 || parts.hours > 0) chips.push(renderTimeChip(parts.hours, "HRS", "hours"));
+        chips.push(renderTimeChip(parts.minutes, "MIN", "minutes"));
+        chips.push(renderTimeChip(parts.secs, "SEC", "seconds"));
+        return chips;
+    };
 
     return (
         <ScrollView
@@ -123,17 +137,24 @@ export default function LobbyScreen() {
             <Text style={[styles.title, { color: theme.textPrimary }]}>Starting Soon</Text>
 
             <View style={styles.timerRow}>
-                <View style={[styles.timerBox, { backgroundColor: theme.surfaceLight, borderColor: theme.primary }]}>
-                    <Text style={[styles.timerValue, { color: theme.primary }]}>{countdownText}</Text>
-                    <Text style={[styles.timerLabel, { color: theme.textMuted }]}>TIME</Text>
-                </View>
+                {renderCountdown(countdownParts)}
             </View>
 
             <View style={[styles.card, { backgroundColor: theme.surfaceLight, borderColor: theme.border }]}>
-                <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Quiz Rules</Text>
-                {(data.rules ?? []).map((rule: string, idx: number) => (
-                    <Text key={`${rule}-${idx}`} style={[styles.rule, { color: theme.textSecondary }]}>{idx + 1}. {rule}</Text>
-                ))}
+                <Pressable
+                    onPress={() => setRulesExpanded((prev) => !prev)}
+                    style={styles.rulesHeader}
+                >
+                    <Text style={[styles.cardTitle, { color: theme.textPrimary, marginBottom: 0 }]}>Quiz Rules</Text>
+                    <Ionicons name={rulesExpanded ? "chevron-up" : "chevron-down"} size={18} color={theme.textSecondary} />
+                </Pressable>
+                {rulesExpanded && (
+                    <View style={{ marginTop: 8 }}>
+                        {(data.rules ?? []).map((rule: string, idx: number) => (
+                            <Text key={`${rule}-${idx}`} style={[styles.rule, { color: theme.textSecondary }]}>{idx + 1}. {rule}</Text>
+                        ))}
+                    </View>
+                )}
             </View>
 
             <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -167,7 +188,7 @@ export default function LobbyScreen() {
             ) : lockedSeconds > 0 ? (
                 <View style={[styles.startBtn, { alignItems: 'center', paddingVertical: 16 }]}>
                     <Text style={[styles.startText, { color: theme.textSecondary }]}>You are temporarily locked out from attempting this quiz.</Text>
-                    <Text style={{ marginTop: 8, color: theme.textMuted }}>{`Try again in ${lockoutText}`}</Text>
+                    <View style={[styles.lockoutRow, { marginTop: 10 }]}>{renderCountdown(lockoutParts)}</View>
                 </View>
             ) : (
                 <Pressable
@@ -184,7 +205,7 @@ export default function LobbyScreen() {
                         router.replace({ pathname: "/quiz/[id]/question/[index]", params: { id: quizId, index: "1" } } as any)
                     }
                 >
-                    <Text style={[styles.startText, { color: theme.textInverse }]}>{seconds > 0 ? `Starting in ${countdownText}` : 'Start Quiz'}</Text>
+                    <Text style={[styles.startText, { color: theme.textInverse }]}>{seconds > 0 ? 'Starting Soon' : 'Start Quiz'}</Text>
                 </Pressable>
             )}
         </ScrollView>
@@ -202,14 +223,15 @@ const styles = StyleSheet.create({
     brand: { fontSize: 20, fontWeight: "800" },
     subtitle: { marginTop: 12, fontSize: 15, letterSpacing: 2, textTransform: "uppercase" },
     title: { marginTop: 8, fontSize: 58, lineHeight: 60, fontWeight: "800" },
-    timerRow: { marginTop: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 },
-    timerBox: { borderWidth: 1, borderRadius: 16, width: 130, alignItems: "center", paddingVertical: 10 },
-    timerValue: { fontSize: 44, fontWeight: "800" },
-    timerLabel: { fontSize: 12, fontWeight: "700" },
-    colon: { fontSize: 35, fontWeight: "700" },
+    timerRow: { marginTop: 16, flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: 8 },
+    timeChip: { borderWidth: 1, borderRadius: 16, minWidth: 74, alignItems: "center", paddingVertical: 10, paddingHorizontal: 12 },
+    timeValue: { fontSize: 30, fontWeight: "800", lineHeight: 34 },
+    timeLabel: { fontSize: 11, fontWeight: "700", marginTop: 2 },
+    lockoutRow: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 8 },
     card: { marginTop: 16, borderWidth: 1, borderRadius: 16, padding: 14 },
     cardTitle: { fontSize: 34, fontWeight: "800", marginBottom: 8 },
     rule: { fontSize: 16, lineHeight: 26, marginBottom: 6 },
+    rulesHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
     userRow: {
         borderWidth: 1,
         borderRadius: 12,
