@@ -7,6 +7,24 @@ import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+// Time-based greeting helper
+const getTimeBasedGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return { emoji: "🌅", text: "Good morning" };
+    if (hour < 18) return { emoji: "☀️", text: "Good afternoon" };
+    return { emoji: "🌙", text: "Good evening" };
+};
+
+// Difficulty color helper
+const getDifficultyColor = (level: string) => {
+    switch (level) {
+        case "Beginner": return "#10b981"; // green
+        case "Intermediate": return "#f59e0b"; // amber
+        case "Expert": return "#ef4444"; // red
+        default: return "#6b7280"; // gray
+    }
+};
+
 export default function DiscoverScreen() {
     const theme = useTheme();
     const insets = useSafeAreaInsets();
@@ -57,13 +75,11 @@ export default function DiscoverScreen() {
         );
     }
 
-    const greetingTitle = typeof data?.greeting === "string"
-        ? data.greeting
-        : data?.greeting?.title ?? "Ready for a challenge?";
+    const { emoji: timeEmoji, text: timeGreeting } = getTimeBasedGreeting();
+    const userDisplayName = user?.rollNumber?.split(/[@._-]/)[0] || "Learner";
 
-    const greetingSubtitle = typeof data?.greeting === "string"
-        ? "Continue your learning journey"
-        : data?.greeting?.subtitle ?? "Continue your learning journey";
+    const greetingTitle = `${timeEmoji} ${timeGreeting}, ${userDisplayName}!`;
+    const greetingSubtitle = "Continue your learning journey";
 
     const featuredItems = data?.featuredQuizzes ?? data?.featured ?? [];
     const enrolledQuizIds = new Set((data?.continueLearning ?? []).map((item: any) => item.id));
@@ -84,28 +100,62 @@ export default function DiscoverScreen() {
             )}
 
             <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Featured Quizzes</Text>
-            {featuredItems.map((quiz: any) => (
-                <View key={quiz.id} style={[styles.featureCard, { backgroundColor: theme.surfaceLight, borderColor: theme.border }]}>
-                    <Text style={[styles.levelChip, { color: theme.primary }]}>{quiz.level}</Text>
-                    <Text style={[styles.featureTitle, { color: theme.textPrimary }]}>{quiz.title}</Text>
-                    <Text style={[styles.featureDesc, { color: theme.textSecondary }]}>{quiz.description}</Text>
-                    <Pressable
-                        style={[
-                            styles.enrollBtn,
-                            { backgroundColor: enrolledQuizIds.has(quiz.id) ? theme.success : theme.buttonPrimary },
-                        ]}
-                        onPress={() =>
-                            enrolledQuizIds.has(quiz.id)
-                                ? router.push({ pathname: "/quiz/[id]/lobby", params: { id: quiz.id } } as any)
-                                : router.push(`/quiz/${quiz.id}` as any)
+            {featuredItems.map((quiz: any) => {
+                const diffColor = getDifficultyColor(quiz.level);
+                return (
+                    <View key={quiz.id} style={[
+                        styles.featureCard,
+                        {
+                            backgroundColor: theme.surfaceLight,
+                            borderColor: theme.border,
+                            shadowColor: "#000",
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.08,
+                            shadowRadius: 8,
+                            elevation: 3,
                         }
-                    >
-                        <Text style={[styles.enrollText, { color: theme.textInverse }]}>
-                            {enrolledQuizIds.has(quiz.id) ? "Enter Lobby" : "Enroll Now"}
-                        </Text>
-                    </Pressable>
-                </View>
-            ))}
+                    ]}>
+                        <View style={styles.cardHeader}>
+                            <View style={styles.titleSection}>
+                                <Text style={[styles.featureTitle, { color: theme.textPrimary }]}>
+                                    {quiz.title}
+                                </Text>
+                                <Text style={[styles.category, { color: theme.textSecondary }]}>
+                                    {quiz.category}
+                                </Text>
+                            </View>
+                            <View style={[styles.difficultyBadge, { backgroundColor: diffColor }]}>
+                                <Text style={styles.difficultyText}>{quiz.level}</Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.metaContainer}>
+                            <View style={styles.metaItem}>
+                                <Text style={[styles.metaIcon]}>⏱</Text>
+                                <Text style={[styles.metaText, { color: theme.textSecondary }]}>
+                                    {quiz.durationMinutes} min
+                                </Text>
+                            </View>
+                        </View>
+
+                        <Pressable
+                            style={[
+                                styles.enrollBtn,
+                                { backgroundColor: enrolledQuizIds.has(quiz.id) ? theme.success : theme.buttonPrimary },
+                            ]}
+                            onPress={() =>
+                                enrolledQuizIds.has(quiz.id)
+                                    ? router.push({ pathname: "/quiz/[id]/lobby", params: { id: quiz.id } } as any)
+                                    : router.push(`/quiz/${quiz.id}` as any)
+                            }
+                        >
+                            <Text style={[styles.enrollText, { color: theme.textInverse }]}>
+                                {enrolledQuizIds.has(quiz.id) ? "Enter Lobby" : "Enroll Now"}
+                            </Text>
+                        </Pressable>
+                    </View>
+                );
+            })}
             {!featuredItems.length && (
                 <View style={[styles.emptyCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                     <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>
@@ -124,13 +174,22 @@ const styles = StyleSheet.create({
     root: { flex: 1 },
     center: { flex: 1, alignItems: "center", justifyContent: "center" },
     brand: { fontSize: 16, fontWeight: "700" },
-    heading: { marginTop: 14, fontSize: 38, lineHeight: 42, fontWeight: "800" },
+    heading: { marginTop: 14, fontSize: 32, lineHeight: 38, fontWeight: "800" },
     subheading: { marginTop: 8, fontSize: 16, lineHeight: 24 },
     viewer: { marginTop: 6, fontSize: 13, fontWeight: "600" },
-    sectionTitle: { marginTop: 22, marginBottom: 10, fontSize: 30, fontWeight: "800" },
-    featureCard: { borderWidth: 1, borderRadius: 18, padding: 14, marginBottom: 12 },
+    sectionTitle: { marginTop: 22, marginBottom: 10, fontSize: 22, fontWeight: "800" },
+    featureCard: { borderWidth: 1, borderRadius: 18, padding: 16, marginBottom: 12 },
+    cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
+    titleSection: { flex: 1, marginRight: 12 },
+    featureTitle: { fontSize: 18, fontWeight: "800" },
+    category: { marginTop: 4, fontSize: 13, fontWeight: "500" },
+    difficultyBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, minWidth: 90, alignItems: "center" },
+    difficultyText: { fontSize: 11, fontWeight: "800", color: "#fff", textTransform: "uppercase" },
+    metaContainer: { flexDirection: "row", marginTop: 12, gap: 16 },
+    metaItem: { flexDirection: "row", alignItems: "center", gap: 6 },
+    metaIcon: { fontSize: 14 },
+    metaText: { fontSize: 13, fontWeight: "600" },
     levelChip: { fontSize: 12, fontWeight: "700", textTransform: "uppercase" },
-    featureTitle: { marginTop: 6, fontSize: 25, fontWeight: "800" },
     featureDesc: { marginTop: 6, fontSize: 14, lineHeight: 21 },
     enrollBtn: {
         marginTop: 14,
