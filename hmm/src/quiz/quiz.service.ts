@@ -1018,7 +1018,7 @@ export class QuizService {
     return { success: true };
   }
 
-  /** Admin: update quiz metadata (title, description, category, level, durationMinutes). */
+  /** Admin: update quiz metadata (title, description, category, level, durationMinutes, imageUrl). */
   async updateQuizMetadata(quizId: string, payload: any): Promise<{ success: boolean }> {
     const pool = this.databaseService.getPool();
 
@@ -1058,6 +1058,11 @@ export class QuizService {
     if (payload.durationMinutes !== undefined) {
       updates.push(`duration_minutes = $${paramIndex}`);
       values.push(payload.durationMinutes);
+      paramIndex++;
+    }
+    if (payload.imageUrl !== undefined) {
+      updates.push(`image_url = $${paramIndex}`);
+      values.push(payload.imageUrl || null);
       paramIndex++;
     }
 

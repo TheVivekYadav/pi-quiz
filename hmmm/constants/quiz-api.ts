@@ -265,6 +265,7 @@ export const adminUpdateQuizMetadata = (
     category?: string;
     level?: "Beginner" | "Intermediate" | "Expert";
     durationMinutes?: number;
+    imageUrl?: string;
   },
 ) =>
   json<{ success: boolean }>(

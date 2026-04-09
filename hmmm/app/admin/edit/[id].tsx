@@ -1,10 +1,13 @@
-import { adminUpdateQuizMetadata, fetchQuizDetail } from "@/constants/quiz-api";
+import { adminUpdateQuizMetadata, fetchQuizDetail, uploadQuizBannerImage } from "@/constants/quiz-api";
 import { useTheme } from "@/hook/theme";
+import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
+    Image,
+    Platform,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -31,6 +34,9 @@ export default function EditQuizScreen() {
     const [category, setCategory] = useState("");
     const [level, setLevel] = useState("Beginner");
     const [durationMinutes, setDurationMinutes] = useState("");
+    const [imageUrl, setImageUrl] = useState("");
+    const [bannerPreview, setBannerPreview] = useState<string | null>(null);
+    const [bannerUploading, setBannerUploading] = useState(false);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -44,6 +50,8 @@ export default function EditQuizScreen() {
                 // Level is not in QuizDetail, default to Beginner
                 setLevel("Beginner");
                 setDurationMinutes(String(data.durationMinutes || ""));
+                setImageUrl(data.imageUrl || "");
+                setBannerPreview(data.imageUrl || null);
             }
         } catch (err: any) {
             Alert.alert("Error", err?.message || "Failed to load quiz");
@@ -56,6 +64,42 @@ export default function EditQuizScreen() {
     useEffect(() => {
         load();
     }, [load]);
+
+    const handlePickBannerImage = async () => {
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!permission.granted) {
+            Alert.alert("Permission needed", "Please allow photo library access to upload a banner image.");
+            return;
+        }
+
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            quality: 0.85,
+            allowsEditing: true,
+            aspect: [16, 9],
+        });
+
+        if (result.canceled || !result.assets?.length) return;
+
+        const asset = result.assets[0];
+        setBannerPreview(asset.uri);
+        setBannerUploading(true);
+        try {
+            const uploaded = await uploadQuizBannerImage({
+                uri: asset.uri,
+                name: asset.fileName ?? `banner-${Date.now()}.jpg`,
+                type: asset.mimeType ?? "image/jpeg",
+                webFile: Platform.OS === 'web' ? (asset as any).file : undefined,
+            });
+            setImageUrl(uploaded.url);
+            setBannerPreview(uploaded.url);
+        } catch (err: any) {
+            setBannerPreview(imageUrl || null);
+            Alert.alert("Upload failed", err?.message || "Could not upload banner image.");
+        } finally {
+            setBannerUploading(false);
+        }
+    };
 
     const handleSave = async () => {
         if (!title.trim() || !description.trim() || !category.trim() || !durationMinutes.trim()) {
@@ -77,6 +121,7 @@ export default function EditQuizScreen() {
                 category: category.trim(),
                 level: level as any,
                 durationMinutes: duration,
+                imageUrl: imageUrl.trim() || undefined,
             });
             Alert.alert("Success", "Quiz updated successfully", [
                 { text: "OK", onPress: () => router.back() },
@@ -208,6 +253,50 @@ export default function EditQuizScreen() {
                 <Text style={[styles.helperText, { color: theme.textSecondary }]}>
                     1–1440 minutes (1 day max)
                 </Text>
+
+                <Text style={[styles.label, { color: theme.textPrimary, marginTop: 16 }]}>Banner Image</Text>
+                <Pressable
+                    onPress={handlePickBannerImage}
+                    disabled={bannerUploading || saving}
+                    style={({ pressed }) => [
+                        styles.uploadBtn,
+                        {
+                            backgroundColor: bannerUploading || saving ? theme.textMuted : theme.buttonPrimary,
+                            opacity: pressed ? 0.92 : 1,
+                        },
+                    ]}
+                >
+                    <Text style={[styles.uploadBtnText, { color: theme.textInverse }]}>
+                        {bannerUploading ? "Uploading..." : bannerPreview ? "Replace Banner" : "Upload Banner"}
+                    </Text>
+                </Pressable>
+
+                {bannerPreview && (
+                    <View style={[styles.bannerPreviewCard, { borderColor: theme.border, backgroundColor: theme.surface }]}>
+                        <Image source={{ uri: bannerPreview }} style={styles.bannerPreviewImage} />
+                        <Text style={[styles.bannerPreviewText, { color: theme.textSecondary }]} numberOfLines={1}>
+                            {imageUrl || "Current banner preview"}
+                        </Text>
+                    </View>
+                )}
+
+                <Pressable
+                    onPress={() => {
+                        setImageUrl("");
+                        setBannerPreview(null);
+                    }}
+                    disabled={bannerUploading || saving || !imageUrl}
+                    style={({ pressed }) => [
+                        styles.clearBannerBtn,
+                        {
+                            borderColor: theme.border,
+                            backgroundColor: theme.surface,
+                            opacity: pressed || !imageUrl ? 0.7 : 1,
+                        },
+                    ]}
+                >
+                    <Text style={[styles.clearBannerBtnText, { color: theme.textPrimary }]}>Remove Banner</Text>
+                </Pressable>
             </View>
 
             <View style={styles.actionButtons}>
@@ -275,6 +364,33 @@ const styles = StyleSheet.create({
         fontWeight: "700",
     },
     helperText: { fontSize: 12, marginTop: 6, fontStyle: "italic" },
+    uploadBtn: {
+        minHeight: 44,
+        borderRadius: 10,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: 16,
+        marginTop: 6,
+    },
+    uploadBtnText: { fontSize: 14, fontWeight: "700" },
+    bannerPreviewCard: {
+        borderWidth: 1,
+        borderRadius: 14,
+        overflow: "hidden",
+        marginTop: 10,
+    },
+    bannerPreviewImage: { width: "100%", height: 180 },
+    bannerPreviewText: { fontSize: 12, paddingHorizontal: 12, paddingVertical: 10 },
+    clearBannerBtn: {
+        minHeight: 42,
+        borderWidth: 1,
+        borderRadius: 10,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: 16,
+        marginTop: 8,
+    },
+    clearBannerBtnText: { fontSize: 14, fontWeight: "700" },
     actionButtons: { flexDirection: "row", gap: 12, marginTop: 20 },
     cancelBtn: { flex: 1, borderWidth: 1, borderRadius: 10, paddingVertical: 14, alignItems: "center" },
     cancelBtnText: { fontSize: 14, fontWeight: "700" },

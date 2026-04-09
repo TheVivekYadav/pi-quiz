@@ -377,6 +377,7 @@ export class QuizController {
     if (body?.level !== undefined && ['Beginner', 'Intermediate', 'Expert'].includes(body.level)) {
       payload.level = body.level;
     }
+    if (body?.imageUrl !== undefined) payload.imageUrl = String(body.imageUrl).trim();
     if (body?.durationMinutes !== undefined) {
       payload.durationMinutes = Number(body.durationMinutes);
       if (payload.durationMinutes < 1 || payload.durationMinutes > 1440) {
