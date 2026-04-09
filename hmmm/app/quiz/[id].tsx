@@ -72,6 +72,15 @@ export default function QuizDetailScreen() {
     const enrollmentForm: { formId: string; fields: EnrollmentFormField[] } | null =
         data?.enrollmentForm ?? null;
 
+    const enrollmentStartsAtDate = data?.enrollmentStartsAtIso ? new Date(data.enrollmentStartsAtIso) : null;
+    const enrollmentClosed = data?.enrollmentEnabled === false;
+    const enrollmentScheduled = !!enrollmentStartsAtDate && !Number.isNaN(enrollmentStartsAtDate.getTime()) && enrollmentStartsAtDate.getTime() > Date.now();
+    const enrollmentBlockedReason = enrollmentClosed
+        ? "Enrollments are currently closed by admin."
+        : enrollmentScheduled
+            ? `Enrollments open on ${enrollmentStartsAtDate?.toLocaleString()}`
+            : null;
+
     const findFieldValue = (fields: EnrollmentFormField[] | undefined, answers: Record<string, string>, matcher: (f: EnrollmentFormField) => boolean) => {
         const matched = (fields ?? []).find(matcher);
         if (!matched) return "";
@@ -331,21 +340,34 @@ export default function QuizDetailScreen() {
                         )}
 
                         <Pressable
-                            style={[styles.primaryBtn, { backgroundColor: theme.buttonPrimary }, enrolling && styles.buttonDisabled]}
+                            style={[
+                                styles.primaryBtn,
+                                { backgroundColor: enrollmentBlockedReason ? theme.buttonDisabled : theme.buttonPrimary },
+                                (enrolling || !!enrollmentBlockedReason) && styles.buttonDisabled,
+                            ]}
                             onPress={handleEnroll}
-                            disabled={enrolling}
+                            disabled={enrolling || !!enrollmentBlockedReason}
                         >
                             {enrolling ? (
                                 <ActivityIndicator color={theme.textInverse} />
                             ) : (
                                 <>
                                     <Text style={[styles.primaryBtnText, { color: theme.textInverse }]}>
-                                        {data?.startsAtIso && new Date(data.startsAtIso) < new Date() ? "Join Now" : "Enroll Now"}
+                                        {enrollmentBlockedReason
+                                            ? "Enrollment unavailable"
+                                            : data?.startsAtIso && new Date(data.startsAtIso) < new Date()
+                                                ? "Join Now"
+                                                : "Enroll Now"}
                                     </Text>
-                                    <Ionicons name="arrow-forward" size={16} color={theme.textInverse} />
+                                    {!enrollmentBlockedReason && <Ionicons name="arrow-forward" size={16} color={theme.textInverse} />}
                                 </>
                             )}
                         </Pressable>
+                        {!!enrollmentBlockedReason && (
+                            <Text style={{ marginTop: 10, color: theme.textSecondary, fontSize: 13, lineHeight: 20 }}>
+                                {enrollmentBlockedReason}
+                            </Text>
+                        )}
                     </View>
                 )}
             </ScrollView>

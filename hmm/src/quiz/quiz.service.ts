@@ -22,6 +22,8 @@ export interface QuizDetail {
   expectations?: string;
   curatorNote?: string;
   imageUrl?: string;
+  enrollmentEnabled?: boolean;
+  enrollmentStartsAtIso?: string | null;
 }
 
 export interface QuizListItem {
@@ -387,6 +389,8 @@ export class QuizService {
       expectations: quiz.expectations,
       curatorNote: quiz.curator_note,
       imageUrl: quiz.image_url,
+      enrollmentEnabled: quiz.enrollment_enabled !== false,
+      enrollmentStartsAtIso: quiz.enrollment_starts_at ? new Date(quiz.enrollment_starts_at).toISOString() : null,
       enrollmentForm: quiz.form_id
         ? { id: quiz.form_id, fields: quiz.form_fields ?? [] }
         : null,
@@ -716,7 +720,7 @@ export class QuizService {
     const pool = this.databaseService.getPool();
 
     const visibleCheck = await pool.query(
-      `SELECT is_visible FROM quizzes WHERE id = $1`,
+      `SELECT is_visible, enrollment_enabled, enrollment_starts_at FROM quizzes WHERE id = $1`,
       [quizId],
     );
     if (!visibleCheck.rows[0]) {
@@ -724,6 +728,17 @@ export class QuizService {
     }
     if (!visibleCheck.rows[0].is_visible) {
       throw new ForbiddenException('This quiz is currently hidden by admin');
+    }
+
+    if (visibleCheck.rows[0].enrollment_enabled === false) {
+      throw new BadRequestException('Enrollments are currently closed for this quiz.');
+    }
+
+    if (visibleCheck.rows[0].enrollment_starts_at) {
+      const enrollmentStartsAt = new Date(visibleCheck.rows[0].enrollment_starts_at);
+      if (!Number.isNaN(enrollmentStartsAt.getTime()) && enrollmentStartsAt.getTime() > Date.now()) {
+        throw new BadRequestException(`Enrollments will open on ${enrollmentStartsAt.toISOString()}`);
+      }
     }
 
     // Check if this quiz has an enrollment form
@@ -1188,6 +1203,13 @@ export class QuizService {
       throw new BadRequestException('Cannot edit quiz after winners are declared');
     }
 
+    if (payload.enrollmentStartsAt !== undefined && payload.enrollmentStartsAt !== null && payload.enrollmentStartsAt !== '') {
+      const parsed = new Date(payload.enrollmentStartsAt);
+      if (Number.isNaN(parsed.getTime())) {
+        throw new BadRequestException('enrollmentStartsAt must be a valid ISO date');
+      }
+    }
+
     const updates: string[] = [];
     const values: any[] = [];
     let paramIndex = 1;
@@ -1220,6 +1242,16 @@ export class QuizService {
     if (payload.imageUrl !== undefined) {
       updates.push(`image_url = $${paramIndex}`);
       values.push(payload.imageUrl || null);
+      paramIndex++;
+    }
+    if (payload.enrollmentEnabled !== undefined) {
+      updates.push(`enrollment_enabled = $${paramIndex}`);
+      values.push(!!payload.enrollmentEnabled);
+      paramIndex++;
+    }
+    if (payload.enrollmentStartsAt !== undefined) {
+      updates.push(`enrollment_starts_at = $${paramIndex}`);
+      values.push(payload.enrollmentStartsAt ? new Date(payload.enrollmentStartsAt).toISOString() : null);
       paramIndex++;
     }
 

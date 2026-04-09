@@ -36,6 +36,8 @@ export type QuizDetail = {
   expectations: string[];
   curatorNote: string;
   imageUrl?: string;
+  enrollmentEnabled?: boolean;
+  enrollmentStartsAtIso?: string | null;
   seats: { status: string; available: number };
   enrollmentForm: EnrollmentForm | null;
 };
@@ -266,6 +268,8 @@ export const adminUpdateQuizMetadata = (
     level?: "Beginner" | "Intermediate" | "Expert";
     durationMinutes?: number;
     imageUrl?: string;
+    enrollmentEnabled?: boolean;
+    enrollmentStartsAt?: string | null;
   },
 ) =>
   json<{ success: boolean }>(

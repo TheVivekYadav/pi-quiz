@@ -56,6 +56,8 @@ export default function EditQuizScreen() {
     const [category, setCategory] = useState("");
     const [level, setLevel] = useState("Beginner");
     const [durationMinutes, setDurationMinutes] = useState("");
+    const [enrollmentEnabled, setEnrollmentEnabled] = useState(true);
+    const [enrollmentStartsAt, setEnrollmentStartsAt] = useState("");
     const [imageUrl, setImageUrl] = useState("");
     const [bannerPreview, setBannerPreview] = useState<string | null>(null);
     const [bannerUploading, setBannerUploading] = useState(false);
@@ -73,6 +75,19 @@ export default function EditQuizScreen() {
                 // Level is not in QuizDetail, default to Beginner
                 setLevel("Beginner");
                 setDurationMinutes(String(data.durationMinutes || ""));
+                setEnrollmentEnabled(data.enrollmentEnabled !== false);
+                if (data.enrollmentStartsAtIso) {
+                    const dt = new Date(data.enrollmentStartsAtIso);
+                    if (!Number.isNaN(dt.getTime())) {
+                        const pad = (n: number) => String(n).padStart(2, "0");
+                        const local = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+                        setEnrollmentStartsAt(local);
+                    } else {
+                        setEnrollmentStartsAt("");
+                    }
+                } else {
+                    setEnrollmentStartsAt("");
+                }
                 setImageUrl(data.imageUrl || "");
                 setBannerPreview(data.imageUrl || null);
                 const existingFields: EnrollmentFormField[] = data.enrollmentForm?.fields ?? [];
@@ -144,6 +159,16 @@ export default function EditQuizScreen() {
             return;
         }
 
+        let enrollmentStartsAtIso: string | null = null;
+        if (enrollmentStartsAt.trim()) {
+            const parsed = new Date(enrollmentStartsAt);
+            if (Number.isNaN(parsed.getTime())) {
+                Alert.alert("Validation", "Enrollment starts at must be a valid date/time.");
+                return;
+            }
+            enrollmentStartsAtIso = parsed.toISOString();
+        }
+
         setSaving(true);
         try {
             for (let i = 0; i < formFields.length; i++) {
@@ -172,6 +197,8 @@ export default function EditQuizScreen() {
                 level: level as any,
                 durationMinutes: duration,
                 imageUrl: imageUrl.trim() || undefined,
+                enrollmentEnabled,
+                enrollmentStartsAt: enrollmentStartsAtIso,
             });
 
             if (formFields.length > 0) {
@@ -353,6 +380,54 @@ export default function EditQuizScreen() {
                 <Text style={[styles.helperText, { color: theme.textSecondary }]}>
                     1–1440 minutes (1 day max)
                 </Text>
+
+                <Text style={[styles.label, { color: theme.textPrimary, marginTop: 14 }]}>Enrollment Status</Text>
+                <View style={styles.levelButtonGroup}>
+                    <Pressable
+                        onPress={() => setEnrollmentEnabled(true)}
+                        disabled={saving}
+                        style={[
+                            styles.levelButton,
+                            {
+                                backgroundColor: enrollmentEnabled ? theme.success : theme.surface,
+                                borderColor: theme.border,
+                            },
+                        ]}
+                    >
+                        <Text style={[styles.levelButtonText, { color: enrollmentEnabled ? theme.textInverse : theme.textPrimary }]}>Taking enrollments</Text>
+                    </Pressable>
+                    <Pressable
+                        onPress={() => setEnrollmentEnabled(false)}
+                        disabled={saving}
+                        style={[
+                            styles.levelButton,
+                            {
+                                backgroundColor: !enrollmentEnabled ? theme.error : theme.surface,
+                                borderColor: theme.border,
+                            },
+                        ]}
+                    >
+                        <Text style={[styles.levelButtonText, { color: !enrollmentEnabled ? theme.textInverse : theme.textPrimary }]}>Not taking enrollments</Text>
+                    </Pressable>
+                </View>
+
+                <Text style={[styles.label, { color: theme.textPrimary, marginTop: 14 }]}>Enrollment starts on (optional)</Text>
+                <TextInput
+                    style={[
+                        styles.input,
+                        {
+                            backgroundColor: theme.surface,
+                            color: theme.textPrimary,
+                            borderColor: theme.border,
+                        },
+                    ]}
+                    placeholder="YYYY-MM-DDTHH:mm"
+                    placeholderTextColor={theme.textMuted}
+                    value={enrollmentStartsAt}
+                    onChangeText={setEnrollmentStartsAt}
+                    editable={!saving}
+                />
+                <Text style={[styles.helperText, { color: theme.textSecondary }]}>Leave empty to allow immediate enrollments.</Text>
 
                 <Text style={[styles.label, { color: theme.textPrimary, marginTop: 16 }]}>Banner Image</Text>
                 <Pressable

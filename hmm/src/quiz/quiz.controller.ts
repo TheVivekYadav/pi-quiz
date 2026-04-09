@@ -398,6 +398,15 @@ export class QuizController {
         throw new BadRequestException('durationMinutes must be between 1 and 1440');
       }
     }
+    if (body?.enrollmentEnabled !== undefined) {
+      if (typeof body.enrollmentEnabled !== 'boolean') {
+        throw new BadRequestException('enrollmentEnabled must be boolean');
+      }
+      payload.enrollmentEnabled = body.enrollmentEnabled;
+    }
+    if (body?.enrollmentStartsAt !== undefined) {
+      payload.enrollmentStartsAt = body.enrollmentStartsAt ? String(body.enrollmentStartsAt) : null;
+    }
     return this.quizService.updateQuizMetadata(quizId, payload);
   }
 
