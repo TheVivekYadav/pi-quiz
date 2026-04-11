@@ -71,6 +71,24 @@ export default function AdminTab() {
     };
 
     const handleDelete = (quiz: QuizListItem) => {
+        const doDelete = async () => {
+            try {
+                await adminDeleteQuiz(quiz.id);
+                setQuizzes((prev) => prev.filter((q) => q.id !== quiz.id));
+            } catch (err: any) {
+                Alert.alert("Error", err?.message || "Failed to delete quiz.");
+            }
+        };
+
+        if (Platform.OS === "web") {
+            const ok = typeof window !== "undefined"
+                ? window.confirm(`Are you sure you want to delete "${quiz.title}"? This cannot be undone.`)
+                : true;
+            if (!ok) return;
+            void doDelete();
+            return;
+        }
+
         Alert.alert(
             "Delete Quiz",
             `Are you sure you want to delete "${quiz.title}"? This cannot be undone.`,
@@ -79,13 +97,8 @@ export default function AdminTab() {
                 {
                     text: "Delete",
                     style: "destructive",
-                    onPress: async () => {
-                        try {
-                            await adminDeleteQuiz(quiz.id);
-                            setQuizzes((prev) => prev.filter((q) => q.id !== quiz.id));
-                        } catch (err: any) {
-                            Alert.alert("Error", err?.message || "Failed to delete quiz.");
-                        }
+                    onPress: () => {
+                        void doDelete();
                     },
                 },
             ]
