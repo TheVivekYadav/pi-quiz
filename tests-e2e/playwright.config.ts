@@ -52,5 +52,12 @@ export default defineConfig({
       dependencies: ['setup'],
       testMatch: /.*quiz-admin\.spec\.ts/,
     },
+
+    // ── Full lifecycle test (pure-API, self-contained auth) ───────────────
+    {
+      name: 'lifecycle',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: /.*quiz-lifecycle\.spec\.ts/,
+    },
   ],
 });
