@@ -15,10 +15,10 @@
  */
 
 import { check, sleep } from 'k6';
-import { Counter, Rate, Trend } from 'k6/metrics';
-import http from 'k6/http';
 import { SharedArray } from 'k6/data';
-import { getToken, authHeaders, BASE_URL } from '../helpers/auth.js';
+import http from 'k6/http';
+import { Counter, Trend } from 'k6/metrics';
+import { authHeaders, BASE_URL, getToken } from '../helpers/auth.js';
 
 // ── Custom metrics ────────────────────────────────────────────────────────────
 const quizLoadErrors = new Counter('quiz_load_errors');
@@ -46,16 +46,28 @@ export const options = {
   },
 };
 
-// ── VU script ─────────────────────────────────────────────────────────────────
-export default function () {
-  const user = users[Math.floor(Math.random() * users.length)];
+export function setup() {
+  const tokenPool = users
+    .map((u) => ({ rollNumber: u.rollNumber, token: getToken(u.rollNumber) }))
+    .filter((u) => !!u.token);
 
-  // 1. Login
-  const token = getToken(user.rollNumber);
-  if (!token) {
+  if (tokenPool.length === 0) {
+    throw new Error('No valid auth tokens were created in setup()');
+  }
+
+  return { tokenPool };
+}
+
+// ── VU script ─────────────────────────────────────────────────────────────────
+export default function (data) {
+  const pool = data?.tokenPool ?? [];
+  if (pool.length === 0) {
     quizLoadErrors.add(1);
     return;
   }
+
+  const user = pool[Math.floor(Math.random() * pool.length)];
+  const token = user.token;
 
   sleep(0.5);
 

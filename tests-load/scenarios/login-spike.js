@@ -13,14 +13,16 @@
  */
 
 import { check, sleep } from 'k6';
-import { Counter, Rate } from 'k6/metrics';
-import http from 'k6/http';
 import { SharedArray } from 'k6/data';
+import http from 'k6/http';
+import { Counter, Rate } from 'k6/metrics';
 
 // ── Custom metrics ────────────────────────────────────────────────────────────
 const loginErrors = new Counter('login_errors');
 const rateLimited = new Counter('rate_limited');
 const serverErrors = new Rate('server_error_rate');
+const successRate = new Rate('success_rate');
+const non429ClientErrors = new Counter('non_429_client_errors');
 
 // ── Test data ─────────────────────────────────────────────────────────────────
 const users = new SharedArray('users', () => {
@@ -45,11 +47,11 @@ export const options = {
     },
   },
   thresholds: {
-    // Allow up to 60 % errors because the rate limiter will actively return 429
-    http_req_failed: ['rate<0.60'],
+    // Treat expected 429 as acceptable in spike mode and track real success KPI.
+    success_rate: ['rate>0.95'],
     // But the API must still respond quickly
     http_req_duration: ['p(95)<2000'],
-    // Zero 5xx errors
+    // Near-zero 5xx errors
     server_error_rate: ['rate<0.01'],
   },
 };
@@ -66,16 +68,24 @@ export default function () {
   // 429 is expected under spike — it is NOT a failure
   if (res.status === 429) {
     rateLimited.add(1);
+    successRate.add(true);
+    serverErrors.add(0);
   } else if (res.status >= 500) {
     serverErrors.add(1);
     loginErrors.add(1);
+    successRate.add(false);
+  } else if (res.status >= 400) {
+    non429ClientErrors.add(1);
+    serverErrors.add(0);
+    successRate.add(false);
   } else {
-    check(res, {
+    const ok = check(res, {
       'login 200': (r) => r.status === 200,
       'token present': (r) => {
         try { return !!JSON.parse(r.body).token; } catch { return false; }
       },
     });
+    successRate.add(ok);
     serverErrors.add(0);
   }
 
