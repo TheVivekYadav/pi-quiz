@@ -220,6 +220,15 @@ export class AuthController {
     return this.authService.adminUnblockSession(adminId, sessionId);
   }
 
+  @Delete('admin/sessions/:sessionId')
+  async adminRemoveSession(
+    @Param('sessionId') sessionId: string,
+    @Headers('Authorization') authHeader: string,
+  ) {
+    const adminId = await this.requireAdmin(authHeader);
+    return this.authService.adminRemoveSession(adminId, sessionId);
+  }
+
   private extractToken(authHeader: string): string | null {
     if (!authHeader) return null;
     const parts = authHeader.split(' ');

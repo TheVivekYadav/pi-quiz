@@ -1,4 +1,4 @@
-import { adminBlockUserSession, adminListUserSessions, adminUnblockUserSession, SessionItem } from "@/constants/auth-api";
+import { adminBlockUserSession, adminListUserSessions, adminRemoveUserSession, adminUnblockUserSession, SessionItem } from "@/constants/auth-api";
 import { getAuthToken } from "@/constants/auth-session";
 import { useTheme } from "@/hook/theme";
 import { useRequireAuth } from "@/hook/useRequireAuth";
@@ -120,6 +120,33 @@ export default function AdminUserSessionsScreen() {
         );
     };
 
+    const handleRemove = (session: SessionItem) => {
+        Alert.alert(
+            "Remove Session",
+            `Remove session for ${session.deviceName ?? session.sessionId.slice(0, 8)}? This will sign the device out immediately.`,
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Remove",
+                    style: "destructive",
+                    onPress: async () => {
+                        const token = getAuthToken();
+                        if (!token) return;
+                        setActioningId(session.sessionId);
+                        try {
+                            await adminRemoveUserSession(token, session.sessionId);
+                            await load();
+                        } catch (err: any) {
+                            Alert.alert("Error", err?.message || "Failed to remove session.");
+                        } finally {
+                            setActioningId(null);
+                        }
+                    },
+                },
+            ]
+        );
+    };
+
     const statusLabel = (s: SessionItem) => {
         if (s.isBlocked) return "Blocked";
         if (s.revokedAt) return "Revoked";
@@ -177,15 +204,8 @@ export default function AdminUserSessionsScreen() {
                         <View style={styles.actions}>
                             {actioningId === s.sessionId ? (
                                 <ActivityIndicator color={theme.primary} />
-                            ) : s.isBlocked ? (
-                                <Pressable
-                                    onPress={() => handleUnblock(s)}
-                                    style={[styles.actionBtn, { backgroundColor: theme.success }]}
-                                >
-                                    <Ionicons name="lock-open-outline" size={14} color={theme.textInverse} />
-                                    <Text style={[styles.actionText, { color: theme.textInverse }]}>Unblock</Text>
-                                </Pressable>
-                            ) : !s.revokedAt ? (
+                            ) : null}
+                            {!actioningId && !s.revokedAt && !s.isBlocked && (
                                 <Pressable
                                     onPress={() => handleBlock(s)}
                                     style={[styles.actionBtn, { backgroundColor: theme.error }]}
@@ -193,7 +213,25 @@ export default function AdminUserSessionsScreen() {
                                     <Ionicons name="ban-outline" size={14} color={theme.textInverse} />
                                     <Text style={[styles.actionText, { color: theme.textInverse }]}>Block</Text>
                                 </Pressable>
-                            ) : null}
+                            )}
+                            {!actioningId && s.isBlocked && (
+                                <Pressable
+                                    onPress={() => handleUnblock(s)}
+                                    style={[styles.actionBtn, { backgroundColor: theme.success }]}
+                                >
+                                    <Ionicons name="lock-open-outline" size={14} color={theme.textInverse} />
+                                    <Text style={[styles.actionText, { color: theme.textInverse }]}>Unblock</Text>
+                                </Pressable>
+                            )}
+                            {!actioningId && (
+                                <Pressable
+                                    onPress={() => handleRemove(s)}
+                                    style={[styles.actionBtn, { backgroundColor: theme.textMuted }]}
+                                >
+                                    <Ionicons name="trash-outline" size={14} color={theme.textInverse} />
+                                    <Text style={[styles.actionText, { color: theme.textInverse }]}>Remove</Text>
+                                </Pressable>
+                            )}
                         </View>
                     </View>
                 ))

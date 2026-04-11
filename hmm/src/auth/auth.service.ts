@@ -429,4 +429,28 @@ export class AuthService {
     );
     return { success: true };
   }
+
+  async adminRemoveSession(
+    adminId: number,
+    sessionId: string,
+  ): Promise<{ success: boolean }> {
+    const result = await this.databaseService.getPool().query(
+      `DELETE FROM user_sessions
+       WHERE id = $1
+       RETURNING id, user_id`,
+      [sessionId],
+    );
+
+    if (!result.rows[0]) {
+      throw new BadRequestException('Session not found');
+    }
+
+    await this.logEvent(
+      'admin_session_removed',
+      { sessionId, targetUserId: result.rows[0].user_id },
+      adminId,
+      sessionId,
+    );
+    return { success: true };
+  }
 }

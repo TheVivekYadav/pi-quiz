@@ -194,3 +194,12 @@ export async function adminUnblockUserSession(token: string, sessionId: string):
     })
   );
 }
+
+export async function adminRemoveUserSession(token: string, sessionId: string): Promise<{ success: boolean }> {
+  return json(
+    fetch(apiUrl(`/auth/admin/sessions/${sessionId}`), {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+  );
+}
