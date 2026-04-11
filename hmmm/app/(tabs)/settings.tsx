@@ -1,4 +1,4 @@
-import { blockSession, getCurrentUser, getAuthLogs, getSessions, logout, SessionItem, unblockSession } from "@/constants/auth-api";
+import { blockSession, getAuthLogs, getCurrentUser, getSessions, logout, SessionItem, unblockSession } from "@/constants/auth-api";
 import { clearAuth, getAuthToken, getAuthUser, isAdmin } from "@/constants/auth-session";
 import { useTheme } from "@/hook/theme";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,6 +16,7 @@ export default function SettingsTab() {
     const [sessions, setSessions] = useState<SessionItem[]>([]);
     const [logs, setLogs] = useState<Array<{ id: number; event_type: string; created_at: string }>>([]);
     const [maxActiveDevices, setMaxActiveDevices] = useState(2);
+    const [deviceConstraintEnabled, setDeviceConstraintEnabled] = useState(true);
     const [profile, setProfile] = useState<{ name?: string; email?: string; branch?: string; year?: number } | null>(null);
 
     const handleLogout = async () => {
@@ -40,6 +41,7 @@ export default function SettingsTab() {
                 const sessionPayload = await getSessions(token);
                 setSessions(sessionPayload.sessions || []);
                 setMaxActiveDevices(sessionPayload.maxActiveDevices || 2);
+                setDeviceConstraintEnabled((sessionPayload.enabled ?? sessionPayload.deviceConstraintEnabled) !== false);
 
                 const logsPayload = await getAuthLogs(token, 25);
                 setLogs((logsPayload.logs || []).map((l) => ({ id: l.id, event_type: l.event_type, created_at: l.created_at })));
@@ -116,7 +118,7 @@ export default function SettingsTab() {
                 </View>
             )}
 
-            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Device Sessions ({sessions.filter((s) => !s.revokedAt && !s.isBlocked).length}/{maxActiveDevices})</Text>
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Device Sessions ({sessions.filter((s) => !s.revokedAt && !s.isBlocked).length}/{deviceConstraintEnabled ? maxActiveDevices : "∞"})</Text>
             {sessions.map((session) => (
                 <View key={session.sessionId} style={[styles.sessionCard, { backgroundColor: theme.surfaceLight, borderColor: theme.border }]}>
                     <Text style={[styles.name, { color: theme.textPrimary }]}>

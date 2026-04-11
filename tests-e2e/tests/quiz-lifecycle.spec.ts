@@ -31,7 +31,7 @@
  *   will be 0 — this is correct API behaviour and is asserted explicitly.
  */
 
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -177,8 +177,11 @@ test.describe.serial('Quiz Full Lifecycle — 50 Users', () => {
 
     expect(res.ok(), `setEnrollmentForm failed: ${res.status()} ${await res.text()}`).toBeTruthy();
 
-    const body = await res.json() as { success: boolean };
-    expect(body.success).toBe(true);
+    const body = await res.json() as { formId: string; fields: Array<{ id: string }> };
+    expect(body).toHaveProperty('formId');
+    expect(body.formId).toBeTruthy();
+    expect(Array.isArray(body.fields)).toBe(true);
+    expect(body.fields.length).toBe(seed.enrollmentForm.fields.length);
   });
 
   // ── Step 3: Admin adds 5 questions ────────────────────────────────────────

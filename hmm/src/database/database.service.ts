@@ -84,6 +84,15 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       );
     `);
 
+    // App settings table for runtime feature flags/configuration
+    await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS app_settings (
+        key TEXT PRIMARY KEY,
+        value JSONB NOT NULL DEFAULT '{}'::jsonb,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+
     // API error logs for admin observability
     await this.pool.query(`
       CREATE TABLE IF NOT EXISTS api_error_logs (

@@ -2,12 +2,14 @@ import {
     BadRequestException,
     Body,
     Controller,
+    Delete,
     ForbiddenException,
     Get,
     Headers,
     Param,
     ParseIntPipe,
     Post,
+    Put,
     Query,
     Req,
 } from '@nestjs/common';
@@ -115,7 +117,7 @@ export class AuthController {
     }
 
     return {
-      maxActiveDevices: Number(process.env.MAX_ACTIVE_DEVICES ?? 2),
+      ...(await this.authService.getDeviceConstraintSettings()),
       sessions: await this.authService.listSessions(auth.userId, token),
     };
   }
@@ -227,6 +229,28 @@ export class AuthController {
   ) {
     const adminId = await this.requireAdmin(authHeader);
     return this.authService.adminRemoveSession(adminId, sessionId);
+  }
+
+  @Get('admin/device-constraint')
+  async adminGetDeviceConstraint(@Headers('Authorization') authHeader: string) {
+    await this.requireAdmin(authHeader);
+    return this.authService.getDeviceConstraintSettings();
+  }
+
+  @Put('admin/device-constraint')
+  async adminUpdateDeviceConstraint(
+    @Headers('Authorization') authHeader: string,
+    @Body() body: { enabled: boolean; maxActiveDevices?: number },
+  ) {
+    const adminId = await this.requireAdmin(authHeader);
+    if (typeof body?.enabled !== 'boolean') {
+      throw new BadRequestException('enabled must be a boolean');
+    }
+    return this.authService.adminUpdateDeviceConstraint(
+      adminId,
+      body.enabled,
+      body.maxActiveDevices,
+    );
   }
 
   private extractToken(authHeader: string): string | null {

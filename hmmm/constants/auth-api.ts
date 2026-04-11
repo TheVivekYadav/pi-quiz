@@ -36,8 +36,15 @@ export interface SessionItem {
 }
 
 export interface SessionListResponse {
+  enabled?: boolean;
+  deviceConstraintEnabled?: boolean;
   maxActiveDevices: number;
   sessions: SessionItem[];
+}
+
+export interface DeviceConstraintSettings {
+  enabled: boolean;
+  maxActiveDevices: number;
 }
 
 export interface AuthLogEntry {
@@ -201,5 +208,28 @@ export async function adminRemoveUserSession(token: string, sessionId: string): 
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
     })
+  );
+}
+
+export async function adminGetDeviceConstraint(token: string): Promise<DeviceConstraintSettings> {
+  return json(
+    fetch(apiUrl('/auth/admin/device-constraint'), {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+  );
+}
+
+export async function adminUpdateDeviceConstraint(
+  token: string,
+  enabled: boolean,
+  maxActiveDevices?: number,
+): Promise<DeviceConstraintSettings> {
+  return json(
+    fetch(apiUrl('/auth/admin/device-constraint'), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ enabled, maxActiveDevices }),
+    }),
   );
 }

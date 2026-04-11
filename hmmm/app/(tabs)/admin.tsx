@@ -1,4 +1,4 @@
-import { adminListUsers, AdminUserItem } from "@/constants/auth-api";
+import { adminGetDeviceConstraint, adminListUsers, adminUpdateDeviceConstraint, AdminUserItem } from "@/constants/auth-api";
 import { getAuthToken, isAdmin } from "@/constants/auth-session";
 import { adminDeclareWinners, adminDeleteQuiz, adminFetchApiErrorLogs, adminListQuizzes, adminResolveApiErrorLog, adminStartQuiz, adminUpdateQuizSchedule, adminUpdateQuizVisibility, ApiErrorLogItem, QuizListItem } from "@/constants/quiz-api";
 import { useTheme } from "@/hook/theme";
@@ -35,6 +35,9 @@ export default function AdminTab() {
     const [apiErrors, setApiErrors] = useState<ApiErrorLogItem[]>([]);
     const [loadingApiErrors, setLoadingApiErrors] = useState(true);
     const [resolvingApiErrorId, setResolvingApiErrorId] = useState<number | null>(null);
+    const [deviceConstraintEnabled, setDeviceConstraintEnabled] = useState(true);
+    const [deviceConstraintLimit, setDeviceConstraintLimit] = useState(2);
+    const [updatingDeviceConstraint, setUpdatingDeviceConstraint] = useState(false);
 
     useEffect(() => {
         if (!isAdmin()) return;
@@ -57,7 +60,31 @@ export default function AdminTab() {
             .then(setApiErrors)
             .catch(() => { })
             .finally(() => setLoadingApiErrors(false));
+
+        if (token) {
+            adminGetDeviceConstraint(token)
+                .then((cfg) => {
+                    setDeviceConstraintEnabled(cfg.enabled !== false);
+                    setDeviceConstraintLimit(cfg.maxActiveDevices || 2);
+                })
+                .catch(() => { });
+        }
     }, []);
+
+    const updateDeviceConstraint = async (enabled: boolean) => {
+        const token = getAuthToken();
+        if (!token) return;
+        setUpdatingDeviceConstraint(true);
+        try {
+            const updated = await adminUpdateDeviceConstraint(token, enabled, 2);
+            setDeviceConstraintEnabled(updated.enabled);
+            setDeviceConstraintLimit(updated.maxActiveDevices || 2);
+        } catch (err: any) {
+            Alert.alert("Error", err?.message || "Failed to update device constraint.");
+        } finally {
+            setUpdatingDeviceConstraint(false);
+        }
+    };
 
     const refreshApiErrors = async () => {
         setLoadingApiErrors(true);
@@ -315,6 +342,36 @@ export default function AdminTab() {
                         <Text style={[styles.createQuizButtonText, { color: theme.textInverse }]}>Create Quiz</Text>
                     </Pressable>
                 </View>
+            </View>
+
+            <View style={[styles.card, { backgroundColor: theme.surfaceLight, borderColor: theme.border }]}>
+                <View style={styles.quizHeaderRow}>
+                    <View style={styles.quizHeaderCopy}>
+                        <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Device Login Constraint</Text>
+                        <Text style={[styles.cardSub, { color: theme.textSecondary }]}>Two-device limit is currently {deviceConstraintEnabled ? "enabled" : "disabled"}.</Text>
+                    </View>
+                    <Pressable
+                        disabled={updatingDeviceConstraint}
+                        onPress={() => updateDeviceConstraint(!deviceConstraintEnabled)}
+                        style={({ pressed }) => [
+                            styles.createQuizButton,
+                            {
+                                backgroundColor: deviceConstraintEnabled ? theme.error : theme.success,
+                                opacity: pressed || updatingDeviceConstraint ? 0.75 : 1,
+                            },
+                        ]}
+                    >
+                        <Ionicons name={deviceConstraintEnabled ? "lock-closed" : "lock-open"} size={18} color={theme.textInverse} />
+                        <Text style={[styles.createQuizButtonText, { color: theme.textInverse }]}>
+                            {updatingDeviceConstraint
+                                ? "Updating..."
+                                : deviceConstraintEnabled
+                                    ? "Disable"
+                                    : "Enable"}
+                        </Text>
+                    </Pressable>
+                </View>
+                <Text style={[styles.quizMeta, { color: theme.textMuted }]}>Configured max devices: {deviceConstraintLimit}</Text>
             </View>
 
             <View style={[styles.card, { backgroundColor: theme.surfaceLight, borderColor: theme.border }]}>

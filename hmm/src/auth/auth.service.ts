@@ -26,9 +26,14 @@ export interface SessionInfo {
   current: boolean;
 }
 
+export interface DeviceConstraintSettings {
+  enabled: boolean;
+  maxActiveDevices: number;
+}
+
 @Injectable()
 export class AuthService {
-  private readonly maxActiveDevices = Number(process.env.MAX_ACTIVE_DEVICES ?? 2);
+  private readonly defaultMaxActiveDevices = Number(process.env.MAX_ACTIVE_DEVICES ?? 2);
 
   constructor(
     private usersService: UsersService,
@@ -87,18 +92,24 @@ export class AuthService {
       [user.id],
     );
 
-    if (user.role !== 'admin' && activeResult.rows.length >= this.maxActiveDevices) {
+    const deviceConstraint = await this.getDeviceConstraintSettings();
+
+    if (
+      user.role !== 'admin' &&
+      deviceConstraint.enabled &&
+      activeResult.rows.length >= deviceConstraint.maxActiveDevices
+    ) {
       await this.logEvent(
         'login_blocked_max_devices',
         {
           rollNumber: normalizedRoll,
-          maxActiveDevices: this.maxActiveDevices,
+          maxActiveDevices: deviceConstraint.maxActiveDevices,
           attemptedDevice: deviceName ?? null,
         },
         user.id,
       );
       throw new BadRequestException(
-        `Maximum ${this.maxActiveDevices} active devices reached. Block/logout an old device first.`,
+        `Maximum ${deviceConstraint.maxActiveDevices} active devices reached. Block/logout an old device first.`,
       );
     }
 
@@ -452,5 +463,59 @@ export class AuthService {
       sessionId,
     );
     return { success: true };
+  }
+
+  async getDeviceConstraintSettings(): Promise<DeviceConstraintSettings> {
+    const fallbackMax =
+      Number.isFinite(this.defaultMaxActiveDevices) && this.defaultMaxActiveDevices > 0
+        ? this.defaultMaxActiveDevices
+        : 2;
+
+    const result = await this.databaseService.getPool().query(
+      `SELECT value FROM app_settings WHERE key = $1 LIMIT 1`,
+      ['auth_device_constraint'],
+    );
+
+    const payload = result.rows[0]?.value ?? {};
+    const enabled = payload?.enabled !== false;
+    const maxRaw = Number(payload?.maxActiveDevices);
+    const maxActiveDevices = Number.isFinite(maxRaw) && maxRaw > 0 ? maxRaw : fallbackMax;
+
+    return { enabled, maxActiveDevices };
+  }
+
+  async adminUpdateDeviceConstraint(
+    adminId: number,
+    enabled: boolean,
+    maxActiveDevices?: number,
+  ): Promise<DeviceConstraintSettings> {
+    const previous = await this.getDeviceConstraintSettings();
+    const nextMaxRaw = Number(maxActiveDevices ?? previous.maxActiveDevices);
+    const nextMax = Number.isFinite(nextMaxRaw) && nextMaxRaw > 0 ? Math.floor(nextMaxRaw) : 2;
+
+    const settings: DeviceConstraintSettings = {
+      enabled,
+      maxActiveDevices: nextMax,
+    };
+
+    await this.databaseService.getPool().query(
+      `INSERT INTO app_settings (key, value, updated_at)
+       VALUES ($1, $2::jsonb, NOW())
+       ON CONFLICT (key) DO UPDATE
+       SET value = EXCLUDED.value,
+           updated_at = NOW()`,
+      ['auth_device_constraint', JSON.stringify(settings)],
+    );
+
+    await this.logEvent(
+      'admin_device_constraint_updated',
+      {
+        previous,
+        next: settings,
+      },
+      adminId,
+    );
+
+    return settings;
   }
 }
