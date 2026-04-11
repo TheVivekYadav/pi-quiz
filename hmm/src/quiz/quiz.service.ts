@@ -63,12 +63,49 @@ export interface QuizSubmitPayload {
 export class QuizService {
   constructor(private databaseService: DatabaseService) {}
 
+  private toPublicQuizId(row: any): string {
+    return String(row?.short_id ?? row?.id ?? '');
+  }
+
+  private async generateQuizShortId(maxAttempts = 50): Promise<string> {
+    const pool = this.databaseService.getPool();
+
+    for (let i = 0; i < maxAttempts; i++) {
+      const candidate = String(Math.floor(Math.random() * 9000) + 1000);
+      const exists = await pool.query(`SELECT 1 FROM quizzes WHERE short_id = $1 LIMIT 1`, [candidate]);
+      if (!exists.rows[0]) {
+        return candidate;
+      }
+    }
+
+    throw new BadRequestException('Could not generate a unique short quiz URL. Please retry.');
+  }
+
+  async resolveQuizRef(quizRef: string): Promise<string> {
+    const ref = String(quizRef ?? '').trim();
+    if (!ref) {
+      throw new NotFoundException('Quiz not found');
+    }
+
+    const pool = this.databaseService.getPool();
+    const result = await pool.query(
+      `SELECT id FROM quizzes WHERE id = $1 OR short_id = $1 LIMIT 1`,
+      [ref],
+    );
+
+    if (!result.rows[0]) {
+      throw new NotFoundException('Quiz not found');
+    }
+
+    return result.rows[0].id;
+  }
+
   async getHome(userId: number) {
     const pool = this.databaseService.getPool();
 
     // Get enrolled quizzes with real attempt-based progress
     const enrolledResult = await pool.query(
-      `SELECT q.id, q.title, q.category,
+      `SELECT q.id, q.short_id, q.title, q.category,
               (SELECT COUNT(*) FROM quiz_questions WHERE quiz_id = q.id) AS total_questions,
               (SELECT COUNT(DISTINCT qr.question_id)
                FROM quiz_attempts qa
@@ -84,7 +121,7 @@ export class QuizService {
 
     // Get upcoming (future) quizzes as featured
     const featuredResult = await pool.query(
-      `SELECT id, title, category, starts_at, duration_minutes, level FROM quizzes
+      `SELECT id, short_id, title, category, starts_at, duration_minutes, level FROM quizzes
        WHERE starts_at >= NOW() AND is_visible = TRUE
        ORDER BY starts_at ASC
        LIMIT 6`,
@@ -102,7 +139,7 @@ export class QuizService {
         const answered = parseInt(q.answered_questions) || 0;
         const progress = total > 0 ? Math.round((answered / total) * 100) : 0;
         return {
-          id: q.id,
+          id: this.toPublicQuizId(q),
           title: q.title,
           category: q.category,
           progress,
@@ -110,7 +147,7 @@ export class QuizService {
       }),
       categories: categoriesResult.rows.map((r: any) => r.category),
       featuredQuizzes: featuredResult.rows.map((q: any) => ({
-        id: q.id,
+        id: this.toPublicQuizId(q),
         title: q.title,
         category: q.category,
         startsAtIso: new Date(q.starts_at).toISOString(),
@@ -193,7 +230,7 @@ export class QuizService {
            WHERE ${currentRangeExpr('qa', 'submitted_at')}`,
         ),
         pool.query(
-          `SELECT q.id, q.title, q.category, q.starts_at,
+            `SELECT q.id, q.short_id, q.title, q.category, q.starts_at,
                   COUNT(DISTINCT qe.user_id) FILTER (WHERE ${currentRangeExpr('qe', 'enrolled_at')})::int AS enrolled,
                   COUNT(DISTINCT qa.id) FILTER (WHERE ${currentRangeExpr('qa', 'submitted_at')})::int AS attempts,
                   COALESCE(MAX(qa.score) FILTER (WHERE ${currentRangeExpr('qa', 'submitted_at')}),0)::int AS top_score,
@@ -270,7 +307,7 @@ export class QuizService {
         },
         insights,
         quizSummaries: perQuizResult.rows.map((r: any) => ({
-          id: r.id,
+          id: this.toPublicQuizId(r),
           title: r.title,
           category: r.category,
           startsAtIso: new Date(r.starts_at).toISOString(),
@@ -345,14 +382,14 @@ export class QuizService {
     const pool = this.databaseService.getPool();
 
     const result = await pool.query(
-      `SELECT id, title, category, starts_at, duration_minutes, level FROM quizzes
+      `SELECT id, short_id, title, category, starts_at, duration_minutes, level FROM quizzes
        WHERE starts_at >= NOW() AND is_visible = TRUE
        ORDER BY starts_at ASC
        LIMIT 10`,
     );
 
     return result.rows.map((row: any) => ({
-      id: row.id,
+      id: this.toPublicQuizId(row),
       title: row.title,
       category: row.category,
       startsAtIso: new Date(row.starts_at).toISOString(),
@@ -365,7 +402,7 @@ export class QuizService {
     const pool = this.databaseService.getPool();
 
     const result = await pool.query(
-      `SELECT q.*, f.id as form_id, f.fields as form_fields
+      `SELECT q.*, q.short_id, f.id as form_id, f.fields as form_fields
        FROM quizzes q
        LEFT JOIN forms f ON f.id = q.enrollment_form_id
        WHERE q.id = $1`,
@@ -378,7 +415,7 @@ export class QuizService {
 
     const quiz = result.rows[0];
     return {
-      id: quiz.id,
+      id: this.toPublicQuizId(quiz),
       title: quiz.title,
       topic: quiz.topic,
       category: quiz.category,
@@ -825,29 +862,48 @@ export class QuizService {
   }): Promise<QuizDetail> {
     const pool = this.databaseService.getPool();
     const id = randomUUID();
+    let shortId = '';
+    let inserted = false;
 
-    await pool.query(
-      `INSERT INTO quizzes
-         (id, title, topic, category, level, duration_minutes, starts_at, description, expectations, curator_note, image_url, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-      [
-        id,
-        body.title,
-        body.topic,
-        body.category,
-        body.level,
-        body.durationMinutes,
-        new Date(body.startsAt).toISOString(),
-        body.description ?? null,
-        body.expectations ?? null,
-        body.curatorNote ?? null,
-        body.imageUrl ?? null,
-        createdByUserId,
-      ],
-    );
+    for (let attempt = 0; attempt < 5; attempt++) {
+      shortId = await this.generateQuizShortId();
+      try {
+        await pool.query(
+          `INSERT INTO quizzes
+             (id, short_id, title, topic, category, level, duration_minutes, starts_at, description, expectations, curator_note, image_url, created_by)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+          [
+            id,
+            shortId,
+            body.title,
+            body.topic,
+            body.category,
+            body.level,
+            body.durationMinutes,
+            new Date(body.startsAt).toISOString(),
+            body.description ?? null,
+            body.expectations ?? null,
+            body.curatorNote ?? null,
+            body.imageUrl ?? null,
+            createdByUserId,
+          ],
+        );
+        inserted = true;
+        break;
+      } catch (error: any) {
+        if (error?.code === '23505' && String(error?.constraint || '').includes('short_id')) {
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    if (!inserted) {
+      throw new BadRequestException('Could not generate a short quiz URL. Please retry.');
+    }
 
     return {
-      id,
+      id: shortId,
       title: body.title,
       topic: body.topic,
       category: body.category,
@@ -1155,7 +1211,7 @@ export class QuizService {
   async listAllQuizzes(): Promise<QuizListItem[]> {
     const pool = this.databaseService.getPool();
     const result = await pool.query(
-      `SELECT q.id, q.title, q.category, q.starts_at, q.duration_minutes, q.level,
+      `SELECT q.id, q.short_id, q.title, q.category, q.starts_at, q.duration_minutes, q.level,
               q.is_visible,
               COUNT(DISTINCT qe.user_id) AS enrolled_count
        FROM quizzes q
@@ -1164,7 +1220,7 @@ export class QuizService {
        ORDER BY q.starts_at DESC`,
     );
     return result.rows.map((row: any) => ({
-      id: row.id,
+      id: this.toPublicQuizId(row),
       title: row.title,
       category: row.category,
       startsAtIso: new Date(row.starts_at).toISOString(),
@@ -1515,7 +1571,7 @@ export class QuizService {
     const pool = this.databaseService.getPool();
 
     const quizRes = await pool.query(
-      `SELECT id, title, category, level, starts_at, duration_minutes,
+      `SELECT id, short_id, title, category, level, starts_at, duration_minutes,
               winners_declared_at, winners_declared_by
        FROM quizzes WHERE id = $1`,
       [quizId],
@@ -1551,7 +1607,7 @@ export class QuizService {
 
     return {
       quiz: {
-        id: quiz.id,
+        id: this.toPublicQuizId(quiz),
         title: quiz.title,
         category: quiz.category,
         level: quiz.level,

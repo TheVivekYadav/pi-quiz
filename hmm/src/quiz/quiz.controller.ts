@@ -60,6 +60,10 @@ export class QuizController {
     return `${this.getPublicBaseUrl(req)}/api`;
   }
 
+  private async resolveQuizRef(quizRef: string): Promise<string> {
+    return this.quizService.resolveQuizRef(quizRef);
+  }
+
   @Get('home')
   async getHome(@Headers('Authorization') authHeader: string) {
     const userId = await this.getUserId(authHeader);
@@ -165,7 +169,8 @@ export class QuizController {
     @Headers('Authorization') authHeader: string,
   ) {
     await this.requireAdmin(authHeader);
-    return this.quizService.getQuizQuestions(quizId);
+    const resolvedQuizId = await this.resolveQuizRef(quizId);
+    return this.quizService.getQuizQuestions(resolvedQuizId);
   }
 
   @Delete(':quizId/questions/:questionId')
@@ -175,7 +180,8 @@ export class QuizController {
     @Headers('Authorization') authHeader: string,
   ) {
     await this.requireAdmin(authHeader);
-    return this.quizService.deleteQuestion(quizId, questionId);
+    const resolvedQuizId = await this.resolveQuizRef(quizId);
+    return this.quizService.deleteQuestion(resolvedQuizId, questionId);
   }
 
   // Admin: get all user responses for a quiz
@@ -185,7 +191,8 @@ export class QuizController {
     @Headers('Authorization') authHeader: string,
   ) {
     await this.requireAdmin(authHeader);
-    return this.quizService.adminGetQuizResponses(quizId);
+    const resolvedQuizId = await this.resolveQuizRef(quizId);
+    return this.quizService.adminGetQuizResponses(resolvedQuizId);
   }
 
   // Admin: get all enrollments for a quiz with form data
@@ -195,7 +202,8 @@ export class QuizController {
     @Headers('Authorization') authHeader: string,
   ) {
     await this.requireAdmin(authHeader);
-    return this.quizService.getQuizEnrollments(quizId);
+    const resolvedQuizId = await this.resolveQuizRef(quizId);
+    return this.quizService.getQuizEnrollments(resolvedQuizId);
   }
 
   // Admin: remove a single user's enrollment from a quiz
@@ -206,7 +214,8 @@ export class QuizController {
     @Headers('Authorization') authHeader: string,
   ) {
     await this.requireAdmin(authHeader);
-    return this.quizService.adminRemoveEnrollment(quizId, userId);
+    const resolvedQuizId = await this.resolveQuizRef(quizId);
+    return this.quizService.adminRemoveEnrollment(resolvedQuizId, userId);
   }
 
   // User: get their own responses for a quiz
@@ -216,7 +225,8 @@ export class QuizController {
     @Headers('Authorization') authHeader: string,
   ) {
     const userId = await this.getUserId(authHeader);
-    return this.quizService.getUserQuizResponses(quizId, userId);
+    const resolvedQuizId = await this.resolveQuizRef(quizId);
+    return this.quizService.getUserQuizResponses(resolvedQuizId, userId);
   }
 
   @Post(':quizId/questions')
@@ -245,7 +255,9 @@ export class QuizController {
       }
     }
 
-    return this.quizService.addQuestion(quizId, {
+    const resolvedQuizId = await this.resolveQuizRef(quizId);
+
+    return this.quizService.addQuestion(resolvedQuizId, {
       text: String(body.text),
       imageUrl: body.imageUrl ? String(body.imageUrl) : undefined,
       options: body.options,
@@ -260,7 +272,8 @@ export class QuizController {
     @Headers('Authorization') authHeader: string,
   ) {
     await this.requireAdmin(authHeader);
-    return this.quizService.deleteQuiz(quizId);
+    const resolvedQuizId = await this.resolveQuizRef(quizId);
+    return this.quizService.deleteQuiz(resolvedQuizId);
   }
 
   @Post(':quizId/enrollment-form')
@@ -289,12 +302,14 @@ export class QuizController {
       }
     }
 
-    return this.quizService.setEnrollmentForm(quizId, fields);
+    const resolvedQuizId = await this.resolveQuizRef(quizId);
+    return this.quizService.setEnrollmentForm(resolvedQuizId, fields);
   }
 
   @Get(':quizId/enrollment-form')
   async getEnrollmentForm(@Param('quizId') quizId: string) {
-    return this.quizService.getEnrollmentForm(quizId);
+    const resolvedQuizId = await this.resolveQuizRef(quizId);
+    return this.quizService.getEnrollmentForm(resolvedQuizId);
   }
 
   // ─── User endpoints ─────────────────────────────────────────────────────
@@ -306,7 +321,8 @@ export class QuizController {
     @Headers('Authorization') authHeader: string,
   ) {
     const userId = await this.getUserId(authHeader);
-    return this.quizService.enrollUser(userId, quizId, body?.formAnswers);
+    const resolvedQuizId = await this.resolveQuizRef(quizId);
+    return this.quizService.enrollUser(userId, resolvedQuizId, body?.formAnswers);
   }
 
   @Get(':quizId/lobby')
@@ -315,7 +331,8 @@ export class QuizController {
     @Headers('Authorization') authHeader: string,
   ) {
     const userId = await this.getUserId(authHeader);
-    return this.quizService.getLobby(quizId, userId);
+    const resolvedQuizId = await this.resolveQuizRef(quizId);
+    return this.quizService.getLobby(resolvedQuizId, userId);
   }
 
   @Get(':quizId/leaderboard')
@@ -324,7 +341,8 @@ export class QuizController {
     @Headers('Authorization') authHeader: string,
   ) {
     const userId = await this.getUserId(authHeader);
-    return this.quizService.getLeaderboard(quizId, userId);
+    const resolvedQuizId = await this.resolveQuizRef(quizId);
+    return this.quizService.getLeaderboard(resolvedQuizId, userId);
   }
 
   @Get(':quizId/question/:index')
@@ -334,7 +352,8 @@ export class QuizController {
     @Headers('Authorization') authHeader: string,
   ) {
     const userId = await this.getUserId(authHeader);
-    return this.quizService.getQuestion(quizId, userId, index);
+    const resolvedQuizId = await this.resolveQuizRef(quizId);
+    return this.quizService.getQuestion(resolvedQuizId, userId, index);
   }
 
   @Post(':quizId/submit')
@@ -344,19 +363,22 @@ export class QuizController {
     @Headers('Authorization') authHeader: string,
   ) {
     const userId = await this.getUserId(authHeader);
-    return this.quizService.submitQuiz(quizId, userId, body.answers || {}, body.startedAt);
+    const resolvedQuizId = await this.resolveQuizRef(quizId);
+    return this.quizService.submitQuiz(resolvedQuizId, userId, body.answers || {}, body.startedAt);
   }
 
   @Get(':quizId')
-  getQuizDetail(@Param('quizId') quizId: string) {
-    return this.quizService.getQuizDetail(quizId);
+  async getQuizDetail(@Param('quizId') quizId: string) {
+    const resolvedQuizId = await this.resolveQuizRef(quizId);
+    return this.quizService.getQuizDetail(resolvedQuizId);
   }
 
   // Admin: start quiz immediately
   @Post(':quizId/start')
   async startQuiz(@Param('quizId') quizId: string, @Headers('Authorization') authHeader: string) {
     await this.requireAdmin(authHeader);
-    return this.quizService.startQuiz(quizId);
+    const resolvedQuizId = await this.resolveQuizRef(quizId);
+    return this.quizService.startQuiz(resolvedQuizId);
   }
 
   // Admin: update quiz schedule (start time and/or duration)
@@ -367,7 +389,8 @@ export class QuizController {
     @Headers('Authorization') authHeader: string,
   ) {
     await this.requireAdmin(authHeader);
-    return this.quizService.updateQuizSchedule(quizId, {
+    const resolvedQuizId = await this.resolveQuizRef(quizId);
+    return this.quizService.updateQuizSchedule(resolvedQuizId, {
       startsAt: body?.startsAt ? String(body.startsAt) : undefined,
       durationMinutes:
         body?.durationMinutes !== undefined && body?.durationMinutes !== null
@@ -384,6 +407,7 @@ export class QuizController {
     @Headers('Authorization') authHeader: string,
   ) {
     await this.requireAdmin(authHeader);
+    const resolvedQuizId = await this.resolveQuizRef(quizId);
     const payload: any = {};
     if (body?.title !== undefined) payload.title = String(body.title).trim();
     if (body?.description !== undefined) payload.description = String(body.description).trim();
@@ -407,7 +431,7 @@ export class QuizController {
     if (body?.enrollmentStartsAt !== undefined) {
       payload.enrollmentStartsAt = body.enrollmentStartsAt ? String(body.enrollmentStartsAt) : null;
     }
-    return this.quizService.updateQuizMetadata(quizId, payload);
+    return this.quizService.updateQuizMetadata(resolvedQuizId, payload);
   }
 
   // Admin: set quiz visibility
@@ -421,7 +445,8 @@ export class QuizController {
     if (typeof body?.visible !== 'boolean') {
       throw new BadRequestException('visible must be boolean');
     }
-    return this.quizService.updateQuizVisibility(quizId, body.visible);
+    const resolvedQuizId = await this.resolveQuizRef(quizId);
+    return this.quizService.updateQuizVisibility(resolvedQuizId, body.visible);
   }
 
   // Admin: declare winners for a quiz
@@ -431,7 +456,8 @@ export class QuizController {
     @Headers('Authorization') authHeader: string,
   ) {
     const adminId = await this.requireAdmin(authHeader);
-    return this.quizService.adminDeclareWinners(quizId, adminId);
+    const resolvedQuizId = await this.resolveQuizRef(quizId);
+    return this.quizService.adminDeclareWinners(resolvedQuizId, adminId);
   }
 
   // Any authenticated user: get declared winners
@@ -441,7 +467,8 @@ export class QuizController {
     @Headers('Authorization') authHeader: string,
   ) {
     await this.getUserId(authHeader);
-    return this.quizService.getWinners(quizId);
+    const resolvedQuizId = await this.resolveQuizRef(quizId);
+    return this.quizService.getWinners(resolvedQuizId);
   }
 
   // Admin: full quiz report
@@ -451,7 +478,8 @@ export class QuizController {
     @Headers('Authorization') authHeader: string,
   ) {
     await this.requireAdmin(authHeader);
-    return this.quizService.adminGetQuizReport(quizId);
+    const resolvedQuizId = await this.resolveQuizRef(quizId);
+    return this.quizService.adminGetQuizReport(resolvedQuizId);
   }
 
   // ─── Database CRUD Management ──────────────────────────────────────────

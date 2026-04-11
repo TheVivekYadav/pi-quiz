@@ -187,6 +187,28 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     await this.pool.query(`ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL DEFAULT TRUE;`);
     await this.pool.query(`ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS enrollment_enabled BOOLEAN NOT NULL DEFAULT TRUE;`);
     await this.pool.query(`ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS enrollment_starts_at TIMESTAMPTZ;`);
+    await this.pool.query(`ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS short_id TEXT;`);
+
+    // Backfill short IDs for older quizzes (4-digit, unique)
+    await this.pool.query(`
+      DO $$
+      DECLARE
+        rec RECORD;
+        candidate TEXT;
+      BEGIN
+        FOR rec IN SELECT id FROM quizzes WHERE short_id IS NULL LOOP
+          LOOP
+            candidate := LPAD((FLOOR(RANDOM() * 9000) + 1000)::INT::TEXT, 4, '0');
+            EXIT WHEN NOT EXISTS (SELECT 1 FROM quizzes WHERE short_id = candidate);
+          END LOOP;
+
+          UPDATE quizzes
+          SET short_id = candidate
+          WHERE id = rec.id;
+        END LOOP;
+      END
+      $$;
+    `);
 
     // Link enrollment form to quiz (nullable — a quiz may have no registration form)
     await this.pool.query(`
@@ -204,6 +226,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     );
     await this.pool.query(
       'CREATE INDEX IF NOT EXISTS idx_quiz_questions_quiz_id ON quiz_questions(quiz_id);',
+    );
+    await this.pool.query(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_quizzes_short_id_unique ON quizzes(short_id);',
     );
     await this.pool.query(
       'CREATE INDEX IF NOT EXISTS idx_quiz_enrollments_user_id ON quiz_enrollments(user_id);',

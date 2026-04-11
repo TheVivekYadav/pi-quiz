@@ -338,6 +338,9 @@ export default function AdminTab() {
                             <Text style={[styles.quizMeta, { color: theme.textSecondary }]} numberOfLines={1}>
                                 👥 {quiz.enrolledCount ?? 0} enrolled • {(quiz.isVisible ?? true) ? "👁 Visible" : "◼ Draft"}
                             </Text>
+                            <Text style={[styles.quizMeta, { color: theme.textMuted }]} numberOfLines={1}>
+                                🔗 /quiz/{quiz.id}
+                            </Text>
 
                             {editingScheduleId === quiz.id && (
                                 <View style={[styles.editScheduleBox, { borderColor: theme.border, backgroundColor: theme.surface }]}>

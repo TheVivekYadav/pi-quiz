@@ -332,6 +332,7 @@ export default function CreateQuizScreen() {
                     {questions.length > 0
                         ? `${questions.length} question${questions.length !== 1 ? "s" : ""} added.`
                         : "No questions yet — add them later from the Admin panel."}
+                    {quizId ? `\nQuiz URL: /quiz/${quizId}` : ""}
                 </Text>
                 <Pressable
                     style={[styles.btn, { backgroundColor: theme.buttonPrimary, marginTop: 24 }]}
