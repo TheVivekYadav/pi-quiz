@@ -47,7 +47,7 @@ test('admin can create a quiz end-to-end', async ({ page }) => {
   await page.getByRole('button', { name: /save form and add questions/i }).click();
 
   // 5. Add a question
-  await page.getByRole('textbox', { name: /question 1/i }).fill('Sample question');
+  await page.getByRole('textbox', { name: /^question 1$/i }).fill('Sample question');
   await page.getByRole('textbox', { name: /question 1 option 1/i }).fill('Correct answer');
   await page.getByRole('textbox', { name: /question 1 option 2/i }).fill('Wrong answer');
   await page.getByRole('textbox', { name: /question 1 option 3/i }).fill('Wrong answer');

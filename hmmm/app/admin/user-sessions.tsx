@@ -8,11 +8,11 @@ import { useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
+    Platform,
     Pressable,
     ScrollView,
     StyleSheet,
     Text,
-    TextInput,
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -49,24 +49,48 @@ export default function AdminUserSessionsScreen() {
         load();
     }, [targetUserId]);
 
+    const blockSession = async (session: SessionItem, reason?: string) => {
+        const token = getAuthToken();
+        if (!token) return;
+        setActioningId(session.sessionId);
+        try {
+            await adminBlockUserSession(token, session.sessionId, reason || undefined);
+            await load();
+        } catch (err: any) {
+            Alert.alert("Error", err?.message || "Failed to block session.");
+        } finally {
+            setActioningId(null);
+        }
+    };
+
     const handleBlock = (session: SessionItem) => {
-        Alert.prompt(
+        const label = session.deviceName ?? session.sessionId.slice(0, 8);
+
+        if (Platform.OS === "ios" && typeof (Alert as any).prompt === "function") {
+            (Alert as any).prompt(
+                "Block Session",
+                `Enter reason for blocking session (${label}):`,
+                (reason: string) => {
+                    void blockSession(session, reason);
+                },
+                "plain-text",
+            );
+            return;
+        }
+
+        Alert.alert(
             "Block Session",
-            `Enter reason for blocking session (${session.deviceName ?? session.sessionId.slice(0, 8)}):`,
-            async (reason) => {
-                const token = getAuthToken();
-                if (!token) return;
-                setActioningId(session.sessionId);
-                try {
-                    await adminBlockUserSession(token, session.sessionId, reason || undefined);
-                    await load();
-                } catch (err: any) {
-                    Alert.alert("Error", err?.message || "Failed to block session.");
-                } finally {
-                    setActioningId(null);
-                }
-            },
-            "plain-text",
+            `Block session ${label}?`,
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Block",
+                    style: "destructive",
+                    onPress: () => {
+                        void blockSession(session);
+                    },
+                },
+            ],
         );
     };
 
