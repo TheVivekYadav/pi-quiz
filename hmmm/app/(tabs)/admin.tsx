@@ -303,6 +303,8 @@ export default function AdminTab() {
                         <Text style={[styles.cardSub, { color: theme.textSecondary }]}>Create, publish, and monitor quizzes.</Text>
                     </View>
                     <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Create quiz"
                         onPress={() => router.push("/create-quiz" as any)}
                         style={({ pressed }) => [
                             styles.createQuizButton,

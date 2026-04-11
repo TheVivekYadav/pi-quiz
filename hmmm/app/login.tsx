@@ -87,6 +87,7 @@ export default function LoginScreen() {
             <View style={styles.content}>
                 {/* Header */}
                 <View style={styles.header}>
+                    <Text accessibilityRole="header" style={[styles.title, { color: colors.textPrimary }]}>Welcome back</Text>
 
                     <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
                         {step === 1 ? 'Enter your roll number to continue' : 'Complete your profile (optional)'}
@@ -108,6 +109,7 @@ export default function LoginScreen() {
                             <View style={styles.formGroup}>
                                 <Text style={[styles.label, { color: colors.textPrimary }]}>Roll Number *</Text>
                                 <TextInput
+                                    accessibilityLabel="Roll number"
                                     style={[styles.input, { borderColor: colors.border, color: colors.textPrimary, backgroundColor: colors.surface }]}
                                     placeholder="e.g., 21BCS001"
                                     placeholderTextColor={colors.textSecondary}
@@ -121,6 +123,8 @@ export default function LoginScreen() {
                             </View>
 
                             <TouchableOpacity
+                                accessibilityRole="button"
+                                accessibilityLabel="Sign in with roll number"
                                 style={[styles.button, { backgroundColor: colors.accent }]}
                                 onPress={handleQuickLogin}
                                 disabled={loading}
@@ -133,6 +137,8 @@ export default function LoginScreen() {
                             </TouchableOpacity>
 
                             <TouchableOpacity
+                                accessibilityRole="button"
+                                accessibilityLabel="Add optional profile details"
                                 style={[styles.secondaryButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
                                 onPress={handleContinue}
                                 disabled={loading}
@@ -162,6 +168,7 @@ export default function LoginScreen() {
                             <View style={styles.formGroup}>
                                 <Text style={[styles.label, { color: colors.textPrimary }]}>Name (Optional)</Text>
                                 <TextInput
+                                    accessibilityLabel="Name"
                                     style={[styles.input, { borderColor: colors.border, color: colors.textPrimary, backgroundColor: colors.surface }]}
                                     placeholder="Enter your full name"
                                     placeholderTextColor={colors.textSecondary}
@@ -175,6 +182,7 @@ export default function LoginScreen() {
                             <View style={styles.formGroup}>
                                 <Text style={[styles.label, { color: colors.textPrimary }]}>Email (Optional)</Text>
                                 <TextInput
+                                    accessibilityLabel="Email"
                                     style={[styles.input, { borderColor: colors.border, color: colors.textPrimary, backgroundColor: colors.surface }]}
                                     placeholder="your.email@college.edu"
                                     placeholderTextColor={colors.textSecondary}
@@ -190,6 +198,7 @@ export default function LoginScreen() {
                             <View style={styles.formGroup}>
                                 <Text style={[styles.label, { color: colors.textPrimary }]}>Branch (Optional)</Text>
                                 <TextInput
+                                    accessibilityLabel="Branch"
                                     style={[styles.input, { borderColor: colors.border, color: colors.textPrimary, backgroundColor: colors.surface }]}
                                     placeholder="e.g., CSE"
                                     placeholderTextColor={colors.textSecondary}
@@ -203,6 +212,7 @@ export default function LoginScreen() {
                             <View style={styles.formGroup}>
                                 <Text style={[styles.label, { color: colors.textPrimary }]}>Year (Optional)</Text>
                                 <TextInput
+                                    accessibilityLabel="Year"
                                     style={[styles.input, { borderColor: colors.border, color: colors.textPrimary, backgroundColor: colors.surface }]}
                                     placeholder="1 to 6"
                                     placeholderTextColor={colors.textSecondary}
@@ -214,6 +224,8 @@ export default function LoginScreen() {
                             </View>
 
                             <TouchableOpacity
+                                accessibilityRole="button"
+                                accessibilityLabel="Complete sign in"
                                 style={[styles.button, { backgroundColor: colors.accent }, loading && styles.buttonDisabled]}
                                 onPress={handleLogin}
                                 disabled={loading}
@@ -226,6 +238,8 @@ export default function LoginScreen() {
                             </TouchableOpacity>
 
                             <TouchableOpacity
+                                accessibilityRole="button"
+                                accessibilityLabel="Go back to roll number"
                                 style={styles.backBtn}
                                 onPress={() => setStep(1)}
                                 disabled={loading}

@@ -360,13 +360,13 @@ export default function CreateQuizScreen() {
             style={[styles.root, { backgroundColor: theme.background }]}
             contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + 32, paddingHorizontal: 16 }}
         >
-            <Pressable onPress={() => router.back()} style={styles.backRow}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={() => router.back()} style={styles.backRow}>
                 <Ionicons name="arrow-back" size={20} color={theme.primary} />
                 <Text style={[styles.backText, { color: theme.primary }]}>Back</Text>
             </Pressable>
 
-            <Text style={[styles.eyebrow, { color: theme.primary }]}>{stepLabel}</Text>
-            <Text style={[styles.pageTitle, { color: theme.textPrimary }]}>{pageTitle}</Text>
+            <Text accessibilityRole="header" style={[styles.eyebrow, { color: theme.primary }]}>{stepLabel}</Text>
+            <Text accessibilityRole="header" style={[styles.pageTitle, { color: theme.textPrimary }]}>{pageTitle}</Text>
             <Text style={[styles.pageSub, { color: theme.textSecondary }]}>{pageSub}</Text>
 
             {/* ── Step 1: Metadata ── */}
@@ -381,6 +381,8 @@ export default function CreateQuizScreen() {
                         {LEVELS.map((l) => (
                             <Pressable
                                 key={l}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Level ${l}`}
                                 onPress={() => setLevel(l)}
                                 style={[
                                     styles.levelChip,
@@ -402,6 +404,8 @@ export default function CreateQuizScreen() {
                     <View>
                         <Text style={[styles.label, { color: theme.textSecondary }]}>Banner Image</Text>
                         <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={bannerPreview ? "Replace banner image" : "Upload banner image"}
                             onPress={handlePickBannerImage}
                             disabled={bannerUploading}
                             style={({ pressed }) => [
@@ -428,6 +432,8 @@ export default function CreateQuizScreen() {
                     </View>
 
                     <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Create quiz and continue"
                         style={[styles.btn, { backgroundColor: saving ? theme.buttonDisabled : theme.buttonPrimary }]}
                         onPress={handleCreateQuiz}
                         disabled={saving}
@@ -472,6 +478,8 @@ export default function CreateQuizScreen() {
                                 {FIELD_TYPES.map((ft) => (
                                     <Pressable
                                         key={ft.value}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={`Field type ${ft.label}`}
                                         onPress={() => updateField(fIdx, { type: ft.value })}
                                         style={[
                                             styles.levelChip,
@@ -498,6 +506,8 @@ export default function CreateQuizScreen() {
 
                             <View style={styles.requiredRow}>
                                 <Pressable
+                                    accessibilityRole="button"
+                                    accessibilityLabel={f.required ? "Field required" : "Field optional"}
                                     onPress={() => updateField(fIdx, { required: !f.required })}
                                     style={[
                                         styles.correctBtn,
@@ -514,12 +524,14 @@ export default function CreateQuizScreen() {
                         </View>
                     ))}
 
-                    <Pressable style={[styles.addBtn, { borderColor: theme.primary }]} onPress={addField}>
+                    <Pressable accessibilityRole="button" accessibilityLabel="Add form field" style={[styles.addBtn, { borderColor: theme.primary }]} onPress={addField}>
                         <Ionicons name="add-circle-outline" size={20} color={theme.primary} />
                         <Text style={[styles.addBtnText, { color: theme.primary }]}>Add Form Field</Text>
                     </Pressable>
 
                     <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={formFields.length > 0 ? "Save form and add questions" : "Continue to questions"}
                         style={[styles.btn, { backgroundColor: saving ? theme.buttonDisabled : theme.buttonPrimary, marginTop: 16 }]}
                         onPress={handleSaveForm}
                         disabled={saving}
@@ -529,7 +541,7 @@ export default function CreateQuizScreen() {
                     </Pressable>
 
                     {!saving && (
-                        <Pressable style={[styles.skipBtn, { borderColor: theme.border }]} onPress={handleSkipForm}>
+                        <Pressable accessibilityRole="button" accessibilityLabel="Skip enrollment form" style={[styles.skipBtn, { borderColor: theme.border }]} onPress={handleSkipForm}>
                             <Text style={[styles.skipBtnText, { color: theme.textSecondary }]}>Skip — no enrollment form</Text>
                         </Pressable>
                     )}
@@ -551,6 +563,7 @@ export default function CreateQuizScreen() {
                             </View>
 
                             <TextInput
+                                accessibilityLabel={`Question ${qIdx + 1}`}
                                 style={[styles.input, { borderColor: theme.border, color: theme.textPrimary, backgroundColor: theme.surface }]}
                                 placeholder="Question text"
                                 placeholderTextColor={theme.textMuted}
@@ -563,6 +576,8 @@ export default function CreateQuizScreen() {
                             {q.options.map((opt, oIdx) => (
                                 <View key={opt.id} style={styles.optionRow}>
                                     <Pressable
+                                        accessibilityRole="button"
+                                        accessibilityLabel={`Mark option ${oIdx + 1} as correct for question ${qIdx + 1}`}
                                         onPress={() => updateQuestion(qIdx, { correctOptionId: opt.id })}
                                         style={[
                                             styles.correctBtn,
@@ -575,6 +590,7 @@ export default function CreateQuizScreen() {
                                         {q.correctOptionId === opt.id && <Ionicons name="checkmark" size={12} color={theme.textInverse} />}
                                     </Pressable>
                                     <TextInput
+                                        accessibilityLabel={`Question ${qIdx + 1} option ${oIdx + 1}`}
                                         style={[styles.optionInput, { borderColor: theme.border, color: theme.textPrimary, backgroundColor: theme.surface }]}
                                         placeholder={`Option ${oIdx + 1}`}
                                         placeholderTextColor={theme.textMuted}
@@ -587,6 +603,7 @@ export default function CreateQuizScreen() {
                             <View style={styles.pointsRow}>
                                 <Text style={[styles.label, { color: theme.textSecondary }]}>Points:</Text>
                                 <TextInput
+                                    accessibilityLabel={`Question ${qIdx + 1} points`}
                                     style={[styles.pointsInput, { borderColor: theme.border, color: theme.textPrimary, backgroundColor: theme.surface }]}
                                     value={q.points}
                                     onChangeText={(t) => updateQuestion(qIdx, { points: t })}
@@ -596,12 +613,14 @@ export default function CreateQuizScreen() {
                         </View>
                     ))}
 
-                    <Pressable style={[styles.addBtn, { borderColor: theme.primary }]} onPress={addQuestion}>
+                    <Pressable accessibilityRole="button" accessibilityLabel="Add another question" style={[styles.addBtn, { borderColor: theme.primary }]} onPress={addQuestion}>
                         <Ionicons name="add-circle-outline" size={20} color={theme.primary} />
                         <Text style={[styles.addBtnText, { color: theme.primary }]}>Add Another Question</Text>
                     </Pressable>
 
                     <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Save questions and publish"
                         style={[styles.btn, { backgroundColor: saving ? theme.buttonDisabled : theme.buttonPrimary, marginTop: 16 }]}
                         onPress={handleSaveQuestions}
                         disabled={saving}
@@ -611,7 +630,7 @@ export default function CreateQuizScreen() {
                     </Pressable>
 
                     {!saving && (
-                        <Pressable style={[styles.skipBtn, { borderColor: theme.border }]} onPress={() => setStep("done")}>
+                        <Pressable accessibilityRole="button" accessibilityLabel="Skip questions for now" style={[styles.skipBtn, { borderColor: theme.border }]} onPress={() => setStep("done")}>
                             <Text style={[styles.skipBtnText, { color: theme.textSecondary }]}>Skip — add questions later</Text>
                         </Pressable>
                     )}
@@ -636,6 +655,7 @@ function Field({
         <View style={styles.fieldGroup}>
             <Text style={[styles.label, { color: theme.textSecondary }]}>{label}</Text>
             <TextInput
+                accessibilityLabel={label.replace(/\s*\*+\s*$/, "")}
                 style={[
                     styles.input,
                     { borderColor: theme.border, color: theme.textPrimary, backgroundColor: theme.surface },

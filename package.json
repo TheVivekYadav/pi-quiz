@@ -1,0 +1,7 @@
+{
+    "name": "pi-quiz",
+    "private": true,
+    "scripts": {
+        "test:chrome": "npm --prefix tests-e2e run test:chrome"
+    }
+}
