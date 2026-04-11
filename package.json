@@ -2,6 +2,11 @@
     "name": "pi-quiz",
     "private": true,
     "scripts": {
-        "test:chrome": "npm --prefix tests-e2e run test:chrome"
+        "test:e2e": "npm --prefix tests-e2e run test",
+        "test:e2e:chrome": "npm --prefix tests-e2e run test:chrome",
+        "test:e2e:auth": "npm --prefix tests-e2e run test:auth",
+        "test:e2e:a11y": "npm --prefix tests-e2e run test:a11y",
+        "test:load:login-spike": "k6 run tests-load/scenarios/login-spike.js",
+        "test:load:quiz-load": "k6 run tests-load/scenarios/quiz-load.js"
     }
 }
