@@ -10,6 +10,8 @@ import { FormsModule } from './forms/forms.module';
 import { QuizModule } from './quiz/quiz.module';
 import { ResponsesModule } from './response/responses.module';
 
+const disableRateLimitForTests = process.env.NODE_ENV === 'test';
+
 @Module({
   imports: [
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 60 }]),
@@ -22,7 +24,7 @@ import { ResponsesModule } from './response/responses.module';
   controllers: [AppController],
   providers: [
     AppService,
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    ...(disableRateLimitForTests ? [] : [{ provide: APP_GUARD, useClass: ThrottlerGuard }]),
     { provide: APP_FILTER, useClass: ApiErrorLoggingFilter },
   ],
 })
