@@ -152,36 +152,48 @@ export default function QuizEnrollmentsScreen() {
                 <Pressable
                     disabled={removingUserId === item.userId}
                     onPress={() => {
+                        const doRemove = async () => {
+                            if (!quizId) return;
+                            setRemovingUserId(item.userId);
+                            try {
+                                await adminRemoveQuizEnrollment(quizId, item.userId);
+                                setEnrollmentData((prev: any) => {
+                                    if (!prev) return prev;
+                                    const nextEnrollments = (prev.enrollments ?? []).filter((e: any) => e.userId !== item.userId);
+                                    return {
+                                        ...prev,
+                                        totalEnrolled: Math.max(0, Number(prev.totalEnrolled ?? 0) - 1),
+                                        enrollments: nextEnrollments,
+                                    };
+                                });
+                                if (expandedEnrollmentId === item.userId) {
+                                    setExpandedEnrollmentId(null);
+                                }
+                            } catch (err: any) {
+                                Alert.alert("Cannot remove", err?.message || "Failed to remove enrollment.");
+                            } finally {
+                                setRemovingUserId(null);
+                            }
+                        };
+
+                        const label = item.name || item.rollNumber;
+                        if (typeof window !== "undefined") {
+                            const ok = window.confirm(`Remove ${label} from this quiz?`);
+                            if (!ok) return;
+                            void doRemove();
+                            return;
+                        }
+
                         Alert.alert(
                             "Remove Enrollment",
-                            `Remove ${item.name || item.rollNumber} from this quiz?`,
+                            `Remove ${label} from this quiz?`,
                             [
                                 { text: "Cancel", style: "cancel" },
                                 {
                                     text: "Remove",
                                     style: "destructive",
-                                    onPress: async () => {
-                                        if (!quizId) return;
-                                        setRemovingUserId(item.userId);
-                                        try {
-                                            await adminRemoveQuizEnrollment(quizId, item.userId);
-                                            setEnrollmentData((prev: any) => {
-                                                if (!prev) return prev;
-                                                const nextEnrollments = (prev.enrollments ?? []).filter((e: any) => e.userId !== item.userId);
-                                                return {
-                                                    ...prev,
-                                                    totalEnrolled: Math.max(0, Number(prev.totalEnrolled ?? 0) - 1),
-                                                    enrollments: nextEnrollments,
-                                                };
-                                            });
-                                            if (expandedEnrollmentId === item.userId) {
-                                                setExpandedEnrollmentId(null);
-                                            }
-                                        } catch (err: any) {
-                                            Alert.alert("Cannot remove", err?.message || "Failed to remove enrollment.");
-                                        } finally {
-                                            setRemovingUserId(null);
-                                        }
+                                    onPress: () => {
+                                        void doRemove();
                                     },
                                 },
                             ],
