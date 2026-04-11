@@ -168,10 +168,33 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       CREATE TABLE IF NOT EXISTS quiz_responses (
         id TEXT PRIMARY KEY,
         attempt_id TEXT NOT NULL REFERENCES quiz_attempts(id) ON DELETE CASCADE,
-        question_id TEXT NOT NULL REFERENCES quiz_questions(id),
+        question_id TEXT NOT NULL REFERENCES quiz_questions(id) ON DELETE CASCADE,
         selected_option_id TEXT NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+    `);
+
+    // Ensure deleting questions/quizzes also deletes dependent responses
+    await this.pool.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.table_constraints
+          WHERE constraint_name = 'quiz_responses_question_id_fkey'
+            AND table_name = 'quiz_responses'
+        ) THEN
+          ALTER TABLE quiz_responses DROP CONSTRAINT quiz_responses_question_id_fkey;
+        END IF;
+      EXCEPTION WHEN undefined_table THEN
+        NULL;
+      END
+      $$;
+    `);
+    await this.pool.query(`
+      ALTER TABLE quiz_responses
+      ADD CONSTRAINT quiz_responses_question_id_fkey
+      FOREIGN KEY (question_id) REFERENCES quiz_questions(id) ON DELETE CASCADE;
     `);
 
     // Forms and responses (existing)

@@ -969,13 +969,33 @@ export class QuizService {
 
   async deleteQuiz(quizId: string): Promise<{ success: boolean }> {
     const pool = this.databaseService.getPool();
-    const result = await pool.query(
-      `DELETE FROM quizzes WHERE id = $1 RETURNING id`,
-      [quizId],
-    );
-    if (!result.rows[0]) {
-      throw new NotFoundException('Quiz not found');
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      const check = await client.query(`SELECT id FROM quizzes WHERE id = $1`, [quizId]);
+      if (!check.rows[0]) {
+        throw new NotFoundException('Quiz not found');
+      }
+
+      // Defensive cleanup for old FK definitions without ON DELETE CASCADE
+      await client.query(
+        `DELETE FROM quiz_responses
+         WHERE question_id IN (SELECT id FROM quiz_questions WHERE quiz_id = $1)`,
+        [quizId],
+      );
+
+      await client.query(`DELETE FROM quizzes WHERE id = $1`, [quizId]);
+
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
     }
+
     return { success: true };
   }
 
@@ -1004,11 +1024,33 @@ export class QuizService {
   /** Admin: delete a single question. */
   async deleteQuestion(quizId: string, questionId: string): Promise<{ success: boolean }> {
     const pool = this.databaseService.getPool();
-    const result = await pool.query(
-      `DELETE FROM quiz_questions WHERE id = $1 AND quiz_id = $2 RETURNING id`,
-      [questionId, quizId],
-    );
-    if (!result.rows[0]) throw new NotFoundException('Question not found');
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      const check = await client.query(
+        `SELECT id FROM quiz_questions WHERE id = $1 AND quiz_id = $2`,
+        [questionId, quizId],
+      );
+      if (!check.rows[0]) throw new NotFoundException('Question not found');
+
+      // Defensive cleanup for old FK definitions without ON DELETE CASCADE
+      await client.query(`DELETE FROM quiz_responses WHERE question_id = $1`, [questionId]);
+
+      await client.query(
+        `DELETE FROM quiz_questions WHERE id = $1 AND quiz_id = $2`,
+        [questionId, quizId],
+      );
+
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+
     return { success: true };
   }
 
