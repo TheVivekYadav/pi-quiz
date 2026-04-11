@@ -21,6 +21,8 @@ jobs:
   load-test:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
 
     env:
       BASE_URL: http://localhost:3000
