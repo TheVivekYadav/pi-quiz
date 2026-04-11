@@ -1,9 +1,9 @@
 {
-  "quizId": "9310",
+  "quizId": "6293",
   "totalEnrolled": 5,
   "totalCompleted": 0,
   "totalAttempts": 5,
-  "avgScore": 10,
+  "avgScore": 7,
   "maxScore": 10,
   "winnersDeclared": true,
   "winners": [
@@ -15,15 +15,15 @@
     },
     {
       "rank": 2,
-      "user": "TEST002",
-      "rollNumber": "TEST002",
-      "score": 10
-    },
-    {
-      "rank": 3,
       "user": "TEST003",
       "rollNumber": "TEST003",
-      "score": 10
+      "score": 8
+    },
+    {
+      "rank": 2,
+      "user": "TEST002",
+      "rollNumber": "TEST002",
+      "score": 8
     }
   ],
   "topScorers": [
@@ -35,28 +35,28 @@
     },
     {
       "rank": 2,
+      "user": "TEST003",
+      "rollNumber": "TEST003",
+      "score": 8
+    },
+    {
+      "rank": 2,
       "user": "TEST002",
       "rollNumber": "TEST002",
-      "score": 10
+      "score": 8
     },
     {
       "rank": 3,
-      "user": "TEST003",
-      "rollNumber": "TEST003",
-      "score": 10
+      "user": "TEST004",
+      "rollNumber": "TEST004",
+      "score": 6
     },
     {
       "rank": 4,
-      "user": "TEST004",
-      "rollNumber": "TEST004",
-      "score": 10
-    },
-    {
-      "rank": 5,
       "user": "TEST005",
       "rollNumber": "TEST005",
-      "score": 10
+      "score": 4
     }
   ],
-  "validatedAt": "2026-04-11T13:06:33.693Z"
+  "validatedAt": "2026-04-11T13:20:20.716Z"
 }
