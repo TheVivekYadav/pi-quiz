@@ -1,0 +1,89 @@
+name: k6 Load Tests
+
+on:
+  # Run manually or on a schedule — never block PRs with load tests
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: 'Scenario to run'
+        required: true
+        default: 'login-spike'
+        type: choice
+        options:
+          - login-spike
+          - quiz-load
+          - all
+  schedule:
+    # Run every night at 02:00 UTC against the local stack built from main
+    - cron: '0 2 * * *'
+
+jobs:
+  load-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      BASE_URL: http://localhost:3000
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Start the full stack ────────────────────────────────────────────────
+      - name: Create external Docker network
+        run: docker network create shared-net || true
+
+      - name: Copy backend env
+        run: cp hmm/.env.example hmm/.env
+
+      - name: Start Docker Compose stack
+        run: docker compose up -d --build
+        timeout-minutes: 10
+
+      - name: Wait for API health
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3000/auth/me > /dev/null 2>&1; then
+              echo "API is up"; break
+            fi
+            echo "Waiting for API... ($i/30)"; sleep 3
+          done
+
+      # ── Install k6 ─────────────────────────────────────────────────────────
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring \
+            --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
+            --keyserver hkp://keyserver.ubuntu.com:80 \
+            --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] \
+            https://dl.k6.io/deb stable main" \
+            | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update && sudo apt-get install -y k6
+
+      # ── Run scenarios ───────────────────────────────────────────────────────
+      - name: Run login-spike
+        if: ${{ github.event_name == 'schedule' || inputs.scenario == 'login-spike' || inputs.scenario == 'all' }}
+        run: |
+          k6 run \
+            --out json=results-login-spike.json \
+            tests-load/scenarios/login-spike.js
+        env:
+          BASE_URL: ${{ env.BASE_URL }}
+
+      - name: Run quiz-load
+        if: ${{ github.event_name == 'schedule' || inputs.scenario == 'quiz-load' || inputs.scenario == 'all' }}
+        run: |
+          k6 run \
+            --out json=results-quiz-load.json \
+            tests-load/scenarios/quiz-load.js
+        env:
+          BASE_URL: ${{ env.BASE_URL }}
+
+      # ── Upload results ──────────────────────────────────────────────────────
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: k6-results
+          path: results-*.json
+          retention-days: 14

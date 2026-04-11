@@ -4,13 +4,21 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test:chrome": "playwright test --project=chromium"
+    "test": "playwright test",
+    "test:chrome": "playwright test --project=chromium --project=chromium-user-auth --project=chromium-admin-auth",
+    "test:setup": "playwright test --project=setup",
+    "test:auth": "playwright test --project=chromium tests/auth.spec.ts",
+    "test:a11y": "playwright test --project=chromium-user-auth tests/accessibility.spec.ts",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "report": "playwright show-report"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.1",
     "@playwright/test": "^1.59.1",
     "@types/node": "^25.6.0"
   }
