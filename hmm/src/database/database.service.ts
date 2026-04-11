@@ -93,9 +93,15 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         status_code INTEGER NOT NULL,
         message TEXT NOT NULL,
         details JSONB NOT NULL DEFAULT '{}'::jsonb,
+        resolved BOOLEAN NOT NULL DEFAULT FALSE,
+        resolved_at TIMESTAMPTZ,
+        resolved_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `);
+    await this.pool.query(`ALTER TABLE api_error_logs ADD COLUMN IF NOT EXISTS resolved BOOLEAN NOT NULL DEFAULT FALSE;`);
+    await this.pool.query(`ALTER TABLE api_error_logs ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMPTZ;`);
+    await this.pool.query(`ALTER TABLE api_error_logs ADD COLUMN IF NOT EXISTS resolved_by INTEGER REFERENCES users(id) ON DELETE SET NULL;`);
 
     // Quizzes table
     await this.pool.query(`
@@ -304,6 +310,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     );
     await this.pool.query(
       'CREATE INDEX IF NOT EXISTS idx_api_error_logs_status_created_at ON api_error_logs(status_code, created_at DESC);',
+    );
+    await this.pool.query(
+      'CREATE INDEX IF NOT EXISTS idx_api_error_logs_resolved_created_at ON api_error_logs(resolved, created_at DESC);',
     );
 
     // Insert default admin user if not exists

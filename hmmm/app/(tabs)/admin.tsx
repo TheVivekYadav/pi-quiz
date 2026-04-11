@@ -1,6 +1,6 @@
 import { adminListUsers, AdminUserItem } from "@/constants/auth-api";
 import { getAuthToken, isAdmin } from "@/constants/auth-session";
-import { adminDeclareWinners, adminDeleteQuiz, adminFetchApiErrorLogs, adminListQuizzes, adminStartQuiz, adminUpdateQuizSchedule, adminUpdateQuizVisibility, ApiErrorLogItem, QuizListItem } from "@/constants/quiz-api";
+import { adminDeclareWinners, adminDeleteQuiz, adminFetchApiErrorLogs, adminListQuizzes, adminResolveApiErrorLog, adminStartQuiz, adminUpdateQuizSchedule, adminUpdateQuizVisibility, ApiErrorLogItem, QuizListItem } from "@/constants/quiz-api";
 import { useTheme } from "@/hook/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -34,6 +34,7 @@ export default function AdminTab() {
     const [userSearch, setUserSearch] = useState("");
     const [apiErrors, setApiErrors] = useState<ApiErrorLogItem[]>([]);
     const [loadingApiErrors, setLoadingApiErrors] = useState(true);
+    const [resolvingApiErrorId, setResolvingApiErrorId] = useState<number | null>(null);
 
     useEffect(() => {
         if (!isAdmin()) return;
@@ -67,6 +68,18 @@ export default function AdminTab() {
             Alert.alert("Error", err?.message || "Failed to load API error logs.");
         } finally {
             setLoadingApiErrors(false);
+        }
+    };
+
+    const resolveApiError = async (logId: number) => {
+        setResolvingApiErrorId(logId);
+        try {
+            await adminResolveApiErrorLog(logId);
+            setApiErrors((prev) => prev.filter((item) => item.id !== logId));
+        } catch (err: any) {
+            Alert.alert("Error", err?.message || "Failed to resolve API error log.");
+        } finally {
+            setResolvingApiErrorId(null);
         }
     };
 
@@ -334,9 +347,26 @@ export default function AdminTab() {
                         <Text style={[styles.errorLogMessage, { color: theme.textSecondary }]} numberOfLines={2}>
                             {item.message}
                         </Text>
-                        <Text style={[styles.errorLogTime, { color: theme.textMuted }]} numberOfLines={1}>
-                            {new Date(item.createdAtIso).toLocaleString()}
-                        </Text>
+                        <View style={styles.errorLogFooter}>
+                            <Text style={[styles.errorLogTime, { color: theme.textMuted }]} numberOfLines={1}>
+                                {new Date(item.createdAtIso).toLocaleString()}
+                            </Text>
+                            <Pressable
+                                disabled={resolvingApiErrorId === item.id}
+                                onPress={() => resolveApiError(item.id)}
+                                style={({ pressed }) => [
+                                    styles.resolveLogBtn,
+                                    {
+                                        backgroundColor: theme.success,
+                                        opacity: pressed || resolvingApiErrorId === item.id ? 0.75 : 1,
+                                    },
+                                ]}
+                            >
+                                <Text style={[styles.resolveLogBtnText, { color: theme.textInverse }]}>
+                                    {resolvingApiErrorId === item.id ? "Resolving..." : "Resolve"}
+                                </Text>
+                            </Pressable>
+                        </View>
                     </View>
                 ))}
             </View>
@@ -748,5 +778,14 @@ const styles = StyleSheet.create({
     },
     errorLogTitle: { fontSize: 12, fontWeight: "800" },
     errorLogMessage: { marginTop: 4, fontSize: 12, lineHeight: 17 },
+    errorLogFooter: { marginTop: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
     errorLogTime: { marginTop: 6, fontSize: 11, fontWeight: "600" },
+    resolveLogBtn: {
+        minHeight: 30,
+        borderRadius: 8,
+        paddingHorizontal: 10,
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    resolveLogBtnText: { fontSize: 11, fontWeight: "800" },
 });

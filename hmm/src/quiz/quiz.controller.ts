@@ -486,11 +486,22 @@ export class QuizController {
   @Get('admin/error-logs')
   async getApiErrorLogs(
     @Query('limit') limitRaw: string | undefined,
+    @Query('includeResolved') includeResolvedRaw: string | undefined,
     @Headers('Authorization') authHeader: string,
   ) {
     await this.requireAdmin(authHeader);
     const limit = limitRaw !== undefined ? Number(limitRaw) : 50;
-    return this.quizService.getApiErrorLogs(limit);
+    const includeResolved = includeResolvedRaw === 'true';
+    return this.quizService.getApiErrorLogs(limit, includeResolved);
+  }
+
+  @Post('admin/error-logs/:logId/resolve')
+  async resolveApiErrorLog(
+    @Param('logId', ParseIntPipe) logId: number,
+    @Headers('Authorization') authHeader: string,
+  ) {
+    const adminId = await this.requireAdmin(authHeader);
+    return this.quizService.resolveApiErrorLog(logId, adminId);
   }
 
   // ─── Database CRUD Management ──────────────────────────────────────────

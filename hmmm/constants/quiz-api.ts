@@ -100,6 +100,8 @@ export type ApiErrorLogItem = {
   statusCode: number;
   message: string;
   details?: Record<string, any>;
+  resolved?: boolean;
+  resolvedAtIso?: string | null;
   createdAtIso: string;
 };
 
@@ -411,9 +413,17 @@ export const fetchMyQuizResponses = (quizId: string) =>
     })
   );
 
-export const adminFetchApiErrorLogs = (limit: number = 25) =>
+export const adminFetchApiErrorLogs = (limit: number = 25, includeResolved: boolean = false) =>
   json<ApiErrorLogItem[]>(
-    fetch(apiUrl(`/quiz/admin/error-logs?limit=${encodeURIComponent(String(limit))}`), {
+    fetch(apiUrl(`/quiz/admin/error-logs?limit=${encodeURIComponent(String(limit))}&includeResolved=${includeResolved ? 'true' : 'false'}`), {
+      headers: getAuthHeaders(),
+    })
+  );
+
+export const adminResolveApiErrorLog = (logId: number) =>
+  json<{ success: boolean }>(
+    fetch(apiUrl(`/quiz/admin/error-logs/${encodeURIComponent(String(logId))}/resolve`), {
+      method: 'POST',
       headers: getAuthHeaders(),
     })
   );
