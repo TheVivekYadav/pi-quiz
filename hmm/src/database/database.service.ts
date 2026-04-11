@@ -84,6 +84,19 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       );
     `);
 
+    // API error logs for admin observability
+    await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS api_error_logs (
+        id BIGSERIAL PRIMARY KEY,
+        method TEXT NOT NULL,
+        path TEXT NOT NULL,
+        status_code INTEGER NOT NULL,
+        message TEXT NOT NULL,
+        details JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+
     // Quizzes table
     await this.pool.query(`
       CREATE TABLE IF NOT EXISTS quizzes (
@@ -262,6 +275,12 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     );
     await this.pool.query(
       'CREATE INDEX IF NOT EXISTS idx_auth_logs_user_id_created_at ON auth_logs(user_id, created_at DESC);',
+    );
+    await this.pool.query(
+      'CREATE INDEX IF NOT EXISTS idx_api_error_logs_created_at ON api_error_logs(created_at DESC);',
+    );
+    await this.pool.query(
+      'CREATE INDEX IF NOT EXISTS idx_api_error_logs_status_created_at ON api_error_logs(status_code, created_at DESC);',
     );
 
     // Insert default admin user if not exists

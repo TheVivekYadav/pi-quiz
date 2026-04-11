@@ -1653,12 +1653,36 @@ export class QuizService {
     };
   }
 
+  async getApiErrorLogs(limit = 50) {
+    const pool = this.databaseService.getPool();
+    const safeLimit = Math.max(1, Math.min(200, Number(limit) || 50));
+
+    const result = await pool.query(
+      `SELECT id, method, path, status_code, message, details, created_at
+       FROM api_error_logs
+       ORDER BY created_at DESC
+       LIMIT $1`,
+      [safeLimit],
+    );
+
+    return result.rows.map((row: any) => ({
+      id: Number(row.id),
+      method: row.method,
+      path: row.path,
+      statusCode: Number(row.status_code),
+      message: row.message,
+      details: row.details ?? {},
+      createdAtIso: new Date(row.created_at).toISOString(),
+    }));
+  }
+
   // ─── Database CRUD Management ──────────────────────────────────────────
 
   private readonly ALLOWED_TABLES = [
     'users',
     'user_sessions',
     'auth_logs',
+    'api_error_logs',
     'quizzes',
     'quiz_questions',
     'quiz_enrollments',
@@ -1679,6 +1703,7 @@ export class QuizService {
     forms: ['id', 'title', 'created_at'],
     user_sessions: ['id', 'user_id', 'platform', 'created_at'],
     auth_logs: ['id', 'user_id', 'event_type', 'created_at'],
+    api_error_logs: ['id', 'method', 'path', 'status_code', 'created_at'],
   };
 
   private validateTableName(tableName: string): void {

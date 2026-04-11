@@ -482,6 +482,17 @@ export class QuizController {
     return this.quizService.adminGetQuizReport(resolvedQuizId);
   }
 
+  // Admin: recent API error logs
+  @Get('admin/error-logs')
+  async getApiErrorLogs(
+    @Query('limit') limitRaw: string | undefined,
+    @Headers('Authorization') authHeader: string,
+  ) {
+    await this.requireAdmin(authHeader);
+    const limit = limitRaw !== undefined ? Number(limitRaw) : 50;
+    return this.quizService.getApiErrorLogs(limit);
+  }
+
   // ─── Database CRUD Management ──────────────────────────────────────────
 
   // Admin: list all tables

@@ -1,6 +1,6 @@
 import { adminListUsers, AdminUserItem } from "@/constants/auth-api";
 import { getAuthToken, isAdmin } from "@/constants/auth-session";
-import { adminDeclareWinners, adminDeleteQuiz, adminListQuizzes, adminStartQuiz, adminUpdateQuizSchedule, adminUpdateQuizVisibility, QuizListItem } from "@/constants/quiz-api";
+import { adminDeclareWinners, adminDeleteQuiz, adminFetchApiErrorLogs, adminListQuizzes, adminStartQuiz, adminUpdateQuizSchedule, adminUpdateQuizVisibility, ApiErrorLogItem, QuizListItem } from "@/constants/quiz-api";
 import { useTheme } from "@/hook/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -32,6 +32,8 @@ export default function AdminTab() {
     const [users, setUsers] = useState<AdminUserItem[]>([]);
     const [loadingUsers, setLoadingUsers] = useState(true);
     const [userSearch, setUserSearch] = useState("");
+    const [apiErrors, setApiErrors] = useState<ApiErrorLogItem[]>([]);
+    const [loadingApiErrors, setLoadingApiErrors] = useState(true);
 
     useEffect(() => {
         if (!isAdmin()) return;
@@ -49,7 +51,24 @@ export default function AdminTab() {
         } else {
             setLoadingUsers(false);
         }
+
+        adminFetchApiErrorLogs(20)
+            .then(setApiErrors)
+            .catch(() => { })
+            .finally(() => setLoadingApiErrors(false));
     }, []);
+
+    const refreshApiErrors = async () => {
+        setLoadingApiErrors(true);
+        try {
+            const rows = await adminFetchApiErrorLogs(20);
+            setApiErrors(rows);
+        } catch (err: any) {
+            Alert.alert("Error", err?.message || "Failed to load API error logs.");
+        } finally {
+            setLoadingApiErrors(false);
+        }
+    };
 
     const handleDelete = (quiz: QuizListItem) => {
         Alert.alert(
@@ -268,6 +287,45 @@ export default function AdminTab() {
                         <Text style={[styles.createQuizButtonText, { color: theme.textInverse }]}>Create Quiz</Text>
                     </Pressable>
                 </View>
+            </View>
+
+            <View style={[styles.card, { backgroundColor: theme.surfaceLight, borderColor: theme.border }]}>
+                <View style={styles.quizHeaderRow}>
+                    <View style={styles.quizHeaderCopy}>
+                        <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Nest API Error Logs</Text>
+                        <Text style={[styles.cardSub, { color: theme.textSecondary }]}>Latest API failures captured from backend.</Text>
+                    </View>
+                    <Pressable
+                        onPress={refreshApiErrors}
+                        style={({ pressed }) => [
+                            styles.createQuizButton,
+                            { backgroundColor: theme.primary, opacity: pressed ? 0.92 : 1 },
+                        ]}
+                    >
+                        <Ionicons name="refresh" size={18} color={theme.textInverse} />
+                        <Text style={[styles.createQuizButtonText, { color: theme.textInverse }]}>Refresh</Text>
+                    </Pressable>
+                </View>
+
+                {loadingApiErrors && <ActivityIndicator color={theme.primary} style={styles.loader} />}
+
+                {!loadingApiErrors && apiErrors.length === 0 && (
+                    <Text style={[styles.quizMeta, { color: theme.textMuted }]}>No recent API errors.</Text>
+                )}
+
+                {!loadingApiErrors && apiErrors.slice(0, 8).map((item) => (
+                    <View key={item.id} style={[styles.errorLogRow, { borderColor: theme.border, backgroundColor: theme.surface }]}>
+                        <Text style={[styles.errorLogTitle, { color: theme.textPrimary }]} numberOfLines={1}>
+                            {item.method} • {item.statusCode} • {item.path}
+                        </Text>
+                        <Text style={[styles.errorLogMessage, { color: theme.textSecondary }]} numberOfLines={2}>
+                            {item.message}
+                        </Text>
+                        <Text style={[styles.errorLogTime, { color: theme.textMuted }]} numberOfLines={1}>
+                            {new Date(item.createdAtIso).toLocaleString()}
+                        </Text>
+                    </View>
+                ))}
             </View>
 
             {/* ── Quiz list ── */}
@@ -669,4 +727,13 @@ const styles = StyleSheet.create({
         fontSize: 13,
     },
     editActionsRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 4 },
+    errorLogRow: {
+        borderWidth: 1,
+        borderRadius: 10,
+        padding: 10,
+        marginTop: 8,
+    },
+    errorLogTitle: { fontSize: 12, fontWeight: "800" },
+    errorLogMessage: { marginTop: 4, fontSize: 12, lineHeight: 17 },
+    errorLogTime: { marginTop: 6, fontSize: 11, fontWeight: "600" },
 });

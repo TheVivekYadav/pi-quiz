@@ -1,9 +1,10 @@
 import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { ApiErrorLoggingFilter } from './common/api-error-logging.filter';
 import { DatabaseModule } from './database/database.module';
 import { FormsModule } from './forms/forms.module';
 import { QuizModule } from './quiz/quiz.module';
@@ -22,6 +23,7 @@ import { ResponsesModule } from './response/responses.module';
   providers: [
     AppService,
     { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_FILTER, useClass: ApiErrorLoggingFilter },
   ],
 })
 export class AppModule {}

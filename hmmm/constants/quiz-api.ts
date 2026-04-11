@@ -93,6 +93,16 @@ export type QuizReportsPayload = {
   insights?: string[];
 };
 
+export type ApiErrorLogItem = {
+  id: number;
+  method: string;
+  path: string;
+  statusCode: number;
+  message: string;
+  details?: Record<string, any>;
+  createdAtIso: string;
+};
+
 const getAuthHeaders = (includeJsonContentType = true) => {
   const token = getAuthToken();
   return {
@@ -397,6 +407,13 @@ export const fetchMyQuizResponses = (quizId: string) =>
     isCorrect: boolean;
   }[]>(
     fetch(apiUrl(`/quiz/${quizId}/my-responses`), {
+      headers: getAuthHeaders(),
+    })
+  );
+
+export const adminFetchApiErrorLogs = (limit: number = 25) =>
+  json<ApiErrorLogItem[]>(
+    fetch(apiUrl(`/quiz/admin/error-logs?limit=${encodeURIComponent(String(limit))}`), {
       headers: getAuthHeaders(),
     })
   );
