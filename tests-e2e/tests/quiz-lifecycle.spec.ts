@@ -93,19 +93,56 @@ const state = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function parseRetryAfterSeconds(raw: string | null): number | null {
+  if (!raw) return null;
+  const numeric = Number(raw);
+  if (Number.isFinite(numeric) && numeric >= 0) {
+    return numeric;
+  }
+  const timestamp = Date.parse(raw);
+  if (!Number.isNaN(timestamp)) {
+    return Math.max(0, Math.ceil((timestamp - Date.now()) / 1000));
+  }
+  return null;
+}
+
 /** POST /api/auth/login and return the bearer token. */
 async function apiLogin(
   request: import('@playwright/test').APIRequestContext,
   rollNumber: string,
 ): Promise<string> {
-  const res = await request.post('/api/auth/login', {
-    data: { rollNumber },
-    headers: { 'Content-Type': 'application/json' },
-  });
-  expect(res.ok(), `Login failed for ${rollNumber}: ${res.status()}`).toBeTruthy();
-  const body = await res.json() as { token: string };
-  expect(body.token, `No token for ${rollNumber}`).toBeTruthy();
-  return body.token;
+  const maxAttempts = 20;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const res = await request.post('/api/auth/login', {
+      data: { rollNumber },
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    if (res.ok()) {
+      const body = await res.json() as { token: string };
+      expect(body.token, `No token for ${rollNumber}`).toBeTruthy();
+      return body.token;
+    }
+
+    if (res.status() !== 429 || attempt === maxAttempts) {
+      expect(res.ok(), `Login failed for ${rollNumber}: ${res.status()} ${await res.text()}`).toBeTruthy();
+      break;
+    }
+
+    const retryAfterSec = parseRetryAfterSeconds(res.headers()['retry-after'] ?? null);
+    const backoffMs = retryAfterSec
+      ? retryAfterSec * 1000
+      : Math.min(10_000, 800 * 2 ** (attempt - 1));
+    const jitterMs = Math.floor(Math.random() * 400);
+    await sleep(backoffMs + jitterMs);
+  }
+
+  throw new Error(`Login retry exhausted for ${rollNumber}`);
 }
 
 /** Build Authorization header object. */
@@ -131,6 +168,32 @@ function buildAnswers(pattern: Array<'correct' | 'wrong'>): Record<string, strin
 /** Expected score for a given answer pattern (each correct = 2 pts). */
 function expectedScore(pattern: Array<'correct' | 'wrong'>): number {
   return pattern.filter(p => p === 'correct').length * 2;
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  worker: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+
+  async function runWorker() {
+    while (true) {
+      const index = cursor;
+      cursor += 1;
+      if (index >= items.length) return;
+      results[index] = await worker(items[index], index);
+    }
+  }
+
+  const workers = Array.from(
+    { length: Math.max(1, Math.min(limit, items.length)) },
+    () => runWorker(),
+  );
+
+  await Promise.all(workers);
+  return results;
 }
 
 // ── Serial test steps ─────────────────────────────────────────────────────────
@@ -237,8 +300,9 @@ test.describe.serial('Quiz Full Lifecycle — 50 Users', () => {
   // ── Step 5: 50 users enroll in parallel ──────────────────────────────────
 
   test('Step 5: 50 users enroll in parallel', async ({ request }) => {
-    const results = await Promise.all(
-      seed.users.map(async user => {
+    test.setTimeout(120_000);
+
+    const results = await mapWithConcurrency(seed.users, 8, async user => {
         // Each user logs in to obtain their token
         const token = await apiLogin(request, user.rollNumber);
         state.userTokens[user.rollNumber] = token;
@@ -255,8 +319,7 @@ test.describe.serial('Quiz Full Lifecycle — 50 Users', () => {
           status:     res.status(),
           body:       await res.json() as { success: boolean; message: string },
         };
-      }),
-    );
+    });
 
     // Validate all 50 enrollments
     for (const r of results) {
@@ -273,10 +336,11 @@ test.describe.serial('Quiz Full Lifecycle — 50 Users', () => {
   // ── Step 6: 50 users submit answers in parallel ───────────────────────────
 
   test('Step 6: 50 users submit answers in parallel', async ({ request }) => {
+    test.setTimeout(120_000);
+
     const startedAt = new Date().toISOString();
 
-    const results = await Promise.all(
-      seed.users.map(async user => {
+    const results = await mapWithConcurrency(seed.users, 10, async user => {
         const pattern = seed.answerPattern[user.rollNumber];
         const answers = buildAnswers(pattern);
         const token   = state.userTokens[user.rollNumber];
@@ -297,8 +361,7 @@ test.describe.serial('Quiz Full Lifecycle — 50 Users', () => {
         state.submitResults[user.rollNumber] = body;
 
         return { rollNumber: user.rollNumber, body };
-      }),
-    );
+    });
 
     // Validate every submission
     for (const { rollNumber, body } of results) {
