@@ -1,4 +1,5 @@
 import { adminDeclareWinners, adminFetchQuizReport } from "@/constants/quiz-api";
+import { formatOrdinalRank } from "@/constants/rank-format";
 import { useTheme } from "@/hook/theme";
 import { useRequireAuth } from "@/hook/useRequireAuth";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -257,7 +258,7 @@ export default function QuizReportScreen() {
                 topScorers.map((scorer: any) => (
                     <View key={scorer.rollNumber} style={[styles.scorerRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                         <View style={[styles.rankBadge, { backgroundColor: medalByRank[scorer.rank]?.color ? `${medalByRank[scorer.rank].color}18` : `${theme.primary}12` }]}>
-                            <Text style={styles.rankEmoji}>{medalByRank[scorer.rank]?.emoji ?? `#${scorer.rank}`}</Text>
+                            <Text style={styles.rankEmoji}>{formatOrdinalRank(scorer.rank)}</Text>
                         </View>
                         <View style={{ flex: 1 }}>
                             <Text style={[styles.scorerName, { color: theme.textPrimary }]}>{scorer.user}</Text>

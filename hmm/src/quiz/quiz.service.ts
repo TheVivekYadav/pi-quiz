@@ -733,19 +733,20 @@ export class QuizService {
 
     const result = await pool.query(
       `SELECT u.id as user_id, u.name, u.roll_number, MAX(qa.score) as score,
-              ROW_NUMBER() OVER (ORDER BY MAX(qa.score) DESC) as rank
+              MIN(qa.submitted_at) as first_submitted_at,
+              DENSE_RANK() OVER (ORDER BY MAX(qa.score) DESC) as rank
        FROM quiz_attempts qa
        JOIN users u ON qa.user_id = u.id
        WHERE qa.quiz_id = $1
        GROUP BY u.id, u.name, u.roll_number
-       ORDER BY score DESC
+       ORDER BY score DESC, first_submitted_at ASC, u.roll_number ASC
        LIMIT 10`,
       [quizId],
     );
 
     // Return a flat array matching frontend QuizListItem expectations
     return result.rows.map((row: any, idx: number) => ({
-      rank: idx + 1,
+      rank: parseInt(row.rank) || idx + 1,
       user: row.name || row.roll_number || `User ${idx + 1}`,
       rollNumber: row.roll_number,
       score: parseInt(row.score) || 0,
@@ -1541,12 +1542,13 @@ export class QuizService {
     // Fetch top-3 participants by max score
     const topResult = await pool.query(
       `SELECT u.id as user_id, u.name, u.roll_number, MAX(qa.score) as score,
-              ROW_NUMBER() OVER (ORDER BY MAX(qa.score) DESC) as rank
+              MIN(qa.submitted_at) as first_submitted_at,
+              DENSE_RANK() OVER (ORDER BY MAX(qa.score) DESC) as rank
        FROM quiz_attempts qa
        JOIN users u ON qa.user_id = u.id
        WHERE qa.quiz_id = $1
        GROUP BY u.id, u.name, u.roll_number
-       ORDER BY score DESC
+       ORDER BY score DESC, first_submitted_at ASC, u.roll_number ASC
        LIMIT 3`,
       [quizId],
     );
@@ -1585,12 +1587,13 @@ export class QuizService {
 
     const topResult = await pool.query(
       `SELECT u.name, u.roll_number, MAX(qa.score) as score,
-              ROW_NUMBER() OVER (ORDER BY MAX(qa.score) DESC) as rank
+              MIN(qa.submitted_at) as first_submitted_at,
+              DENSE_RANK() OVER (ORDER BY MAX(qa.score) DESC) as rank
        FROM quiz_attempts qa
        JOIN users u ON qa.user_id = u.id
        WHERE qa.quiz_id = $1
        GROUP BY u.name, u.roll_number
-       ORDER BY score DESC
+       ORDER BY score DESC, first_submitted_at ASC, u.roll_number ASC
        LIMIT 3`,
       [quizId],
     );
@@ -1634,12 +1637,13 @@ export class QuizService {
       ),
       pool.query(
         `SELECT u.name, u.roll_number, MAX(qa.score) as score,
-                ROW_NUMBER() OVER (ORDER BY MAX(qa.score) DESC) as rank
+          MIN(qa.submitted_at) as first_submitted_at,
+                DENSE_RANK() OVER (ORDER BY MAX(qa.score) DESC) as rank
          FROM quiz_attempts qa
          JOIN users u ON qa.user_id = u.id
          WHERE qa.quiz_id = $1
          GROUP BY u.name, u.roll_number
-         ORDER BY score DESC
+         ORDER BY score DESC, first_submitted_at ASC, u.roll_number ASC
          LIMIT 10`,
         [quizId],
       ),

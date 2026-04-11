@@ -1,6 +1,7 @@
 import { fetchQuizWinners } from "@/constants/quiz-api";
-import { useRequireAuth } from "@/hook/useRequireAuth";
+import { formatOrdinalRank } from "@/constants/rank-format";
 import { useTheme } from "@/hook/theme";
+import { useRequireAuth } from "@/hook/useRequireAuth";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -78,6 +79,9 @@ export default function WinnersScreen() {
                                 ]}
                             >
                                 <Text style={styles.medal}>{MEDAL[idx] ?? "🏅"}</Text>
+                                <Text style={[styles.podiumRank, { color: theme.textMuted }]}>
+                                    {formatOrdinalRank(winner.rank)}
+                                </Text>
                                 <Text style={[styles.winnerName, { color: theme.textPrimary }]} numberOfLines={1}>
                                     {winner.user}
                                 </Text>
@@ -98,7 +102,7 @@ export default function WinnersScreen() {
                             style={[styles.row, { backgroundColor: theme.surfaceLight, borderColor: theme.border }]}
                         >
                             <Text style={[styles.rank, { color: theme.textMuted }]}>
-                                {MEDAL[winner.rank - 1] ?? `#${winner.rank}`}
+                                {formatOrdinalRank(winner.rank)}
                             </Text>
                             <View style={styles.rowInfo}>
                                 <Text style={[styles.rowName, { color: theme.textPrimary }]}>{winner.user}</Text>
@@ -141,6 +145,7 @@ const styles = StyleSheet.create({
         gap: 4,
     },
     medal: { fontSize: 30 },
+    podiumRank: { fontSize: 12, fontWeight: "700" },
     winnerName: { fontSize: 13, fontWeight: "700", textAlign: "center" },
     winnerRoll: { fontSize: 11, textAlign: "center" },
     winnerScore: { fontSize: 15, fontWeight: "800" },

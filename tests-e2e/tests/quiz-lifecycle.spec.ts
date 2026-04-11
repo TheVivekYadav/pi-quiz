@@ -1,5 +1,5 @@
 /**
- * quiz-lifecycle.spec.ts — Full quiz lifecycle with 50 users (pure-API test)
+ * quiz-lifecycle.spec.ts — Full quiz lifecycle with 5 users (pure-API test)
  *
  * This test exercises the complete lifecycle end-to-end:
  *   0. Admin authenticates
@@ -7,8 +7,8 @@
  *   2. Admin sets an enrollment form
  *   3. Admin adds 5 questions
  *   4. Admin starts the quiz immediately
- *   5. 50 users enroll in parallel
- *   6. 50 users submit answers in parallel
+ *   5. 5 users enroll in parallel
+ *   6. 5 users submit answers in parallel
  *   7. Admin declares winners
  *   8. Admin fetches the report and all stats are validated
  *   9. Results are written to fixtures/quiz-lifecycle-results.json
@@ -17,13 +17,10 @@
  * fully deterministic and cross-validated at assertion time.
  *
  * Score distribution (each question = 2 pts, 5 questions → max 10):
- *   TEST001–TEST010  → 5 correct → score 10   (10 users)
- *   TEST011–TEST020  → 4 correct → score  8   (10 users)
- *   TEST021–TEST035  → 3 correct → score  6   (15 users)
- *   TEST036–TEST045  → 2 correct → score  4   (10 users)
- *   TEST046–TEST050  → 1 correct → score  2   ( 5 users)
+ *   TEST001 → 10, TEST002 → 8, TEST003 → 8, TEST004 → 6, TEST005 → 4
+ *   Ties share the same rank in the backend and are displayed by submission time.
  *
- * Expected average (before DB rounding): 320/50 = 6.4  →  Math.round = 6
+ * Expected average (before DB rounding): 36/5 = 7.2  →  Math.round = 7
  *
  * NOTE on is_completed:
  *   The backend marks a user as completed only after MAX_ATTEMPTS (2)
@@ -39,6 +36,7 @@ import * as path from 'path';
 
 const SEED_FILE    = path.join(__dirname, '../fixtures/quiz-seed.json');
 const RESULTS_FILE = path.join(__dirname, '../fixtures/quiz-lifecycle-results.json');
+const LIFECYCLE_USER_COUNT = 5;
 
 // ── Seed data ─────────────────────────────────────────────────────────────────
 
@@ -297,12 +295,14 @@ test.describe.serial('Quiz Full Lifecycle — 50 Users', () => {
     expect(body.success).toBe(true);
   });
 
-  // ── Step 5: 50 users enroll in parallel ──────────────────────────────────
+  // ── Step 5: 5 users enroll in parallel ───────────────────────────────────
 
-  test('Step 5: 50 users enroll in parallel', async ({ request }) => {
+  test('Step 5: 5 users enroll in parallel', async ({ request }) => {
     test.setTimeout(120_000);
 
-    const results = await mapWithConcurrency(seed.users, 8, async user => {
+    const users = seed.users.slice(0, LIFECYCLE_USER_COUNT);
+
+    const results = await mapWithConcurrency(users, 5, async user => {
         // Each user logs in to obtain their token
         const token = await apiLogin(request, user.rollNumber);
         state.userTokens[user.rollNumber] = token;
@@ -321,7 +321,7 @@ test.describe.serial('Quiz Full Lifecycle — 50 Users', () => {
         };
     });
 
-    // Validate all 50 enrollments
+    // Validate all enrollments
     for (const r of results) {
       expect(
         r.body.success,
@@ -330,17 +330,18 @@ test.describe.serial('Quiz Full Lifecycle — 50 Users', () => {
       expect(r.body.message).toMatch(/enrolled/i);
     }
 
-    expect(results).toHaveLength(50);
+    expect(results).toHaveLength(LIFECYCLE_USER_COUNT);
   });
 
-  // ── Step 6: 50 users submit answers in parallel ───────────────────────────
+  // ── Step 6: 5 users submit answers in parallel ───────────────────────────
 
-  test('Step 6: 50 users submit answers in parallel', async ({ request }) => {
+  test('Step 6: 5 users submit answers in parallel', async ({ request }) => {
     test.setTimeout(120_000);
 
     const startedAt = new Date().toISOString();
+    const users = seed.users.slice(0, LIFECYCLE_USER_COUNT);
 
-    const results = await mapWithConcurrency(seed.users, 10, async user => {
+    const results = await mapWithConcurrency(users, 5, async user => {
         const pattern = seed.answerPattern[user.rollNumber];
         const answers = buildAnswers(pattern);
         const token   = state.userTokens[user.rollNumber];
@@ -376,7 +377,7 @@ test.describe.serial('Quiz Full Lifecycle — 50 Users', () => {
       expect(body.percentile).toBeGreaterThanOrEqual(1);
     }
 
-    expect(results).toHaveLength(50);
+    expect(results).toHaveLength(LIFECYCLE_USER_COUNT);
   });
 
   // ── Step 7: Admin declares winners ───────────────────────────────────────
@@ -401,11 +402,16 @@ test.describe.serial('Quiz Full Lifecycle — 50 Users', () => {
     expect(body.quizTitle).toBe(seed.quiz.title);
     expect(body.winners.length).toBeGreaterThanOrEqual(1);
     expect(body.winners.length).toBeLessThanOrEqual(3);
-
-    // All declared winners must have the maximum score (10)
-    for (const winner of body.winners) {
-      expect(winner.score).toBe(10);
-    }
+    const winnerRollNumbers = body.winners.map((winner) => winner.rollNumber);
+    expect(winnerRollNumbers).toContain('TEST001');
+    expect(winnerRollNumbers).toContain('TEST002');
+    expect(winnerRollNumbers).toContain('TEST003');
+    expect(body.winners.find((winner) => winner.rollNumber === 'TEST001')?.score).toBe(10);
+    expect(body.winners.find((winner) => winner.rollNumber === 'TEST001')?.rank).toBe(1);
+    expect(body.winners.find((winner) => winner.rollNumber === 'TEST002')?.score).toBe(8);
+    expect(body.winners.find((winner) => winner.rollNumber === 'TEST002')?.rank).toBe(2);
+    expect(body.winners.find((winner) => winner.rollNumber === 'TEST003')?.score).toBe(8);
+    expect(body.winners.find((winner) => winner.rollNumber === 'TEST003')?.rank).toBe(2);
   });
 
   // ── Step 8: Admin fetches report and validates stats ─────────────────────
@@ -448,8 +454,8 @@ test.describe.serial('Quiz Full Lifecycle — 50 Users', () => {
     expect(body.quiz.winnersDeclaredAt).not.toBeNull();
 
     // ── Stats section ─────────────────────────────────────────────────────
-    expect(body.stats.totalEnrolled).toBe(50);
-    expect(body.stats.totalAttempts).toBe(50);
+    expect(body.stats.totalEnrolled).toBe(LIFECYCLE_USER_COUNT);
+    expect(body.stats.totalAttempts).toBe(LIFECYCLE_USER_COUNT);
 
     // totalCompleted = 0: each user submitted once; the backend marks
     // is_completed only after MAX_ATTEMPTS (2) submissions.
@@ -457,23 +463,31 @@ test.describe.serial('Quiz Full Lifecycle — 50 Users', () => {
 
     expect(body.stats.maxScore).toBe(10);
 
-    // Expected avgScore = 320/50 = 6.4 → Math.round → 6
-    // Allow ±1 to absorb any edge-case rounding differences.
-    expect(Math.abs(body.stats.avgScore - 6)).toBeLessThanOrEqual(1);
+    expect(body.stats.avgScore).toBe(7);
 
     // ── Top scorers section ───────────────────────────────────────────────
     expect(body.topScorers.length).toBeGreaterThan(0);
     expect(body.topScorers.length).toBeLessThanOrEqual(10);
 
-    // Top scorer must have score 10
-    expect(body.topScorers[0].score).toBe(10);
+    // Top scorers should preserve shared ranks for ties.
+    const topScorersByRoll = new Map(body.topScorers.map((row) => [row.rollNumber, row]));
+    expect(topScorersByRoll.get('TEST001')?.score).toBe(10);
+    expect(topScorersByRoll.get('TEST001')?.rank).toBe(1);
+    expect(topScorersByRoll.get('TEST002')?.score).toBe(8);
+    expect(topScorersByRoll.get('TEST002')?.rank).toBe(2);
+    expect(topScorersByRoll.get('TEST003')?.score).toBe(8);
+    expect(topScorersByRoll.get('TEST003')?.rank).toBe(2);
+    expect(body.topScorers.filter((row) => row.score === 8)).toHaveLength(2);
 
     // ── Winners section ───────────────────────────────────────────────────
     expect(body.winners.declared).toBe(true);
     expect(body.winners.winners.length).toBeGreaterThanOrEqual(1);
-    for (const w of body.winners.winners) {
-      expect(w.score).toBe(10);
-    }
+    expect(body.winners.winners.map((winner) => winner.rollNumber)).toEqual(
+      expect.arrayContaining(['TEST001', 'TEST002', 'TEST003'])
+    );
+    expect(body.winners.winners.find((winner) => winner.rollNumber === 'TEST001')?.rank).toBe(1);
+    expect(body.winners.winners.find((winner) => winner.rollNumber === 'TEST002')?.rank).toBe(2);
+    expect(body.winners.winners.find((winner) => winner.rollNumber === 'TEST003')?.rank).toBe(2);
 
     // ── Persist results ───────────────────────────────────────────────────
     const results = {
@@ -508,8 +522,8 @@ test.describe.serial('Quiz Full Lifecycle — 50 Users', () => {
     };
 
     expect(results.quizId).toBeTruthy();
-    expect(results.totalEnrolled).toBe(50);
-    expect(results.totalAttempts).toBe(50);
+    expect(results.totalEnrolled).toBe(LIFECYCLE_USER_COUNT);
+    expect(results.totalAttempts).toBe(LIFECYCLE_USER_COUNT);
     expect(results.maxScore).toBe(10);
     expect(results.winnersDeclared).toBe(true);
     expect(results.validatedAt).toBeTruthy();

@@ -1,7 +1,8 @@
 import { fetchQuizLeaderboard } from "@/constants/quiz-api";
 import { getQuizResult } from "@/constants/quiz-session";
-import { useRequireAuth } from "@/hook/useRequireAuth";
+import { formatOrdinalRank } from "@/constants/rank-format";
 import { useTheme } from "@/hook/theme";
+import { useRequireAuth } from "@/hook/useRequireAuth";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -74,7 +75,7 @@ export default function ResultScreen() {
                 <Text style={[styles.panelTitle, { color: theme.textPrimary }]}>Leaderboard</Text>
                 {leaderboard.map((row) => (
                     <View key={`${row.rank}-${row.user}`} style={[styles.row, { borderColor: theme.border, backgroundColor: row.currentUser ? theme.primaryMuted : theme.surfaceLight }]}>
-                        <Text style={[styles.rank, { color: theme.textSecondary }]}>{String(row.rank).padStart(2, "0")}</Text>
+                        <Text style={[styles.rank, { color: theme.textSecondary }]}>{formatOrdinalRank(row.rank)}</Text>
                         <Text style={[styles.user, { color: theme.textPrimary }]}>{row.user}{row.currentUser ? " (You)" : ""}</Text>
                         <Text style={[styles.score, { color: theme.primary }]}>{row.score}/{result.total}</Text>
                     </View>

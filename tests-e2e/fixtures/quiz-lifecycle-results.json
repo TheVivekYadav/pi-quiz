@@ -1,0 +1,62 @@
+{
+  "quizId": "9310",
+  "totalEnrolled": 5,
+  "totalCompleted": 0,
+  "totalAttempts": 5,
+  "avgScore": 10,
+  "maxScore": 10,
+  "winnersDeclared": true,
+  "winners": [
+    {
+      "rank": 1,
+      "user": "TEST001",
+      "rollNumber": "TEST001",
+      "score": 10
+    },
+    {
+      "rank": 2,
+      "user": "TEST002",
+      "rollNumber": "TEST002",
+      "score": 10
+    },
+    {
+      "rank": 3,
+      "user": "TEST003",
+      "rollNumber": "TEST003",
+      "score": 10
+    }
+  ],
+  "topScorers": [
+    {
+      "rank": 1,
+      "user": "TEST001",
+      "rollNumber": "TEST001",
+      "score": 10
+    },
+    {
+      "rank": 2,
+      "user": "TEST002",
+      "rollNumber": "TEST002",
+      "score": 10
+    },
+    {
+      "rank": 3,
+      "user": "TEST003",
+      "rollNumber": "TEST003",
+      "score": 10
+    },
+    {
+      "rank": 4,
+      "user": "TEST004",
+      "rollNumber": "TEST004",
+      "score": 10
+    },
+    {
+      "rank": 5,
+      "user": "TEST005",
+      "rollNumber": "TEST005",
+      "score": 10
+    }
+  ],
+  "validatedAt": "2026-04-11T13:06:33.693Z"
+}
