@@ -3,10 +3,20 @@ import { getQuizResult } from "@/constants/quiz-session";
 import { formatOrdinalRank } from "@/constants/rank-format";
 import { useTheme } from "@/hook/theme";
 import { useRequireAuth } from "@/hook/useRequireAuth";
+import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+const RANK_MEDALS: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
+
+function getFeedback(accuracyRate: number): { emoji: string; message: string } {
+    if (accuracyRate >= 80) return { emoji: "🚀", message: "Outstanding! Keep it up!" };
+    if (accuracyRate >= 60) return { emoji: "🙂", message: "Good attempt! Room to improve." };
+    if (accuracyRate >= 40) return { emoji: "📚", message: "Keep practising — you'll get there!" };
+    return { emoji: "😢", message: "Needs improvement. Try again!" };
+}
 
 export default function ResultScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
@@ -21,23 +31,21 @@ export default function ResultScreen() {
 
     useEffect(() => {
         if (!quizId) return;
-
         const run = async () => {
             const lb = await fetchQuizLeaderboard(quizId);
             setLeaderboard(lb);
         };
-
         run();
     }, [quizId]);
 
     if (!result) {
         return (
             <View style={[styles.center, { backgroundColor: theme.background }]}>
-                <Text style={[{ color: theme.textSecondary, fontSize: 15, textAlign: 'center', marginBottom: 16 }]}>
+                <Text style={{ color: theme.textSecondary, fontSize: 15, textAlign: "center", marginBottom: 16 }}>
                     Result not available. It may have been cleared.
                 </Text>
                 <Pressable
-                    style={[styles.cta, { backgroundColor: theme.buttonPrimary }]}
+                    style={[styles.ctaPrimary, { backgroundColor: theme.buttonPrimary }]}
                     onPress={() => router.replace("/(tabs)/index" as any)}
                 >
                     <Text style={[styles.ctaText, { color: theme.textInverse }]}>Back to Dashboard</Text>
@@ -46,60 +54,138 @@ export default function ResultScreen() {
         );
     }
 
+    const feedback = getFeedback(result.accuracyRate);
+
     return (
         <ScrollView
             style={[styles.root, { backgroundColor: theme.background }]}
             contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + 24, paddingHorizontal: 16 }}
         >
+            {/* Header */}
             <Text style={[styles.eyebrow, { color: theme.primary }]}>QUIZ COMPLETED</Text>
-            <Text style={[styles.title, { color: theme.textPrimary }]}>You scored {result.score}/{result.total}!</Text>
-            <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Accuracy rate: {result.accuracyRate}% • Top {100 - result.percentile}% today</Text>
 
-            <View style={[styles.accuracyCard, { backgroundColor: theme.buttonPrimary }]}>
-                <Text style={[styles.accuracyValue, { color: theme.textInverse }]}>{result.accuracyRate}%</Text>
-                <Text style={[styles.accuracyLabel, { color: theme.textInverse }]}>ACCURACY RATE</Text>
+            {/* Score hero card */}
+            <View style={[styles.heroCard, { backgroundColor: theme.buttonPrimary }]}>
+                <Text style={styles.heroEmoji}>{feedback.emoji}</Text>
+                <Text style={[styles.heroScore, { color: theme.textInverse }]}>
+                    {result.score} / {result.total}
+                </Text>
+                <Text style={[styles.heroAccuracy, { color: theme.textInverse }]}>{result.accuracyRate}% Accuracy</Text>
+                <View style={[styles.feedbackPill, { backgroundColor: "rgba(255,255,255,0.2)" }]}>
+                    <Text style={[styles.feedbackText, { color: theme.textInverse }]}>{feedback.message}</Text>
+                </View>
             </View>
 
-            <View style={[styles.panel, { backgroundColor: theme.surfaceLight, borderColor: theme.border }]}>
-                <Text style={[styles.panelTitle, { color: theme.textPrimary }]}>Performance Breakdown</Text>
-                <Text style={[styles.stat, { color: theme.textSecondary }]}>Correct: {result.breakdown.correct}</Text>
-                <Text style={[styles.stat, { color: theme.textSecondary }]}>Incorrect: {result.breakdown.incorrect}</Text>
-                <Text style={[styles.stat, { color: theme.textSecondary }]}>Time Taken: {result.breakdown.timeTakenMinutes}m</Text>
+            {/* Stats row */}
+            <View style={styles.statsRow}>
+                <View style={[styles.statBox, { backgroundColor: theme.successMuted, borderColor: theme.border }]}>
+                    <Ionicons name="checkmark-circle" size={20} color={theme.success} />
+                    <Text style={[styles.statValue, { color: theme.success }]}>{result.breakdown.correct}</Text>
+                    <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Correct</Text>
+                </View>
+                <View style={[styles.statBox, { backgroundColor: theme.errorMuted, borderColor: theme.border }]}>
+                    <Ionicons name="close-circle" size={20} color={theme.error} />
+                    <Text style={[styles.statValue, { color: theme.error }]}>{result.breakdown.incorrect}</Text>
+                    <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Wrong</Text>
+                </View>
+                <View style={[styles.statBox, { backgroundColor: theme.primaryMuted, borderColor: theme.border }]}>
+                    <Ionicons name="time-outline" size={20} color={theme.primary} />
+                    <Text style={[styles.statValue, { color: theme.primary }]}>{result.breakdown.timeTakenMinutes}m</Text>
+                    <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Time</Text>
+                </View>
+                <View style={[styles.statBox, { backgroundColor: theme.accentMuted, borderColor: theme.border }]}>
+                    <Ionicons name="trophy-outline" size={20} color={theme.accent} />
+                    <Text style={[styles.statValue, { color: theme.accent }]}>Top {100 - result.percentile}%</Text>
+                    <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Rank</Text>
+                </View>
             </View>
 
-            <View style={[styles.badge, { backgroundColor: theme.warning }]}>
-                <Text style={[styles.badgeText, { color: "#2d2500" }]}>New Badge! {result.badge}</Text>
-            </View>
-
-            <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                <Text style={[styles.panelTitle, { color: theme.textPrimary }]}>Leaderboard</Text>
-                {leaderboard.map((row) => (
-                    <View key={`${row.rank}-${row.user}`} style={[styles.row, { borderColor: theme.border, backgroundColor: row.currentUser ? theme.primaryMuted : theme.surfaceLight }]}>
-                        <Text style={[styles.rank, { color: theme.textSecondary }]}>{formatOrdinalRank(row.rank)}</Text>
-                        <Text style={[styles.user, { color: theme.textPrimary }]}>{row.user}{row.currentUser ? " (You)" : ""}</Text>
-                        <Text style={[styles.score, { color: theme.primary }]}>{row.score}/{result.total}</Text>
+            {/* Badge */}
+            {!!result.badge && (
+                <View style={[styles.badgeCard, { backgroundColor: theme.warningMuted, borderColor: theme.warning }]}>
+                    <Text style={styles.badgeIcon}>🎖️</Text>
+                    <View style={{ flex: 1 }}>
+                        <Text style={[styles.badgeTitle, { color: theme.textPrimary }]}>New Badge Earned!</Text>
+                        <Text style={[styles.badgeName, { color: theme.textPrimary }]}>{result.badge}</Text>
+                        <Text style={[styles.badgeSubtitle, { color: theme.textSecondary }]}>
+                            Awarded for participating in this quiz
+                        </Text>
                     </View>
-                ))}
+                </View>
+            )}
+
+            {/* Leaderboard */}
+            <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                <Text style={[styles.panelTitle, { color: theme.textPrimary }]}>🏆 Leaderboard</Text>
+                {leaderboard.length === 0 && (
+                    <Text style={[styles.emptyText, { color: theme.textMuted }]}>Loading results…</Text>
+                )}
+                {leaderboard.map((row) => {
+                    const medal = RANK_MEDALS[row.rank];
+                    const initials = (row.user as string)
+                        .split(" ")
+                        .map((w: string) => w[0])
+                        .slice(0, 2)
+                        .join("")
+                        .toUpperCase();
+                    return (
+                        <View
+                            key={`${row.rank}-${row.user}`}
+                            style={[
+                                styles.lbRow,
+                                {
+                                    borderColor: row.currentUser ? theme.primary : theme.border,
+                                    backgroundColor: row.currentUser ? theme.primaryMuted : theme.surfaceLight,
+                                    borderWidth: row.currentUser ? 2 : 1,
+                                },
+                            ]}
+                        >
+                            {medal ? (
+                                <Text style={styles.lbMedal}>{medal}</Text>
+                            ) : (
+                                <Text style={[styles.lbRankText, { color: theme.textSecondary }]}>
+                                    {formatOrdinalRank(row.rank)}
+                                </Text>
+                            )}
+                            <View style={[styles.avatar, { backgroundColor: row.currentUser ? theme.primary : theme.primaryMuted }]}>
+                                <Text style={[styles.avatarText, { color: row.currentUser ? theme.textInverse : theme.primary }]}>
+                                    {initials}
+                                </Text>
+                            </View>
+                            <Text style={[styles.lbUser, { color: theme.textPrimary }]}>
+                                {row.user}
+                                {row.currentUser ? " (You)" : ""}
+                            </Text>
+                            <Text style={[styles.lbScore, { color: theme.primary }]}>
+                                {row.score}/{result.total}
+                            </Text>
+                        </View>
+                    );
+                })}
             </View>
 
+            {/* Action buttons */}
             <Pressable
-                style={[styles.cta, { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border }]}
+                style={[styles.ctaSecondary, { backgroundColor: theme.surface, borderColor: theme.border }]}
                 onPress={() => quizId && router.push({ pathname: "/quiz/[id]/my-responses", params: { id: quizId } } as any)}
             >
-                <Text style={[styles.ctaText, { color: theme.primary }]}>📋 View My Answers</Text>
+                <Ionicons name="list-outline" size={18} color={theme.primary} />
+                <Text style={[styles.ctaText, { color: theme.primary }]}>View My Answers</Text>
             </Pressable>
 
             <Pressable
-                style={[styles.cta, { backgroundColor: theme.buttonPrimary }]}
+                style={[styles.ctaSecondary, { backgroundColor: theme.surface, borderColor: theme.border }]}
                 onPress={() => quizId && router.push({ pathname: "/quiz/[id]/winners", params: { id: quizId } } as any)}
             >
-                <Text style={[styles.ctaText, { color: theme.textInverse }]}>🏆 See Winners</Text>
+                <Ionicons name="trophy-outline" size={18} color={theme.accent} />
+                <Text style={[styles.ctaText, { color: theme.accent }]}>See Winners</Text>
             </Pressable>
 
             <Pressable
-                style={[styles.cta, { backgroundColor: theme.buttonPrimary }]}
+                style={[styles.ctaPrimary, { backgroundColor: theme.buttonPrimary }]}
                 onPress={() => router.replace("/(tabs)/index" as any)}
             >
+                <Ionicons name="home-outline" size={18} color={theme.textInverse} />
                 <Text style={[styles.ctaText, { color: theme.textInverse }]}>Back to Dashboard</Text>
             </Pressable>
         </ScrollView>
@@ -108,31 +194,41 @@ export default function ResultScreen() {
 
 const styles = StyleSheet.create({
     root: { flex: 1 },
-    center: { flex: 1, alignItems: "center", justifyContent: "center" },
-    eyebrow: { fontSize: 12, letterSpacing: 2, fontWeight: "700" },
-    title: { marginTop: 8, fontSize: 52, lineHeight: 54, fontWeight: "800" },
-    subtitle: { marginTop: 8, fontSize: 16, lineHeight: 24 },
-    accuracyCard: { marginTop: 14, borderRadius: 18, padding: 16, alignItems: "center" },
-    accuracyValue: { fontSize: 62, fontWeight: "800", lineHeight: 66 },
-    accuracyLabel: { fontSize: 12, letterSpacing: 2, fontWeight: "700" },
-    panel: { marginTop: 14, borderWidth: 1, borderRadius: 18, padding: 14 },
-    panelTitle: { fontSize: 35, fontWeight: "800", marginBottom: 8 },
-    stat: { fontSize: 15, lineHeight: 24 },
-    badge: { marginTop: 14, borderRadius: 16, padding: 16 },
-    badgeText: { fontSize: 24, fontWeight: "800" },
-    row: {
-        borderWidth: 1,
-        borderRadius: 12,
-        paddingHorizontal: 10,
-        paddingVertical: 12,
-        marginTop: 8,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 10,
-    },
-    rank: { fontSize: 14, fontWeight: "700", width: 26 },
-    user: { flex: 1, fontSize: 15, fontWeight: "600" },
-    score: { fontSize: 15, fontWeight: "700" },
-    cta: { marginTop: 16, borderRadius: 14, paddingVertical: 14, alignItems: "center" },
-    ctaText: { fontSize: 17, fontWeight: "700" },
+    center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
+
+    eyebrow: { fontSize: 12, letterSpacing: 2, fontWeight: "700", marginBottom: 8 },
+
+    heroCard: { borderRadius: 20, padding: 24, alignItems: "center", marginBottom: 12 },
+    heroEmoji: { fontSize: 48, marginBottom: 4 },
+    heroScore: { fontSize: 52, fontWeight: "800", lineHeight: 56 },
+    heroAccuracy: { fontSize: 16, fontWeight: "600", marginTop: 4, opacity: 0.9 },
+    feedbackPill: { marginTop: 10, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 6 },
+    feedbackText: { fontSize: 14, fontWeight: "600" },
+
+    statsRow: { flexDirection: "row", gap: 8, marginBottom: 12 },
+    statBox: { flex: 1, borderRadius: 14, borderWidth: 1, padding: 10, alignItems: "center", gap: 4 },
+    statValue: { fontSize: 18, fontWeight: "800" },
+    statLabel: { fontSize: 10, fontWeight: "600" },
+
+    badgeCard: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 16, padding: 14, gap: 12, marginBottom: 12 },
+    badgeIcon: { fontSize: 36 },
+    badgeTitle: { fontSize: 12, fontWeight: "700", letterSpacing: 1 },
+    badgeName: { fontSize: 18, fontWeight: "800", marginTop: 2 },
+    badgeSubtitle: { fontSize: 12, marginTop: 2 },
+
+    panel: { borderWidth: 1, borderRadius: 18, padding: 14, marginBottom: 12 },
+    panelTitle: { fontSize: 18, fontWeight: "800", marginBottom: 10 },
+    emptyText: { fontSize: 14, textAlign: "center", paddingVertical: 12 },
+
+    lbRow: { borderRadius: 12, paddingHorizontal: 10, paddingVertical: 10, marginBottom: 8, flexDirection: "row", alignItems: "center", gap: 10 },
+    lbMedal: { fontSize: 20, width: 28, textAlign: "center" },
+    lbRankText: { fontSize: 13, fontWeight: "700", width: 28, textAlign: "center" },
+    avatar: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+    avatarText: { fontSize: 12, fontWeight: "800" },
+    lbUser: { flex: 1, fontSize: 14, fontWeight: "600" },
+    lbScore: { fontSize: 14, fontWeight: "700" },
+
+    ctaPrimary: { marginBottom: 10, borderRadius: 14, paddingVertical: 14, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8 },
+    ctaSecondary: { marginBottom: 10, borderRadius: 14, paddingVertical: 14, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8, borderWidth: 1 },
+    ctaText: { fontSize: 16, fontWeight: "700" },
 });
