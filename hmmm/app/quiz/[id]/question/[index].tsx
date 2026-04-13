@@ -536,7 +536,7 @@ function QuestionContent({
                 <View
                     style={[
                         styles.progressFill,
-                        { backgroundColor: theme.primary, width: `${(data.current / data.total) * 100}%` as any },
+                        { backgroundColor: theme.primary, width: (`${(data.current / data.total) * 100}%` as `${number}%`) },
                     ]}
                 />
             </View>
@@ -773,7 +773,7 @@ const styles = StyleSheet.create({
         paddingVertical: 6,
         borderRadius: 999,
     },
-    timerPillText: { fontSize: 14, fontWeight: "800", fontVariant: ["tabular-nums"] as any },
+    timerPillText: { fontSize: 14, fontWeight: "800" },
 
     /* Progress */
     progressRow: {
