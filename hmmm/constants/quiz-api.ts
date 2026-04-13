@@ -25,6 +25,8 @@ export type EnrollmentForm = {
   fields: EnrollmentFormField[];
 };
 
+export type QuizImageMode = "banner" | "poster";
+
 export type QuizDetail = {
   id: string;
   title: string;
@@ -36,6 +38,7 @@ export type QuizDetail = {
   expectations: string[];
   curatorNote: string;
   imageUrl?: string;
+  imageMode?: QuizImageMode;
   enrollmentEnabled?: boolean;
   enrollmentStartsAtIso?: string | null;
   seats: { status: string; available: number };
@@ -220,6 +223,7 @@ export type CreateQuizPayload = {
   expectations?: string;
   curatorNote?: string;
   imageUrl?: string;
+  imageMode?: QuizImageMode;
 };
 
 export type AddQuestionPayload = {
@@ -280,6 +284,7 @@ export const adminUpdateQuizMetadata = (
     level?: "Beginner" | "Intermediate" | "Expert";
     durationMinutes?: number;
     imageUrl?: string;
+    imageMode?: QuizImageMode;
     enrollmentEnabled?: boolean;
     enrollmentStartsAt?: string | null;
   },

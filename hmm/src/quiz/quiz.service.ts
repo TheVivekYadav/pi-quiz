@@ -22,6 +22,7 @@ export interface QuizDetail {
   expectations?: string;
   curatorNote?: string;
   imageUrl?: string;
+  imageMode?: 'banner' | 'poster';
   enrollmentEnabled?: boolean;
   enrollmentStartsAtIso?: string | null;
 }
@@ -426,6 +427,7 @@ export class QuizService {
       expectations: quiz.expectations,
       curatorNote: quiz.curator_note,
       imageUrl: quiz.image_url,
+      imageMode: quiz.image_mode === 'poster' ? 'poster' : 'banner',
       enrollmentEnabled: quiz.enrollment_enabled !== false,
       enrollmentStartsAtIso: quiz.enrollment_starts_at ? new Date(quiz.enrollment_starts_at).toISOString() : null,
       enrollmentForm: quiz.form_id
@@ -860,6 +862,7 @@ export class QuizService {
     expectations?: string;
     curatorNote?: string;
     imageUrl?: string;
+    imageMode?: 'banner' | 'poster';
   }): Promise<QuizDetail> {
     const pool = this.databaseService.getPool();
     const id = randomUUID();
@@ -871,8 +874,8 @@ export class QuizService {
       try {
         await pool.query(
           `INSERT INTO quizzes
-             (id, short_id, title, topic, category, level, duration_minutes, starts_at, description, expectations, curator_note, image_url, created_by)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+             (id, short_id, title, topic, category, level, duration_minutes, starts_at, description, expectations, curator_note, image_url, image_mode, created_by)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
           [
             id,
             shortId,
@@ -886,6 +889,7 @@ export class QuizService {
             body.expectations ?? null,
             body.curatorNote ?? null,
             body.imageUrl ?? null,
+            body.imageMode ?? 'banner',
             createdByUserId,
           ],
         );
@@ -915,6 +919,7 @@ export class QuizService {
       expectations: body.expectations,
       curatorNote: body.curatorNote,
       imageUrl: body.imageUrl,
+      imageMode: body.imageMode ?? 'banner',
     };
   }
 
@@ -1289,7 +1294,7 @@ export class QuizService {
     return { success: true };
   }
 
-  /** Admin: update quiz metadata (title, description, category, level, durationMinutes, imageUrl). */
+  /** Admin: update quiz metadata (title, description, category, level, durationMinutes, imageUrl, imageMode). */
   async updateQuizMetadata(quizId: string, payload: any): Promise<{ success: boolean }> {
     const pool = this.databaseService.getPool();
 
@@ -1341,6 +1346,11 @@ export class QuizService {
     if (payload.imageUrl !== undefined) {
       updates.push(`image_url = $${paramIndex}`);
       values.push(payload.imageUrl || null);
+      paramIndex++;
+    }
+    if (payload.imageMode !== undefined) {
+      updates.push(`image_mode = $${paramIndex}`);
+      values.push(payload.imageMode || 'banner');
       paramIndex++;
     }
     if (payload.enrollmentEnabled !== undefined) {

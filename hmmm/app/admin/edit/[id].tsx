@@ -1,4 +1,4 @@
-import { adminSetEnrollmentForm, adminUpdateQuizMetadata, EnrollmentFormField, fetchQuizDetail, uploadQuizBannerImage } from "@/constants/quiz-api";
+import { adminSetEnrollmentForm, adminUpdateQuizMetadata, EnrollmentFormField, fetchQuizDetail, QuizImageMode, uploadQuizBannerImage } from "@/constants/quiz-api";
 import { useTheme } from "@/hook/theme";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -25,6 +25,11 @@ const ENROLL_FIELD_TYPES: Array<{ value: EnrollmentFormField["type"]; label: str
     { value: "phone", label: "Phone" },
     { value: "number", label: "Number" },
     { value: "select", label: "Dropdown" },
+];
+
+const IMAGE_MODES: Array<{ value: QuizImageMode; label: string }> = [
+    { value: "banner", label: "Banner (wide)" },
+    { value: "poster", label: "Poster (tall)" },
 ];
 
 const makeFieldId = () => `field_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -59,6 +64,7 @@ export default function EditQuizScreen() {
     const [enrollmentEnabled, setEnrollmentEnabled] = useState(true);
     const [enrollmentStartsAt, setEnrollmentStartsAt] = useState("");
     const [imageUrl, setImageUrl] = useState("");
+    const [imageMode, setImageMode] = useState<QuizImageMode>("banner");
     const [bannerPreview, setBannerPreview] = useState<string | null>(null);
     const [bannerUploading, setBannerUploading] = useState(false);
     const [formFields, setFormFields] = useState<EditableFormField[]>([]);
@@ -89,6 +95,7 @@ export default function EditQuizScreen() {
                     setEnrollmentStartsAt("");
                 }
                 setImageUrl(data.imageUrl || "");
+                setImageMode(data.imageMode === "poster" ? "poster" : "banner");
                 setBannerPreview(data.imageUrl || null);
                 const existingFields: EnrollmentFormField[] = data.enrollmentForm?.fields ?? [];
                 setFormFields(
@@ -122,7 +129,7 @@ export default function EditQuizScreen() {
             mediaTypes: ['images'],
             quality: 0.85,
             allowsEditing: true,
-            aspect: [16, 9],
+            aspect: imageMode === "poster" ? [3, 4] : [16, 9],
         });
 
         if (result.canceled || !result.assets?.length) return;
@@ -197,6 +204,7 @@ export default function EditQuizScreen() {
                 level: level as any,
                 durationMinutes: duration,
                 imageUrl: imageUrl.trim() || undefined,
+                imageMode,
                 enrollmentEnabled,
                 enrollmentStartsAt: enrollmentStartsAtIso,
             });
@@ -430,6 +438,24 @@ export default function EditQuizScreen() {
                 <Text style={[styles.helperText, { color: theme.textSecondary }]}>Leave empty to allow immediate enrollments.</Text>
 
                 <Text style={[styles.label, { color: theme.textPrimary, marginTop: 16 }]}>Banner Image</Text>
+                <View style={[styles.levelButtonGroup, { marginBottom: 4 }]}>
+                    {IMAGE_MODES.map((mode) => (
+                        <Pressable
+                            key={mode.value}
+                            onPress={() => setImageMode(mode.value)}
+                            disabled={saving || bannerUploading}
+                            style={[
+                                styles.levelButton,
+                                {
+                                    backgroundColor: imageMode === mode.value ? theme.primary : theme.surface,
+                                    borderColor: theme.border,
+                                },
+                            ]}
+                        >
+                            <Text style={[styles.levelButtonText, { color: imageMode === mode.value ? theme.textInverse : theme.textPrimary }]}>{mode.label}</Text>
+                        </Pressable>
+                    ))}
+                </View>
                 <Pressable
                     onPress={handlePickBannerImage}
                     disabled={bannerUploading || saving}
@@ -448,7 +474,7 @@ export default function EditQuizScreen() {
 
                 {bannerPreview && (
                     <View style={[styles.bannerPreviewCard, { borderColor: theme.border, backgroundColor: theme.surface }]}>
-                        <Image source={{ uri: bannerPreview }} style={styles.bannerPreviewImage} />
+                        <Image source={{ uri: bannerPreview }} style={[styles.bannerPreviewImage, imageMode === "poster" && styles.bannerPreviewImagePoster]} />
                         <Text style={[styles.bannerPreviewText, { color: theme.textSecondary }]} numberOfLines={1}>
                             {imageUrl || "Current banner preview"}
                         </Text>
@@ -657,6 +683,7 @@ const styles = StyleSheet.create({
         marginTop: 10,
     },
     bannerPreviewImage: { width: "100%", height: 180 },
+    bannerPreviewImagePoster: { height: 260, resizeMode: "contain", backgroundColor: "#00000008" },
     bannerPreviewText: { fontSize: 12, paddingHorizontal: 12, paddingVertical: 10 },
     clearBannerBtn: {
         minHeight: 42,

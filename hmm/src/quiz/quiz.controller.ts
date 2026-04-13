@@ -9,6 +9,8 @@ import { QuizService } from './quiz.service.js';
 
 @Controller('quiz')
 export class QuizController {
+  private readonly IMAGE_MODES = ['banner', 'poster'] as const;
+
   constructor(
     private readonly quizService: QuizService,
     private readonly authService: AuthService,
@@ -108,6 +110,13 @@ export class QuizController {
       throw new BadRequestException('title, topic, category, level, durationMinutes and startsAt are required');
     }
 
+    if (body.imageMode !== undefined && !this.IMAGE_MODES.includes(body.imageMode)) {
+      throw new BadRequestException(`imageMode must be one of: ${this.IMAGE_MODES.join(', ')}`);
+    }
+    const imageMode = body.imageMode !== undefined
+      ? (String(body.imageMode) as 'banner' | 'poster')
+      : undefined;
+
     return this.quizService.createQuiz(userId, {
       title: String(body.title),
       topic: String(body.topic),
@@ -119,6 +128,7 @@ export class QuizController {
       expectations: body.expectations ? String(body.expectations) : undefined,
       curatorNote: body.curatorNote ? String(body.curatorNote) : undefined,
       imageUrl: body.imageUrl ? String(body.imageUrl) : undefined,
+      imageMode,
     });
   }
 
@@ -416,6 +426,13 @@ export class QuizController {
       payload.level = body.level;
     }
     if (body?.imageUrl !== undefined) payload.imageUrl = String(body.imageUrl).trim();
+    if (body?.imageMode !== undefined) {
+      const mode = String(body.imageMode).trim();
+      if (!this.IMAGE_MODES.includes(mode as any)) {
+        throw new BadRequestException(`imageMode must be one of: ${this.IMAGE_MODES.join(', ')}`);
+      }
+      payload.imageMode = mode;
+    }
     if (body?.durationMinutes !== undefined) {
       payload.durationMinutes = Number(body.durationMinutes);
       if (payload.durationMinutes < 1 || payload.durationMinutes > 1440) {

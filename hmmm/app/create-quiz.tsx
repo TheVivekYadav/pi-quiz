@@ -4,7 +4,7 @@
  *  Step 2: Questions (text, options, correct answer, points)
  *  Step 3: Enrollment form (custom fields — label, type, required; or skip)
  */
-import { adminAddQuestion, adminCreateQuiz, adminSetEnrollmentForm, EnrollmentFormField, uploadQuizBannerImage } from "@/constants/quiz-api";
+import { adminAddQuestion, adminCreateQuiz, adminSetEnrollmentForm, EnrollmentFormField, QuizImageMode, uploadQuizBannerImage } from "@/constants/quiz-api";
 import { useTheme } from "@/hook/theme";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -42,6 +42,10 @@ const FIELD_TYPES: Array<{ value: EnrollmentFormField["type"]; label: string }> 
     { value: "phone", label: "Phone" },
     { value: "number", label: "Number" },
     { value: "select", label: "Dropdown" },
+];
+const IMAGE_MODES: Array<{ value: QuizImageMode; label: string }> = [
+    { value: "banner", label: "Banner (wide)" },
+    { value: "poster", label: "Poster (tall)" },
 ];
 
 function makeOptionId(qIdx: number, oIdx: number) {
@@ -99,6 +103,7 @@ export default function CreateQuizScreen() {
     const [description, setDescription] = useState("");
     const [curatorNote, setCuratorNote] = useState("");
     const [imageUrl, setImageUrl] = useState("");
+    const [imageMode, setImageMode] = useState<QuizImageMode>("banner");
     const [bannerPreview, setBannerPreview] = useState<string | null>(null);
     const [bannerUploading, setBannerUploading] = useState(false);
 
@@ -141,6 +146,7 @@ export default function CreateQuizScreen() {
                 description: description.trim() || undefined,
                 curatorNote: curatorNote.trim() || undefined,
                 imageUrl: imageUrl.trim() || undefined,
+                imageMode,
             });
             setQuizId(quiz.id);
             setStep("enrollform");
@@ -162,7 +168,7 @@ export default function CreateQuizScreen() {
             mediaTypes: ['images'],
             quality: 0.85,
             allowsEditing: true,
-            aspect: [16, 9],
+            aspect: imageMode === "poster" ? [3, 4] : [16, 9],
         });
 
         if (result.canceled || !result.assets?.length) return;
@@ -403,6 +409,26 @@ export default function CreateQuizScreen() {
                     <Field label="Curator Note" value={curatorNote} onChangeText={setCuratorNote} placeholder="A personal note for participants..." multiline theme={theme} />
                     <View>
                         <Text style={[styles.label, { color: theme.textSecondary }]}>Banner Image</Text>
+                        <View style={[styles.levelRow, { flexWrap: "wrap", marginBottom: 6 }]}>
+                            {IMAGE_MODES.map((mode) => (
+                                <Pressable
+                                    key={mode.value}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`Image mode ${mode.label}`}
+                                    onPress={() => setImageMode(mode.value)}
+                                    style={[
+                                        styles.levelChip,
+                                        {
+                                            backgroundColor: imageMode === mode.value ? theme.buttonPrimary : theme.surface,
+                                            borderColor: imageMode === mode.value ? theme.buttonPrimary : theme.border,
+                                        },
+                                    ]}
+                                >
+                                    <Text style={[styles.levelChipText, { color: imageMode === mode.value ? theme.textInverse : theme.textPrimary }]}>{mode.label}</Text>
+                                </Pressable>
+                            ))}
+                        </View>
+                        <Text style={[styles.label, { color: theme.textMuted }]}>Choose how this image is displayed on quiz page.</Text>
                         <Pressable
                             accessibilityRole="button"
                             accessibilityLabel={bannerPreview ? "Replace banner image" : "Upload banner image"}
@@ -423,7 +449,7 @@ export default function CreateQuizScreen() {
                         </Pressable>
                         {bannerPreview && (
                             <View style={[styles.bannerPreviewCard, { borderColor: theme.border, backgroundColor: theme.surface }]}>
-                                <Image source={{ uri: bannerPreview }} style={styles.bannerPreviewImage} />
+                                <Image source={{ uri: bannerPreview }} style={[styles.bannerPreviewImage, imageMode === "poster" && styles.bannerPreviewImagePoster]} />
                                 <Text style={[styles.bannerPreviewText, { color: theme.textSecondary }]} numberOfLines={1}>
                                     {imageUrl}
                                 </Text>
@@ -720,6 +746,7 @@ const styles = StyleSheet.create({
         marginTop: 12,
     },
     bannerPreviewImage: { width: "100%", height: 180, resizeMode: "cover" },
+    bannerPreviewImagePoster: { height: 260, resizeMode: "contain", backgroundColor: "#00000008" },
     bannerPreviewText: { fontSize: 12, paddingHorizontal: 10, paddingVertical: 8 },
     skipBtn: {
         borderRadius: 14,
