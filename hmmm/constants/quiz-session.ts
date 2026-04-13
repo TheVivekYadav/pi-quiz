@@ -3,11 +3,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 type SessionState = {
   answers: Record<string, Record<string, string>>;
   results: Record<string, any>;
+  /** quizId → { questionIndex → questionId } */
+  visitedQuestions: Record<string, Record<number, string>>;
+  /** quizId → ISO string when the first question was loaded */
+  examStartedAt: Record<string, string>;
 };
 
 const session: SessionState = {
   answers: {},
   results: {},
+  visitedQuestions: {},
+  examStartedAt: {},
 };
 
 const RESULTS_STORAGE_KEY = 'pi_quiz_results';
@@ -27,6 +33,29 @@ export const getQuizAnswers = (quizId: string) => session.answers[quizId] ?? {};
 export const clearQuizAnswers = (quizId: string) => {
   delete session.answers[quizId];
 };
+
+/** Record that a question at a given index was visited (stores index → questionId). */
+export const setVisitedQuestion = (quizId: string, index: number, questionId: string) => {
+  if (!session.visitedQuestions[quizId]) {
+    session.visitedQuestions[quizId] = {};
+  }
+  session.visitedQuestions[quizId][index] = questionId;
+};
+
+/** Returns the index→questionId map for a quiz. */
+export const getVisitedQuestions = (quizId: string): Record<number, string> =>
+  session.visitedQuestions[quizId] ?? {};
+
+/** Record when the exam started (only sets once per quiz). */
+export const setExamStartedAt = (quizId: string) => {
+  if (!session.examStartedAt[quizId]) {
+    session.examStartedAt[quizId] = new Date().toISOString();
+  }
+};
+
+/** Returns the ISO start time for the exam, or null if not started. */
+export const getExamStartedAt = (quizId: string): string | null =>
+  session.examStartedAt[quizId] ?? null;
 
 export const setQuizResult = (quizId: string, result: any) => {
   session.results[quizId] = result;
