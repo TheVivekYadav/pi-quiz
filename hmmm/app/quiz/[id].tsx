@@ -209,7 +209,7 @@ export default function QuizDetailScreen() {
                                 styles.bannerImage,
                                 data?.imageMode === "poster" ? styles.bannerImagePoster : styles.bannerImageWide,
                             ]}
-                            resizeMode={data?.imageMode === "poster" ? "contain" : "cover"}
+                            resizeMode="contain"
                         />
                     </View>
                 )}
@@ -384,7 +384,7 @@ const styles = StyleSheet.create({
     center: { flex: 1, alignItems: "center", justifyContent: "center" },
     banner: { borderWidth: 1, borderRadius: 14, overflow: 'hidden', marginBottom: 16 },
     bannerImage: { width: '100%' },
-    bannerImageWide: { height: 200 },
+    bannerImageWide: { aspectRatio: 16 / 9 },
     bannerImagePoster: { height: 420, backgroundColor: '#00000008' },
     brand: { fontSize: 20, fontWeight: "800" },
     title: { marginTop: 14, fontSize: 54, lineHeight: 56, fontWeight: "800" },
