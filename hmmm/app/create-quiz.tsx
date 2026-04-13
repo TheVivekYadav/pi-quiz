@@ -746,7 +746,7 @@ const styles = StyleSheet.create({
         marginTop: 12,
     },
     bannerPreviewImage: { width: "100%", height: 180, resizeMode: "cover" },
-    bannerPreviewImagePoster: { height: 260, resizeMode: "contain", backgroundColor: "#00000008" },
+    bannerPreviewImagePoster: { height: 260, resizeMode: "cover", backgroundColor: "#00000008" },
     bannerPreviewText: { fontSize: 12, paddingHorizontal: 10, paddingVertical: 8 },
     skipBtn: {
         borderRadius: 14,
