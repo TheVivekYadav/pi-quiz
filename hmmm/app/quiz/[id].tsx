@@ -30,6 +30,7 @@ export default function QuizDetailScreen() {
     const [loading, setLoading] = useState(true);
     const [enrolling, setEnrolling] = useState(false);
     const [alreadyCompleted, setAlreadyCompleted] = useState(false);
+    const [bannerAspectRatio, setBannerAspectRatio] = useState<number | null>(null);
 
     // Dynamic form answers keyed by field.id
     const [formAnswers, setFormAnswers] = useState<Record<string, string>>({});
@@ -68,6 +69,15 @@ export default function QuizDetailScreen() {
             cancelled = true;
         };
     }, [quizId]);
+
+    useEffect(() => {
+        if (!data?.imageUrl || data?.imageMode === "poster") return;
+        Image.getSize(
+            data.imageUrl,
+            (w, h) => { if (h > 0) setBannerAspectRatio(w / h); },
+            () => { setBannerAspectRatio(16 / 9); },
+        );
+    }, [data?.imageUrl, data?.imageMode]);
 
     const enrollmentForm: { formId: string; fields: EnrollmentFormField[] } | null =
         data?.enrollmentForm ?? null;
@@ -207,7 +217,11 @@ export default function QuizDetailScreen() {
                             source={{ uri: data.imageUrl }}
                             style={[
                                 styles.bannerImage,
-                                data?.imageMode === "poster" ? styles.bannerImagePoster : styles.bannerImageWide,
+                                data?.imageMode === "poster"
+                                    ? styles.bannerImagePoster
+                                    : bannerAspectRatio != null
+                                        ? { aspectRatio: bannerAspectRatio }
+                                        : styles.bannerImageWide,
                             ]}
                             resizeMode="contain"
                         />
