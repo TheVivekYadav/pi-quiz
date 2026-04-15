@@ -24,12 +24,6 @@ export class QuizController {
     private readonly authService: AuthService,
   ) {}
 
-  private extractToken(authHeader: string | undefined): string | null {
-    if (!authHeader) return null;
-    const parts = authHeader.split(' ');
-    return parts.length === 2 && parts[0] === 'Bearer' ? parts[1] : null;
-  }
-
   private getPublicBaseUrl(req: any): string {
     const configured = process.env.PUBLIC_BASE_URL?.trim();
     if (configured) return configured.replace(/\/$/, '');
@@ -313,7 +307,8 @@ export class QuizController {
     @Headers('Authorization') authHeader?: string,
   ) {
     const resolvedQuizId = await this.resolveQuizRef(quizId);
-    const token = this.extractToken(authHeader);
+    // Optional auth: check if the caller is an admin without requiring a token
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
     const auth = token ? await this.authService.verifyToken(token) : null;
     const isAdmin = auth?.role === 'admin';
     return this.quizService.getQuizDetail(resolvedQuizId, isAdmin);
