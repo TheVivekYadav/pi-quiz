@@ -119,8 +119,17 @@ const getAuthHeaders = (includeJsonContentType = true) => {
 const json = async <T>(resPromise: Promise<Response>): Promise<T> => {
   const res = await resPromise;
   if (!res.ok) {
-    const message = await res.text();
-    throw new Error(message || "Request failed");
+    // Try to extract a structured message from the JSON body first.
+    // If the server returned an HTML error page (e.g. a 502 from a proxy)
+    // parsing will fail and we fall back to a generic message.
+    let message = "Request failed";
+    try {
+      const body = await res.json();
+      message = body?.message ?? body?.error ?? message;
+    } catch {
+      // Non-JSON response (HTML, plain text, etc.) — keep generic message
+    }
+    throw new Error(message);
   }
 
   return (await res.json()) as T;

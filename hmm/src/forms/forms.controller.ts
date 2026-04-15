@@ -1,47 +1,24 @@
 // forms/forms.controller.ts
 
-import { BadRequestException, Body, Controller, ForbiddenException, Get, Headers, Param, Post } from '@nestjs/common';
-import { AuthService } from '../auth/auth.service';
-import { FormsService } from './forms.service';
+import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { AdminGuard } from '../common/admin.guard.js';
+import { FormsService } from './forms.service.js';
 
 @Controller('forms')
 export class FormsController {
-  constructor(
-    private readonly formsService: FormsService,
-    private readonly authService: AuthService,
-  ) {}
-
-  /** Extract Bearer token from Authorization header. */
-  private extractToken(authHeader: string): string | null {
-    if (!authHeader) return null;
-    const parts = authHeader.split(' ');
-    return parts.length === 2 && parts[0] === 'Bearer' ? parts[1] : null;
-  }
-
-  /** Verify token and require admin role. Returns userId. */
-  private async requireAdmin(authHeader: string): Promise<number> {
-    const token = this.extractToken(authHeader);
-    if (!token) throw new BadRequestException('Missing authorization token');
-    const isAdmin = await this.authService.isAdmin(token);
-    if (!isAdmin) throw new ForbiddenException('Admin access required');
-    const userId = await this.authService.getUserId(token);
-    return userId!;
-  }
+  constructor(private readonly formsService: FormsService) {}
 
   /** POST /forms — admin only */
+  @UseGuards(AdminGuard)
   @Post()
-  async create(
-    @Body() body: any,
-    @Headers('Authorization') authHeader: string,
-  ) {
-    await this.requireAdmin(authHeader);
+  async create(@Body() body: any, @Req() _req: any) {
     return this.formsService.create(body);
   }
 
   /** GET /forms — admin only */
+  @UseGuards(AdminGuard)
   @Get()
-  async findAll(@Headers('Authorization') authHeader: string) {
-    await this.requireAdmin(authHeader);
+  async findAll() {
     return this.formsService.findAll();
   }
 

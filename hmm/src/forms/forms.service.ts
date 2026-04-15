@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { DatabaseService } from '../database/database.service';
+import { DatabaseService } from '../database/database.service.js';
 
 /** Strip HTML tags from a string to prevent injection via field labels. */
 function sanitizeString(value: unknown): string {

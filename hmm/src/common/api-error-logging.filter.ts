@@ -7,7 +7,7 @@ import {
     Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
-import { DatabaseService } from '../database/database.service';
+import { DatabaseService } from '../database/database.service.js';
 
 @Catch()
 export class ApiErrorLoggingFilter implements ExceptionFilter {

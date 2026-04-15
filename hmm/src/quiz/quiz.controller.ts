@@ -1,10 +1,15 @@
-import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Headers, Param, ParseIntPipe, Post, Query, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Headers, Param, ParseIntPipe, Post, Query, Req, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { randomUUID } from 'crypto';
 import { mkdirSync } from 'fs';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
 import { AuthService } from '../auth/auth.service.js';
+import { AdminGuard } from '../common/admin.guard.js';
+import { AuthGuard } from '../common/auth.guard.js';
+import { DatabaseCrudService } from './database-crud.service.js';
+import { ErrorLogsService } from './error-logs.service.js';
+import { QuizAdminService } from './quiz-admin.service.js';
 import { QuizService } from './quiz.service.js';
 
 @Controller('quiz')
@@ -13,35 +18,13 @@ export class QuizController {
 
   constructor(
     private readonly quizService: QuizService,
+    private readonly quizAdminService: QuizAdminService,
+    private readonly databaseCrudService: DatabaseCrudService,
+    private readonly errorLogsService: ErrorLogsService,
     private readonly authService: AuthService,
   ) {}
 
-  private async getUserId(authHeader: string): Promise<number> {
-    const token = this.extractToken(authHeader);
-    if (!token) {
-      throw new BadRequestException('Missing authorization token');
-    }
-    const userId = await this.authService.getUserId(token);
-    if (!userId) {
-      throw new BadRequestException('Invalid authorization token');
-    }
-    return userId;
-  }
-
-  private async requireAdmin(authHeader: string): Promise<number> {
-    const token = this.extractToken(authHeader);
-    if (!token) {
-      throw new BadRequestException('Missing authorization token');
-    }
-    const isAdmin = await this.authService.isAdmin(token);
-    if (!isAdmin) {
-      throw new ForbiddenException('Admin access required');
-    }
-    const userId = await this.authService.getUserId(token);
-    return userId!;
-  }
-
-  private extractToken(authHeader: string): string | null {
+  private extractToken(authHeader: string | undefined): string | null {
     if (!authHeader) return null;
     const parts = authHeader.split(' ');
     return parts.length === 2 && parts[0] === 'Bearer' ? parts[1] : null;
@@ -66,46 +49,41 @@ export class QuizController {
     return this.quizService.resolveQuizRef(quizRef);
   }
 
+  // ─── User endpoints ──────────────────────────────────────────────────────
+
+  @UseGuards(AuthGuard)
   @Get('home')
-  async getHome(@Headers('Authorization') authHeader: string) {
-    const userId = await this.getUserId(authHeader);
-    return this.quizService.getHome(userId);
+  async getHome(@Req() req: any) {
+    return this.quizService.getHome(req.authUser.userId);
   }
 
+  @UseGuards(AuthGuard)
   @Get('reports/overview')
   async getReportsOverview(
-    @Headers('Authorization') authHeader: string,
+    @Req() req: any,
     @Query('range') range?: 'today' | 'week' | 'month' | 'all',
   ) {
-    const token = this.extractToken(authHeader);
-    if (!token) throw new BadRequestException('Missing authorization token');
-    const userId = await this.authService.getUserId(token);
-    if (!userId) throw new BadRequestException('Invalid authorization token');
-    const isAdmin = await this.authService.isAdmin(token);
-    return this.quizService.getReportsOverview(userId, isAdmin ? 'admin' : 'user', range ?? 'all');
+    const { userId, role } = req.authUser;
+    return this.quizService.getReportsOverview(userId, role === 'admin' ? 'admin' : 'user', range ?? 'all');
   }
 
+  @UseGuards(AuthGuard)
   @Get('upcoming')
-  async listUpcoming(@Headers('Authorization') authHeader: string) {
-    const userId = await this.getUserId(authHeader);
-    return this.quizService.listUpcoming(userId);
+  async listUpcoming(@Req() req: any) {
+    return this.quizService.listUpcoming(req.authUser.userId);
   }
 
-  // ─── Admin endpoints ────────────────────────────────────────────────────
+  // ─── Admin endpoints ─────────────────────────────────────────────────────
 
+  @UseGuards(AdminGuard)
   @Get('admin/list')
-  async listAllQuizzes(@Headers('Authorization') authHeader: string) {
-    await this.requireAdmin(authHeader);
-    return this.quizService.listAllQuizzes();
+  async listAllQuizzes() {
+    return this.quizAdminService.listAllQuizzes();
   }
 
+  @UseGuards(AdminGuard)
   @Post()
-  async createQuiz(
-    @Body() body: any,
-    @Headers('Authorization') authHeader: string,
-  ) {
-    const userId = await this.requireAdmin(authHeader);
-
+  async createQuiz(@Body() body: any, @Req() req: any) {
     if (!body.title || !body.topic || !body.category || !body.level || !body.durationMinutes || !body.startsAt) {
       throw new BadRequestException('title, topic, category, level, durationMinutes and startsAt are required');
     }
@@ -117,7 +95,7 @@ export class QuizController {
       ? (String(body.imageMode) as 'banner' | 'poster')
       : undefined;
 
-    return this.quizService.createQuiz(userId, {
+    return this.quizAdminService.createQuiz(req.authUser.userId, {
       title: String(body.title),
       topic: String(body.topic),
       category: String(body.category),
@@ -132,6 +110,7 @@ export class QuizController {
     });
   }
 
+  @UseGuards(AdminGuard)
   @Post('banner-upload')
   @UseInterceptors(FileInterceptor('file', {
     storage: diskStorage({
@@ -158,11 +137,8 @@ export class QuizController {
   }))
   async uploadBannerImage(
     @UploadedFile() file: Express.Multer.File,
-    @Headers('Authorization') authHeader: string,
     @Req() req: any,
   ) {
-    await this.requireAdmin(authHeader);
-
     if (!file) {
       throw new BadRequestException('Banner image file is required');
     }
@@ -173,85 +149,61 @@ export class QuizController {
     };
   }
 
+  @UseGuards(AdminGuard)
   @Get(':quizId/questions')
-  async listQuestions(
-    @Param('quizId') quizId: string,
-    @Headers('Authorization') authHeader: string,
-  ) {
-    await this.requireAdmin(authHeader);
+  async listQuestions(@Param('quizId') quizId: string) {
     const resolvedQuizId = await this.resolveQuizRef(quizId);
-    return this.quizService.getQuizQuestions(resolvedQuizId);
+    return this.quizAdminService.getQuizQuestions(resolvedQuizId);
   }
 
+  @UseGuards(AdminGuard)
   @Delete(':quizId/questions/:questionId')
   async deleteQuestion(
     @Param('quizId') quizId: string,
     @Param('questionId') questionId: string,
-    @Headers('Authorization') authHeader: string,
   ) {
-    await this.requireAdmin(authHeader);
     const resolvedQuizId = await this.resolveQuizRef(quizId);
-    return this.quizService.deleteQuestion(resolvedQuizId, questionId);
+    return this.quizAdminService.deleteQuestion(resolvedQuizId, questionId);
   }
 
-  // Admin: get all user responses for a quiz
+  @UseGuards(AdminGuard)
   @Get(':quizId/admin-responses')
-  async getAdminResponses(
-    @Param('quizId') quizId: string,
-    @Headers('Authorization') authHeader: string,
-  ) {
-    await this.requireAdmin(authHeader);
+  async getAdminResponses(@Param('quizId') quizId: string) {
     const resolvedQuizId = await this.resolveQuizRef(quizId);
-    return this.quizService.adminGetQuizResponses(resolvedQuizId);
+    return this.quizAdminService.adminGetQuizResponses(resolvedQuizId);
   }
 
-  // Admin: get all enrollments for a quiz with form data
+  @UseGuards(AdminGuard)
   @Get(':quizId/admin/enrollments')
-  async getAdminEnrollments(
-    @Param('quizId') quizId: string,
-    @Headers('Authorization') authHeader: string,
-  ) {
-    await this.requireAdmin(authHeader);
+  async getAdminEnrollments(@Param('quizId') quizId: string) {
     const resolvedQuizId = await this.resolveQuizRef(quizId);
-    return this.quizService.getQuizEnrollments(resolvedQuizId);
+    return this.quizAdminService.getQuizEnrollments(resolvedQuizId);
   }
 
-  // Admin: remove a single user's enrollment from a quiz
+  @UseGuards(AdminGuard)
   @Delete(':quizId/admin/enrollments/:userId')
   async removeAdminEnrollment(
     @Param('quizId') quizId: string,
     @Param('userId', ParseIntPipe) userId: number,
-    @Headers('Authorization') authHeader: string,
   ) {
-    await this.requireAdmin(authHeader);
     const resolvedQuizId = await this.resolveQuizRef(quizId);
-    return this.quizService.adminRemoveEnrollment(resolvedQuizId, userId);
+    return this.quizAdminService.adminRemoveEnrollment(resolvedQuizId, userId);
   }
 
-  // User: get their own responses for a quiz
+  @UseGuards(AuthGuard)
   @Get(':quizId/my-responses')
-  async getMyResponses(
-    @Param('quizId') quizId: string,
-    @Headers('Authorization') authHeader: string,
-  ) {
-    const userId = await this.getUserId(authHeader);
+  async getMyResponses(@Param('quizId') quizId: string, @Req() req: any) {
     const resolvedQuizId = await this.resolveQuizRef(quizId);
-    return this.quizService.getUserQuizResponses(resolvedQuizId, userId);
+    return this.quizService.getUserQuizResponses(resolvedQuizId, req.authUser.userId);
   }
 
+  @UseGuards(AdminGuard)
   @Post(':quizId/questions')
-  async addQuestion(
-    @Param('quizId') quizId: string,
-    @Body() body: any,
-    @Headers('Authorization') authHeader: string,
-  ) {
-    await this.requireAdmin(authHeader);
-
+  async addQuestion(@Param('quizId') quizId: string, @Body() body: any) {
     if (!body.text || !Array.isArray(body.options) || body.options.length < 2 || !body.correctOptionId) {
       throw new BadRequestException('text, options (array with ≥2 items) and correctOptionId are required');
     }
 
-    // Validate imageUrl must be an https:// URL if provided
     if (body.imageUrl !== undefined && body.imageUrl !== null && body.imageUrl !== '') {
       let validUrl = false;
       try {
@@ -266,8 +218,7 @@ export class QuizController {
     }
 
     const resolvedQuizId = await this.resolveQuizRef(quizId);
-
-    return this.quizService.addQuestion(resolvedQuizId, {
+    return this.quizAdminService.addQuestion(resolvedQuizId, {
       text: String(body.text),
       imageUrl: body.imageUrl ? String(body.imageUrl) : undefined,
       options: body.options,
@@ -276,30 +227,21 @@ export class QuizController {
     });
   }
 
+  @UseGuards(AdminGuard)
   @Delete(':quizId')
-  async deleteQuiz(
-    @Param('quizId') quizId: string,
-    @Headers('Authorization') authHeader: string,
-  ) {
-    await this.requireAdmin(authHeader);
+  async deleteQuiz(@Param('quizId') quizId: string) {
     const resolvedQuizId = await this.resolveQuizRef(quizId);
-    return this.quizService.deleteQuiz(resolvedQuizId);
+    return this.quizAdminService.deleteQuiz(resolvedQuizId);
   }
 
+  @UseGuards(AdminGuard)
   @Post(':quizId/enrollment-form')
-  async setEnrollmentForm(
-    @Param('quizId') quizId: string,
-    @Body() body: any,
-    @Headers('Authorization') authHeader: string,
-  ) {
-    await this.requireAdmin(authHeader);
-
+  async setEnrollmentForm(@Param('quizId') quizId: string, @Body() body: any) {
     const fields = body?.fields;
     if (!Array.isArray(fields) || fields.length === 0) {
       throw new BadRequestException('fields must be a non-empty array');
     }
 
-    // Validate each field
     const VALID_TYPES = ['text', 'email', 'phone', 'number', 'select'];
     for (const f of fields) {
       if (!f.id || !f.label || !VALID_TYPES.includes(f.type)) {
@@ -313,7 +255,7 @@ export class QuizController {
     }
 
     const resolvedQuizId = await this.resolveQuizRef(quizId);
-    return this.quizService.setEnrollmentForm(resolvedQuizId, fields);
+    return this.quizAdminService.setEnrollmentForm(resolvedQuizId, fields);
   }
 
   @Get(':quizId/enrollment-form')
@@ -322,85 +264,73 @@ export class QuizController {
     return this.quizService.getEnrollmentForm(resolvedQuizId);
   }
 
-  // ─── User endpoints ─────────────────────────────────────────────────────
-
+  @UseGuards(AuthGuard)
   @Post(':quizId/enroll')
-  async enrollQuiz(
-    @Param('quizId') quizId: string,
-    @Body() body: any,
-    @Headers('Authorization') authHeader: string,
-  ) {
-    const userId = await this.getUserId(authHeader);
+  async enrollQuiz(@Param('quizId') quizId: string, @Body() body: any, @Req() req: any) {
     const resolvedQuizId = await this.resolveQuizRef(quizId);
-    return this.quizService.enrollUser(userId, resolvedQuizId, body?.formAnswers);
+    return this.quizService.enrollUser(req.authUser.userId, resolvedQuizId, body?.formAnswers);
   }
 
+  @UseGuards(AuthGuard)
   @Get(':quizId/lobby')
-  async getLobby(
-    @Param('quizId') quizId: string,
-    @Headers('Authorization') authHeader: string,
-  ) {
-    const userId = await this.getUserId(authHeader);
+  async getLobby(@Param('quizId') quizId: string, @Req() req: any) {
     const resolvedQuizId = await this.resolveQuizRef(quizId);
-    return this.quizService.getLobby(resolvedQuizId, userId);
+    return this.quizService.getLobby(resolvedQuizId, req.authUser.userId);
   }
 
+  @UseGuards(AuthGuard)
   @Get(':quizId/leaderboard')
-  async getLeaderboard(
-    @Param('quizId') quizId: string,
-    @Headers('Authorization') authHeader: string,
-  ) {
-    const userId = await this.getUserId(authHeader);
+  async getLeaderboard(@Param('quizId') quizId: string, @Req() req: any) {
     const resolvedQuizId = await this.resolveQuizRef(quizId);
-    return this.quizService.getLeaderboard(resolvedQuizId, userId);
+    return this.quizService.getLeaderboard(resolvedQuizId, req.authUser.userId);
   }
 
+  @UseGuards(AuthGuard)
   @Get(':quizId/question/:index')
   async getQuestion(
     @Param('quizId') quizId: string,
     @Param('index', ParseIntPipe) index: number,
-    @Headers('Authorization') authHeader: string,
+    @Req() req: any,
   ) {
-    const userId = await this.getUserId(authHeader);
     const resolvedQuizId = await this.resolveQuizRef(quizId);
-    return this.quizService.getQuestion(resolvedQuizId, userId, index);
+    return this.quizService.getQuestion(resolvedQuizId, req.authUser.userId, index);
   }
 
+  @UseGuards(AuthGuard)
   @Post(':quizId/submit')
-  async submitQuiz(
-    @Param('quizId') quizId: string,
-    @Body() body: any,
-    @Headers('Authorization') authHeader: string,
-  ) {
-    const userId = await this.getUserId(authHeader);
+  async submitQuiz(@Param('quizId') quizId: string, @Body() body: any, @Req() req: any) {
     const resolvedQuizId = await this.resolveQuizRef(quizId);
-    return this.quizService.submitQuiz(resolvedQuizId, userId, body.answers || {}, body.startedAt);
+    return this.quizService.submitQuiz(resolvedQuizId, req.authUser.userId, body.answers || {}, body.startedAt);
   }
 
+  /**
+   * Public quiz detail endpoint.
+   * #7 – Passes isAdmin flag so the service can hide invisible quizzes from non-admins.
+   */
   @Get(':quizId')
-  async getQuizDetail(@Param('quizId') quizId: string) {
-    const resolvedQuizId = await this.resolveQuizRef(quizId);
-    return this.quizService.getQuizDetail(resolvedQuizId);
-  }
-
-  // Admin: start quiz immediately
-  @Post(':quizId/start')
-  async startQuiz(@Param('quizId') quizId: string, @Headers('Authorization') authHeader: string) {
-    await this.requireAdmin(authHeader);
-    const resolvedQuizId = await this.resolveQuizRef(quizId);
-    return this.quizService.startQuiz(resolvedQuizId);
-  }
-
-  // Admin: update quiz schedule (start time and/or duration)
-  @Post(':quizId/schedule')
-  async updateQuizSchedule(
+  async getQuizDetail(
     @Param('quizId') quizId: string,
-    @Body() body: any,
-    @Headers('Authorization') authHeader: string,
+    @Headers('Authorization') authHeader?: string,
   ) {
-    await this.requireAdmin(authHeader);
     const resolvedQuizId = await this.resolveQuizRef(quizId);
-    return this.quizService.updateQuizSchedule(resolvedQuizId, {
+    const token = this.extractToken(authHeader);
+    const auth = token ? await this.authService.verifyToken(token) : null;
+    const isAdmin = auth?.role === 'admin';
+    return this.quizService.getQuizDetail(resolvedQuizId, isAdmin);
+  }
+
+  @UseGuards(AdminGuard)
+  @Post(':quizId/start')
+  async startQuiz(@Param('quizId') quizId: string) {
+    const resolvedQuizId = await this.resolveQuizRef(quizId);
+    return this.quizAdminService.startQuiz(resolvedQuizId);
+  }
+
+  @UseGuards(AdminGuard)
+  @Post(':quizId/schedule')
+  async updateQuizSchedule(@Param('quizId') quizId: string, @Body() body: any) {
+    const resolvedQuizId = await this.resolveQuizRef(quizId);
+    return this.quizAdminService.updateQuizSchedule(resolvedQuizId, {
       startsAt: body?.startsAt ? String(body.startsAt) : undefined,
       durationMinutes:
         body?.durationMinutes !== undefined && body?.durationMinutes !== null
@@ -409,14 +339,9 @@ export class QuizController {
     });
   }
 
-  // Admin: update quiz metadata
+  @UseGuards(AdminGuard)
   @Post(':quizId/metadata')
-  async updateQuizMetadata(
-    @Param('quizId') quizId: string,
-    @Body() body: any,
-    @Headers('Authorization') authHeader: string,
-  ) {
-    await this.requireAdmin(authHeader);
+  async updateQuizMetadata(@Param('quizId') quizId: string, @Body() body: any) {
     const resolvedQuizId = await this.resolveQuizRef(quizId);
     const payload: any = {};
     if (body?.title !== undefined) payload.title = String(body.title).trim();
@@ -448,99 +373,74 @@ export class QuizController {
     if (body?.enrollmentStartsAt !== undefined) {
       payload.enrollmentStartsAt = body.enrollmentStartsAt ? String(body.enrollmentStartsAt) : null;
     }
-    return this.quizService.updateQuizMetadata(resolvedQuizId, payload);
+    return this.quizAdminService.updateQuizMetadata(resolvedQuizId, payload);
   }
 
-  // Admin: set quiz visibility
+  @UseGuards(AdminGuard)
   @Post(':quizId/visibility')
-  async updateQuizVisibility(
-    @Param('quizId') quizId: string,
-    @Body() body: any,
-    @Headers('Authorization') authHeader: string,
-  ) {
-    await this.requireAdmin(authHeader);
+  async updateQuizVisibility(@Param('quizId') quizId: string, @Body() body: any) {
     if (typeof body?.visible !== 'boolean') {
       throw new BadRequestException('visible must be boolean');
     }
     const resolvedQuizId = await this.resolveQuizRef(quizId);
-    return this.quizService.updateQuizVisibility(resolvedQuizId, body.visible);
+    return this.quizAdminService.updateQuizVisibility(resolvedQuizId, body.visible);
   }
 
-  // Admin: declare winners for a quiz
+  @UseGuards(AdminGuard)
   @Post(':quizId/declare-winners')
-  async declareWinners(
-    @Param('quizId') quizId: string,
-    @Headers('Authorization') authHeader: string,
-  ) {
-    const adminId = await this.requireAdmin(authHeader);
+  async declareWinners(@Param('quizId') quizId: string, @Req() req: any) {
     const resolvedQuizId = await this.resolveQuizRef(quizId);
-    return this.quizService.adminDeclareWinners(resolvedQuizId, adminId);
+    return this.quizAdminService.adminDeclareWinners(resolvedQuizId, req.authUser.userId);
   }
 
-  // Any authenticated user: get declared winners
+  @UseGuards(AuthGuard)
   @Get(':quizId/winners')
-  async getWinners(
-    @Param('quizId') quizId: string,
-    @Headers('Authorization') authHeader: string,
-  ) {
-    await this.getUserId(authHeader);
+  async getWinners(@Param('quizId') quizId: string) {
     const resolvedQuizId = await this.resolveQuizRef(quizId);
     return this.quizService.getWinners(resolvedQuizId);
   }
 
-  // Admin: full quiz report
+  @UseGuards(AdminGuard)
   @Get(':quizId/report')
-  async getQuizReport(
-    @Param('quizId') quizId: string,
-    @Headers('Authorization') authHeader: string,
-  ) {
-    await this.requireAdmin(authHeader);
+  async getQuizReport(@Param('quizId') quizId: string) {
     const resolvedQuizId = await this.resolveQuizRef(quizId);
-    return this.quizService.adminGetQuizReport(resolvedQuizId);
+    return this.quizAdminService.adminGetQuizReport(resolvedQuizId);
   }
 
-  // Admin: recent API error logs
+  // ─── Admin: API error logs ───────────────────────────────────────────────
+
+  @UseGuards(AdminGuard)
   @Get('admin/error-logs')
   async getApiErrorLogs(
     @Query('limit') limitRaw: string | undefined,
     @Query('includeResolved') includeResolvedRaw: string | undefined,
-    @Headers('Authorization') authHeader: string,
   ) {
-    await this.requireAdmin(authHeader);
     const limit = limitRaw !== undefined ? Number(limitRaw) : 50;
     const includeResolved = includeResolvedRaw === 'true';
-    return this.quizService.getApiErrorLogs(limit, includeResolved);
+    return this.errorLogsService.getApiErrorLogs(limit, includeResolved);
   }
 
+  @UseGuards(AdminGuard)
   @Post('admin/error-logs/:logId/resolve')
-  async resolveApiErrorLog(
-    @Param('logId', ParseIntPipe) logId: number,
-    @Headers('Authorization') authHeader: string,
-  ) {
-    const adminId = await this.requireAdmin(authHeader);
-    return this.quizService.resolveApiErrorLog(logId, adminId);
+  async resolveApiErrorLog(@Param('logId', ParseIntPipe) logId: number, @Req() req: any) {
+    return this.errorLogsService.resolveApiErrorLog(logId, req.authUser.userId);
   }
 
-  // ─── Database CRUD Management ──────────────────────────────────────────
+  // ─── Admin: Database CRUD management ─────────────────────────────────────
 
-  // Admin: list all tables
+  @UseGuards(AdminGuard)
   @Get('admin/database/tables')
-  async listDatabaseTables(@Headers('Authorization') authHeader: string) {
-    await this.requireAdmin(authHeader);
-    return this.quizService.getDatabaseTables();
+  async listDatabaseTables() {
+    return this.databaseCrudService.getDatabaseTables();
   }
 
-  // Admin: get table schema
+  @UseGuards(AdminGuard)
   @Get('admin/database/:tableName/schema')
-  async getTableSchema(
-    @Param('tableName') tableName: string,
-    @Headers('Authorization') authHeader: string,
-  ) {
-    await this.requireAdmin(authHeader);
-    return this.quizService.getTableSchema(tableName);
+  async getTableSchema(@Param('tableName') tableName: string) {
+    return this.databaseCrudService.getTableSchema(tableName);
   }
 
-  // Admin: get table records with pagination
+  @UseGuards(AdminGuard)
   @Get('admin/database/:tableName/records')
   async getTableRecords(
     @Param('tableName') tableName: string,
@@ -551,10 +451,8 @@ export class QuizController {
     @Query('nullOnly') nullOnly?: string,
     @Query('sortBy') sortBy?: string,
     @Query('sortDir') sortDir?: 'asc' | 'desc',
-    @Headers('Authorization') authHeader?: string,
   ) {
-    await this.requireAdmin(authHeader || '');
-    return this.quizService.getTableRecords(tableName, {
+    return this.databaseCrudService.getTableRecords(tableName, {
       limit: limit || 50,
       offset: offset || 0,
       search: search?.trim() || undefined,
@@ -565,47 +463,34 @@ export class QuizController {
     });
   }
 
-  // Admin: insert record
+  @UseGuards(AdminGuard)
   @Post('admin/database/:tableName/records')
-  async createTableRecord(
-    @Param('tableName') tableName: string,
-    @Body() data: any,
-    @Headers('Authorization') authHeader: string,
-  ) {
-    await this.requireAdmin(authHeader);
-    return this.quizService.createTableRecord(tableName, data);
+  async createTableRecord(@Param('tableName') tableName: string, @Body() data: any) {
+    return this.databaseCrudService.createTableRecord(tableName, data);
   }
 
-  // Admin: update record
+  @UseGuards(AdminGuard)
   @Post('admin/database/:tableName/records/:recordId')
   async updateTableRecord(
     @Param('tableName') tableName: string,
     @Param('recordId') recordId: string,
     @Body() data: any,
-    @Headers('Authorization') authHeader: string,
   ) {
-    await this.requireAdmin(authHeader);
-    return this.quizService.updateTableRecord(tableName, recordId, data);
+    return this.databaseCrudService.updateTableRecord(tableName, recordId, data);
   }
 
-  // Admin: delete record
+  @UseGuards(AdminGuard)
   @Delete('admin/database/:tableName/records/:recordId')
   async deleteTableRecord(
     @Param('tableName') tableName: string,
     @Param('recordId') recordId: string,
-    @Headers('Authorization') authHeader: string,
   ) {
-    await this.requireAdmin(authHeader);
-    return this.quizService.deleteTableRecord(tableName, recordId);
+    return this.databaseCrudService.deleteTableRecord(tableName, recordId);
   }
 
-  // Admin: execute raw query (read-only)
+  @UseGuards(AdminGuard)
   @Post('admin/database/query')
-  async executeQuery(
-    @Body() payload: { query: string; params?: any[] },
-    @Headers('Authorization') authHeader: string,
-  ) {
-    await this.requireAdmin(authHeader);
-    return this.quizService.executeQuery(payload.query, payload.params);
+  async executeQuery(@Body() payload: { query: string; params?: any[] }) {
+    return this.databaseCrudService.executeQuery(payload.query, payload.params);
   }
 }
