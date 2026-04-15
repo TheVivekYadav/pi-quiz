@@ -114,7 +114,7 @@ export class QuizAdminService {
     );
     const questionIndex = parseInt(indexResult.rows[0].next_index);
 
-    const qId = randomUUID();
+    const questionId = randomUUID();
     const points = body.points ?? 1;
 
     await pool.query(
@@ -122,7 +122,7 @@ export class QuizAdminService {
          (id, quiz_id, question_text, image_url, options, correct_option_id, points, question_index)
        VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8)`,
       [
-        qId,
+        questionId,
         quizId,
         body.text,
         body.imageUrl ?? null,
@@ -134,7 +134,7 @@ export class QuizAdminService {
     );
 
     return {
-      id: qId,
+      id: questionId,
       text: body.text,
       imageUrl: body.imageUrl,
       options: body.options,
@@ -784,9 +784,4 @@ export class QuizAdminService {
     };
   }
 
-  async getForbiddenQuizForAdmin(quizId: string): Promise<boolean> {
-    const pool = this.databaseService.getPool();
-    const result = await pool.query(`SELECT 1 FROM quizzes WHERE id = $1`, [quizId]);
-    return !!result.rows[0];
-  }
 }
