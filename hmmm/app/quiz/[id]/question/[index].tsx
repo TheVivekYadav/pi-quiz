@@ -42,13 +42,14 @@ export default function QuestionScreen() {
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [timeLeft, setTimeLeft] = useState(0);
-    const [totalElapsed, setTotalElapsed] = useState(0);
+    const [totalRemaining, setTotalRemaining] = useState(0);
     const [navigatorVisible, setNavigatorVisible] = useState(false);
     // Re-render trigger so navigator reflects latest answers
     const [answerTick, setAnswerTick] = useState(0);
 
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const totalTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const autoAdvanceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const clearTimer = () => {
         if (timerRef.current) {
@@ -61,6 +62,13 @@ export default function QuestionScreen() {
         if (totalTimerRef.current) {
             clearInterval(totalTimerRef.current);
             totalTimerRef.current = null;
+        }
+    };
+
+    const clearAutoAdvance = () => {
+        if (autoAdvanceRef.current) {
+            clearTimeout(autoAdvanceRef.current);
+            autoAdvanceRef.current = null;
         }
     };
 
@@ -110,16 +118,13 @@ export default function QuestionScreen() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [data?.question?.id]);
 
-    // Total exam elapsed timer — runs once from question 1 and keeps ticking
+    // Total quiz countdown — derived from quizEndsAtIso returned by backend
     useEffect(() => {
-        if (!quizId) return;
+        if (!data?.quizEndsAtIso) return;
 
         const tick = () => {
-            const startedAt = getExamStartedAt(quizId);
-            if (startedAt) {
-                const elapsed = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000);
-                setTotalElapsed(elapsed);
-            }
+            const remaining = Math.max(0, Math.floor((new Date(data.quizEndsAtIso).getTime() - Date.now()) / 1000));
+            setTotalRemaining(remaining);
         };
 
         clearTotalTimer();
@@ -127,7 +132,46 @@ export default function QuestionScreen() {
         totalTimerRef.current = setInterval(tick, 1000);
 
         return clearTotalTimer;
-    }, [quizId]);
+    }, [data?.quizEndsAtIso]);
+
+    // Auto-advance when per-question timer expires (after 2-second "Time's up!" pause)
+    useEffect(() => {
+        if (timeLeft !== 0 || !data || submitting) return;
+        clearAutoAdvance();
+        autoAdvanceRef.current = setTimeout(() => {
+            autoAdvanceRef.current = null;
+            goNext();
+        }, 2000);
+        return clearAutoAdvance;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [timeLeft]);
+
+    // Auto-submit when the total quiz window closes
+    useEffect(() => {
+        if (totalRemaining !== 0 || !data || submitting) return;
+        clearTimer();
+        clearAutoAdvance();
+        // Submit immediately with whatever answers exist
+        const run = async () => {
+            if (!quizId) return;
+            setSubmitting(true);
+            try {
+                const startedAt = getExamStartedAt(quizId) ?? undefined;
+                const result = await submitQuizAnswers(quizId, getQuizAnswers(quizId), startedAt);
+                setQuizResult(quizId, result);
+                clearTotalTimer();
+                router.replace({ pathname: "/quiz/[id]/result", params: { id: quizId } } as any);
+            } catch (err: any) {
+                const msg = err?.message || String(err);
+                Alert.alert("Quiz Ended", msg || "Time is up! Your answers have been submitted.");
+                router.replace({ pathname: "/quiz/[id]/lobby", params: { id: quizId } } as any);
+            } finally {
+                setSubmitting(false);
+            }
+        };
+        run();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [totalRemaining]);
 
     if (loading || !data) {
         return (
@@ -151,6 +195,7 @@ export default function QuestionScreen() {
     const goTo = (idx: number) => {
         if (!quizId) return;
         clearTimer();
+        clearAutoAdvance();
         setNavigatorVisible(false);
         router.replace({
             pathname: "/quiz/[id]/question/[index]",
@@ -165,6 +210,7 @@ export default function QuestionScreen() {
     const goNext = async () => {
         if (!quizId) return;
         clearTimer();
+        clearAutoAdvance();
 
         if (data.current < data.total) {
             router.replace({
@@ -277,11 +323,13 @@ export default function QuestionScreen() {
                                 );
                             })}
                         </ScrollView>
-                        {/* Total exam timer */}
-                        <View style={[styles.totalTimerBox, { backgroundColor: theme.primaryMuted }]}>
-                            <Ionicons name="time-outline" size={14} color={theme.primary} />
-                            <Text style={[styles.totalTimerLabel, { color: theme.primary }]}>
-                                Total: {fmtTime(totalElapsed)}
+                        {/* Total quiz countdown */}
+                        <View style={[styles.totalTimerBox, {
+                            backgroundColor: totalRemaining <= 60 ? theme.errorMuted : theme.primaryMuted,
+                        }]}>
+                            <Ionicons name="time-outline" size={14} color={totalRemaining <= 60 ? theme.error : theme.primary} />
+                            <Text style={[styles.totalTimerLabel, { color: totalRemaining <= 60 ? theme.error : theme.primary }]}>
+                                Left: {fmtTime(totalRemaining)}
                             </Text>
                         </View>
                     </View>
@@ -300,6 +348,7 @@ export default function QuestionScreen() {
                             quizId={quizId!}
                             theme={theme}
                             timeLeft={timeLeft}
+                            totalRemaining={totalRemaining}
                             timerBg={timerBg}
                             timerFg={timerFg}
                             timerExpired={timerExpired}
@@ -331,6 +380,7 @@ export default function QuestionScreen() {
                             quizId={quizId!}
                             theme={theme}
                             timeLeft={timeLeft}
+                            totalRemaining={totalRemaining}
                             timerBg={timerBg}
                             timerFg={timerFg}
                             timerExpired={timerExpired}
@@ -364,9 +414,9 @@ export default function QuestionScreen() {
                             <View style={[styles.statChip, { backgroundColor: theme.errorMuted }]}>
                                 <Text style={[styles.statChipText, { color: theme.error }]}>{unattemptedCount} Left</Text>
                             </View>
-                            <View style={[styles.statChip, { backgroundColor: theme.primaryMuted }]}>
-                                <Ionicons name="time-outline" size={11} color={theme.primary} />
-                                <Text style={[styles.statChipText, { color: theme.primary }]}>{fmtTime(totalElapsed)}</Text>
+                            <View style={[styles.statChip, { backgroundColor: totalRemaining <= 60 ? theme.errorMuted : theme.primaryMuted }]}>
+                                <Ionicons name="time-outline" size={11} color={totalRemaining <= 60 ? theme.error : theme.primary} />
+                                <Text style={[styles.statChipText, { color: totalRemaining <= 60 ? theme.error : theme.primary }]}>{fmtTime(totalRemaining)}</Text>
                             </View>
                         </View>
                         <Pressable
@@ -482,6 +532,7 @@ function QuestionContent({
     quizId,
     theme,
     timeLeft,
+    totalRemaining,
     timerBg,
     timerFg,
     timerExpired,
@@ -496,6 +547,7 @@ function QuestionContent({
     quizId: string;
     theme: any;
     timeLeft: number;
+    totalRemaining: number;
     timerBg: string;
     timerFg: string;
     timerExpired: boolean;
@@ -506,11 +558,32 @@ function QuestionContent({
     onNext: () => void;
     fmtTime: (s: number) => string;
 }) {
+    const totalSeconds = (data.durationMinutes ?? 30) * 60;
+    const totalProgress = totalSeconds > 0 ? Math.max(0, Math.min(1, totalRemaining / totalSeconds)) : 0;
+    const totalUrgent = totalRemaining <= 60 && totalRemaining > 0;
+
     return (
         <>
-            {/* Header row: brand + per-question timer */}
+            {/* Total quiz time bar */}
+            <View style={[styles.totalBar, { backgroundColor: theme.divider }]}>
+                <View
+                    style={[
+                        styles.totalBarFill,
+                        {
+                            width: (`${totalProgress * 100}%` as `${number}%`),
+                            backgroundColor: totalUrgent ? theme.error : theme.primary,
+                        },
+                    ]}
+                />
+            </View>
+
+            {/* Header row: quiz title + per-question timer */}
             <View style={styles.headerRow}>
-                <Text style={[styles.brand, { color: theme.textPrimary }]}>verihire.live</Text>
+                <View style={{ flex: 1, marginRight: 8 }}>
+                    <Text style={[styles.brand, { color: theme.textMuted, fontSize: 11 }]} numberOfLines={1}>
+                        {data.quizTitle ?? "Quiz"}
+                    </Text>
+                </View>
                 <View style={[styles.timerPill, { backgroundColor: timerBg }]}>
                     <Ionicons
                         name={timerExpired ? "alert-circle" : "timer-outline"}
@@ -545,7 +618,7 @@ function QuestionContent({
                 <View style={[styles.timerWarningBox, { backgroundColor: theme.errorMuted }]}>
                     <Ionicons name="alert-circle-outline" size={15} color={theme.error} />
                     <Text style={[styles.timerWarning, { color: theme.error }]}>
-                        Time's up! You can still submit your current answer.
+                        Time's up for this question — auto-advancing…
                     </Text>
                 </View>
             )}
@@ -568,8 +641,8 @@ function QuestionContent({
                             style={({ pressed }) => [
                                 styles.option,
                                 {
-                                    backgroundColor: isActive ? theme.accent : theme.optionDefault,
-                                    borderColor: isActive ? theme.accent : theme.border,
+                                    backgroundColor: isActive ? theme.buttonPrimary : theme.optionDefault,
+                                    borderColor: isActive ? theme.buttonPrimary : theme.border,
                                     opacity: timerExpired && !isActive ? 0.45 : pressed ? 0.85 : 1,
                                 },
                             ]}
@@ -578,7 +651,7 @@ function QuestionContent({
                                 style={[
                                     styles.optionLetter,
                                     {
-                                        backgroundColor: isActive ? "rgba(255,255,255,0.25)" : theme.primaryMuted,
+                                        backgroundColor: isActive ? "rgba(255,255,255,0.2)" : theme.primaryMuted,
                                     },
                                 ]}
                             >
@@ -659,6 +732,10 @@ function QuestionContent({
 const styles = StyleSheet.create({
     root: { flex: 1 },
     center: { flex: 1, alignItems: "center", justifyContent: "center" },
+
+    /* Total quiz time bar */
+    totalBar: { height: 4, width: "100%", overflow: "hidden" },
+    totalBarFill: { height: 4 },
 
     /* Web layout */
     webLayout: { flex: 1, flexDirection: "row" },

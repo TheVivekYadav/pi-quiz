@@ -114,6 +114,41 @@ export default function ResultScreen() {
                 </View>
             )}
 
+            {/* Activity Overview — time efficiency card */}
+            <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                <Text style={[styles.panelTitle, { color: theme.textPrimary }]}>⏱ Activity Overview</Text>
+                <View style={styles.activityRow}>
+                    <View style={[styles.activityChip, { backgroundColor: theme.primaryMuted }]}>
+                        <Text style={[styles.activityChipValue, { color: theme.primary }]}>{result.breakdown.timeTakenMinutes}m</Text>
+                        <Text style={[styles.activityChipLabel, { color: theme.textSecondary }]}>Time Taken</Text>
+                    </View>
+                    <View style={[styles.activityChip, { backgroundColor: result.breakdown.correct > result.breakdown.incorrect ? theme.successMuted : theme.errorMuted }]}>
+                        <Text style={[styles.activityChipValue, { color: result.breakdown.correct > result.breakdown.incorrect ? theme.success : theme.error }]}>
+                            {result.breakdown.correct}/{result.breakdown.correct + result.breakdown.incorrect}
+                        </Text>
+                        <Text style={[styles.activityChipLabel, { color: theme.textSecondary }]}>Correct</Text>
+                    </View>
+                    <View style={[styles.activityChip, { backgroundColor: theme.accentMuted }]}>
+                        <Text style={[styles.activityChipValue, { color: theme.accent }]}>{result.accuracyRate}%</Text>
+                        <Text style={[styles.activityChipLabel, { color: theme.textSecondary }]}>Accuracy</Text>
+                    </View>
+                </View>
+                {result.breakdown.correct + result.breakdown.incorrect > 0 && (
+                    <View style={{ marginTop: 10 }}>
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
+                            <Text style={[styles.activityChipLabel, { color: theme.textSecondary }]}>Correct vs Wrong</Text>
+                            <Text style={[styles.activityChipLabel, { color: theme.textSecondary }]}>{result.breakdown.correct} / {result.breakdown.incorrect}</Text>
+                        </View>
+                        <View style={[styles.activityBar, { backgroundColor: theme.divider }]}>
+                            <View style={[styles.activityBarFill, {
+                                backgroundColor: theme.success,
+                                width: (`${(result.breakdown.correct / (result.breakdown.correct + result.breakdown.incorrect)) * 100}%` as `${number}%`),
+                            }]} />
+                        </View>
+                    </View>
+                )}
+            </View>
+
             {/* Leaderboard */}
             <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                 <Text style={[styles.panelTitle, { color: theme.textPrimary }]}>🏆 Leaderboard</Text>
@@ -219,6 +254,13 @@ const styles = StyleSheet.create({
     panel: { borderWidth: 1, borderRadius: 18, padding: 14, marginBottom: 12 },
     panelTitle: { fontSize: 18, fontWeight: "800", marginBottom: 10 },
     emptyText: { fontSize: 14, textAlign: "center", paddingVertical: 12 },
+
+    activityRow: { flexDirection: "row", gap: 8, marginBottom: 4 },
+    activityChip: { flex: 1, borderRadius: 12, padding: 10, alignItems: "center", gap: 3 },
+    activityChipValue: { fontSize: 18, fontWeight: "800" },
+    activityChipLabel: { fontSize: 11, fontWeight: "600" },
+    activityBar: { height: 8, borderRadius: 4, overflow: "hidden" },
+    activityBarFill: { height: 8, borderRadius: 4 },
 
     lbRow: { borderRadius: 12, paddingHorizontal: 10, paddingVertical: 10, marginBottom: 8, flexDirection: "row", alignItems: "center", gap: 10 },
     lbMedal: { fontSize: 20, width: 28, textAlign: "center" },
