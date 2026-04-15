@@ -342,7 +342,7 @@ export default function CreateQuizScreen() {
                 </Text>
                 <Pressable
                     style={[styles.btn, { backgroundColor: theme.buttonPrimary, marginTop: 24 }]}
-                    onPress={() => router.replace("/(tabs)" as any)}
+                    onPress={() => router.replace("/" as any)}
                 >
                     <Text style={[styles.btnText, { color: theme.textInverse }]}>Back to Dashboard</Text>
                 </Pressable>

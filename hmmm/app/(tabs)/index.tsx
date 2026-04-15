@@ -25,6 +25,14 @@ const getDifficultyColor = (level: string) => {
     }
 };
 
+const isQuizLiveNow = (startsAtIso?: string, durationMinutes?: number) => {
+    if (!startsAtIso || !durationMinutes) return false;
+    const startsAt = new Date(startsAtIso);
+    const endsAt = new Date(startsAt.getTime() + durationMinutes * 60 * 1000);
+    const now = new Date();
+    return startsAt <= now && endsAt >= now;
+};
+
 export default function DiscoverScreen() {
     const theme = useTheme();
     const insets = useSafeAreaInsets();
@@ -82,7 +90,12 @@ export default function DiscoverScreen() {
     const greetingSubtitle = "Continue your learning journey";
 
     const featuredItems = data?.featuredQuizzes ?? data?.featured ?? [];
-    const enrolledQuizIds = new Set((data?.continueLearning ?? []).map((item: any) => item.id));
+    const enrolledItems = data?.continueLearning ?? [];
+    const enrolledQuizIds = new Set(enrolledItems.map((item: any) => item.id));
+    const liveItems = data?.liveQuizzes ?? [
+        ...featuredItems.filter((item: any) => isQuizLiveNow(item?.startsAtIso, item?.durationMinutes)),
+        ...enrolledItems.filter((item: any) => isQuizLiveNow(item?.startsAtIso, item?.durationMinutes)),
+    ];
 
     return (
         <ScrollView
@@ -99,7 +112,132 @@ export default function DiscoverScreen() {
                 </View>
             )}
 
-            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Featured Quizzes</Text>
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Live Quizzes</Text>
+            {liveItems.map((quiz: any) => {
+                const diffColor = getDifficultyColor(quiz.level);
+                const isEnrolled = enrolledQuizIds.has(quiz.id);
+                return (
+                    <View key={`live-${quiz.id}`} style={[
+                        styles.featureCard,
+                        {
+                            backgroundColor: theme.surfaceLight,
+                            borderColor: theme.success,
+                            shadowColor: "#000",
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.08,
+                            shadowRadius: 8,
+                            elevation: 3,
+                        }
+                    ]}>
+                        <View style={styles.cardHeader}>
+                            <View style={styles.titleSection}>
+                                <Text style={[styles.featureTitle, { color: theme.textPrimary }]}>{quiz.title}</Text>
+                                <Text style={[styles.category, { color: theme.textSecondary }]}>{quiz.category}</Text>
+                            </View>
+                            <View style={[styles.difficultyBadge, { backgroundColor: diffColor }]}>
+                                <Text style={styles.difficultyText}>{quiz.level}</Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.metaContainer}>
+                            <View style={styles.metaItem}>
+                                <Text style={[styles.metaIcon]}>🔴</Text>
+                                <Text style={[styles.metaText, { color: theme.success }]}>Live now</Text>
+                            </View>
+                            <View style={styles.metaItem}>
+                                <Text style={[styles.metaIcon]}>⏱</Text>
+                                <Text style={[styles.metaText, { color: theme.textSecondary }]}>{quiz.durationMinutes} min</Text>
+                            </View>
+                        </View>
+
+                        <Pressable
+                            style={[styles.enrollBtn, { backgroundColor: theme.buttonPrimary }]}
+                            onPress={() =>
+                                isEnrolled
+                                    ? router.push({ pathname: "/quiz/[id]/lobby", params: { id: quiz.id } } as any)
+                                    : router.push(`/quiz/${quiz.id}` as any)
+                            }
+                        >
+                            <Text style={[styles.enrollText, { color: theme.textInverse }]}>
+                                {isEnrolled ? "Enter Live Quiz" : "Open Quiz"}
+                            </Text>
+                        </Pressable>
+                    </View>
+                );
+            })}
+            {!liveItems.length && (
+                <View style={[styles.emptyCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                    <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>No live quiz right now</Text>
+                    <Text style={[styles.emptyText, { color: theme.textSecondary }]}>Join an upcoming quiz when it starts.</Text>
+                </View>
+            )}
+
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Enrolled Quizzes</Text>
+            {enrolledItems.map((quiz: any) => {
+                const diffColor = getDifficultyColor(quiz.level);
+                const progress = Math.max(0, Math.min(100, Number(quiz.progress ?? 0)));
+                const isLive = isQuizLiveNow(quiz.startsAtIso, quiz.durationMinutes);
+                return (
+                    <View key={`enrolled-${quiz.id}`} style={[
+                        styles.featureCard,
+                        {
+                            backgroundColor: theme.surfaceLight,
+                            borderColor: theme.border,
+                            shadowColor: "#000",
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.08,
+                            shadowRadius: 8,
+                            elevation: 3,
+                        }
+                    ]}>
+                        <View style={styles.cardHeader}>
+                            <View style={styles.titleSection}>
+                                <Text style={[styles.featureTitle, { color: theme.textPrimary }]}>{quiz.title}</Text>
+                                <Text style={[styles.category, { color: theme.textSecondary }]}>{quiz.category}</Text>
+                            </View>
+                            {!!quiz.level && (
+                                <View style={[styles.difficultyBadge, { backgroundColor: diffColor }]}>
+                                    <Text style={styles.difficultyText}>{quiz.level}</Text>
+                                </View>
+                            )}
+                        </View>
+
+                        <View style={styles.metaContainer}>
+                            {quiz.startsAtIso && (
+                                <View style={styles.metaItem}>
+                                    <Text style={[styles.metaIcon]}>🗓</Text>
+                                    <Text style={[styles.metaText, { color: theme.textSecondary }]}>
+                                        {new Date(quiz.startsAtIso).toLocaleString()}
+                                    </Text>
+                                </View>
+                            )}
+                            <View style={styles.metaItem}>
+                                <Text style={[styles.metaIcon]}>📈</Text>
+                                <Text style={[styles.metaText, { color: theme.textSecondary }]}>{progress}% completed</Text>
+                            </View>
+                        </View>
+
+                        <View style={[styles.progressTrack, { backgroundColor: theme.divider }]}>
+                            <View style={[styles.progressFill, { width: `${progress}%`, backgroundColor: theme.primary }]} />
+                        </View>
+
+                        <Pressable
+                            style={[styles.enrollBtn, { backgroundColor: isLive ? theme.success : theme.buttonPrimary }]}
+                            onPress={() => router.push(`/quiz/${quiz.id}` as any)}
+                        >
+                            <Text style={[styles.enrollText, { color: theme.textInverse }]}>{isLive ? "Open Live Quiz" : "Continue"}</Text>
+                        </Pressable>
+                    </View>
+                );
+            })}
+            {!enrolledItems.length && (
+                <View style={[styles.emptyCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                    <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>No enrolled quizzes yet</Text>
+                    <Text style={[styles.emptyText, { color: theme.textSecondary }]}>Enroll in a quiz to track progress here.</Text>
+                </View>
+            )}
+
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Upcoming Quizzes</Text>
             {featuredItems.map((quiz: any) => {
                 const diffColor = getDifficultyColor(quiz.level);
                 return (
@@ -199,6 +337,8 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
     },
     enrollText: { fontSize: 14, fontWeight: "700" },
+    progressTrack: { marginTop: 10, height: 8, borderRadius: 999, overflow: "hidden" },
+    progressFill: { height: 8, borderRadius: 999 },
     emptyCard: { borderWidth: 1, borderRadius: 16, padding: 14, width: 280 },
     emptyTitle: { fontSize: 16, fontWeight: "700" },
     emptyText: { marginTop: 6, fontSize: 13, lineHeight: 19 },

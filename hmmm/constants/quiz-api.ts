@@ -80,7 +80,16 @@ export type QuizSubmitPayload = {
 
 export type QuizHomePayload = {
   greeting?: string | { title?: string; subtitle?: string };
-  continueLearning?: Array<{ id: string; title: string; category: string; progress?: number }>;
+  continueLearning?: Array<{
+    id: string;
+    title: string;
+    category: string;
+    progress?: number;
+    startsAtIso?: string;
+    durationMinutes?: number;
+    level?: "Beginner" | "Intermediate" | "Expert";
+  }>;
+  liveQuizzes?: QuizListItem[];
   categories?: Array<string | { id?: string; title?: string; icon?: string }>;
   featuredQuizzes?: QuizListItem[];
   featured?: QuizListItem[];

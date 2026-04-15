@@ -116,7 +116,7 @@ export default function WinnersScreen() {
 
             <Pressable
                 style={[styles.cta, { backgroundColor: theme.buttonPrimary }]}
-                onPress={() => router.replace("/(tabs)/index" as any)}
+                onPress={() => router.replace("/" as any)}
             >
                 <Text style={[styles.ctaText, { color: theme.textInverse }]}>Back to Dashboard</Text>
             </Pressable>

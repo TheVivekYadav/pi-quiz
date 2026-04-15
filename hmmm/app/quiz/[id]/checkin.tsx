@@ -1,5 +1,5 @@
-import { submitCheckin } from "@/constants/quiz-api";
 import { getAuthToken } from "@/constants/auth-session";
+import { submitCheckin } from "@/constants/quiz-api";
 import { useTheme } from "@/hook/theme";
 import { useRequireAuth } from "@/hook/useRequireAuth";
 import { Ionicons } from "@expo/vector-icons";
@@ -60,7 +60,7 @@ export default function CheckinScreen() {
         if (quizId) {
             router.replace({ pathname: "/quiz/[id]/lobby", params: { id: quizId } } as any);
         } else {
-            router.replace("/(tabs)/index" as any);
+            router.replace("/" as any);
         }
     };
 

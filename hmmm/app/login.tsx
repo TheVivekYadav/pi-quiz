@@ -62,7 +62,7 @@ export default function LoginScreen() {
             if (safeRedirect) {
                 router.replace(safeRedirect as any);
             } else {
-                router.replace('/(tabs)' as any);
+                router.replace('/' as any);
             }
         } catch (error) {
             console.error('Login failed:', error);

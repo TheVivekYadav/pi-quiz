@@ -58,7 +58,7 @@ export default function ResultScreen() {
                 </Text>
                 <Pressable
                     style={[styles.ctaPrimary, { backgroundColor: theme.buttonPrimary }]}
-                    onPress={() => router.replace("/(tabs)/index" as any)}
+                    onPress={() => router.replace("/" as any)}
                 >
                     <Text style={[styles.ctaText, { color: theme.textInverse }]}>Back to Dashboard</Text>
                 </Pressable>
@@ -90,7 +90,7 @@ export default function ResultScreen() {
                 </Text>
                 <Pressable
                     style={[styles.ctaPrimary, { backgroundColor: theme.buttonPrimary }]}
-                    onPress={() => router.replace("/(tabs)/index" as any)}
+                    onPress={() => router.replace("/" as any)}
                 >
                     <Ionicons name="home-outline" size={18} color={theme.textInverse} />
                     <Text style={[styles.ctaText, { color: theme.textInverse }]}>Back to Dashboard</Text>
@@ -263,7 +263,7 @@ export default function ResultScreen() {
 
             <Pressable
                 style={[styles.ctaPrimary, { backgroundColor: theme.buttonPrimary }]}
-                onPress={() => router.replace("/(tabs)/index" as any)}
+                onPress={() => router.replace("/" as any)}
             >
                 <Ionicons name="home-outline" size={18} color={theme.textInverse} />
                 <Text style={[styles.ctaText, { color: theme.textInverse }]}>Back to Dashboard</Text>

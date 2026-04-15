@@ -110,7 +110,7 @@ export class QuizService {
 
     // Get enrolled quizzes with real attempt-based progress
     const enrolledResult = await pool.query(
-      `SELECT q.id, q.short_id, q.title, q.category,
+      `SELECT q.id, q.short_id, q.title, q.category, q.starts_at, q.duration_minutes, q.level,
               (SELECT COUNT(*) FROM quiz_questions WHERE quiz_id = q.id) AS total_questions,
               (SELECT COUNT(DISTINCT qr.question_id)
                FROM quiz_attempts qa
@@ -122,6 +122,17 @@ export class QuizService {
        ORDER BY q.starts_at DESC
        LIMIT 5`,
       [userId],
+    );
+
+    // Get quizzes that are live right now
+    const liveResult = await pool.query(
+      `SELECT id, short_id, title, category, starts_at, duration_minutes, level
+       FROM quizzes
+       WHERE is_visible = TRUE
+         AND starts_at <= NOW()
+         AND (starts_at + (duration_minutes * INTERVAL '1 minute')) >= NOW()
+       ORDER BY starts_at DESC
+       LIMIT 6`,
     );
 
     // Get upcoming (future) quizzes as featured
@@ -148,8 +159,19 @@ export class QuizService {
           title: q.title,
           category: q.category,
           progress,
+          startsAtIso: q.starts_at ? new Date(q.starts_at).toISOString() : undefined,
+          durationMinutes: q.duration_minutes,
+          level: q.level,
         };
       }),
+      liveQuizzes: liveResult.rows.map((q: any) => ({
+        id: this.toPublicQuizId(q),
+        title: q.title,
+        category: q.category,
+        startsAtIso: new Date(q.starts_at).toISOString(),
+        durationMinutes: q.duration_minutes,
+        level: q.level,
+      })),
       categories: categoriesResult.rows.map((r: any) => r.category),
       featuredQuizzes: featuredResult.rows.map((q: any) => ({
         id: this.toPublicQuizId(q),
