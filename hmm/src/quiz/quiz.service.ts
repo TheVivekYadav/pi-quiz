@@ -44,6 +44,9 @@ export interface QuizQuestionPayload {
   total: number;
   timerSeconds: number;
   highPoints: boolean;
+  quizTitle: string;
+  quizEndsAtIso: string;
+  durationMinutes: number;
 }
 
 export interface QuizSubmitPayload {
@@ -451,7 +454,7 @@ export class QuizService {
     }
 
     const quizResult = await pool.query(
-      `SELECT title, starts_at FROM quizzes WHERE id = $1`,
+      `SELECT title, starts_at, duration_minutes FROM quizzes WHERE id = $1`,
       [quizId],
     );
 
@@ -460,8 +463,10 @@ export class QuizService {
     }
 
     const startsAt = new Date(quizResult.rows[0].starts_at).getTime();
+    const durationMinutes: number = parseInt(quizResult.rows[0].duration_minutes) || 30;
     const now = Date.now();
     const startsInSeconds = Math.max(0, Math.floor((startsAt - now) / 1000));
+    const quizEndsAtIso = new Date(startsAt + durationMinutes * 60 * 1000).toISOString();
 
     // Get sample waiting users
     const usersResult = await pool.query(
@@ -479,6 +484,13 @@ export class QuizService {
     );
     const waitingCount = parseInt(waitingCountResult.rows[0].count) || 0;
 
+    // Count total questions in the quiz (for summary screen)
+    const questionsCountResult = await pool.query(
+      `SELECT COUNT(*) as total FROM quiz_questions WHERE quiz_id = $1`,
+      [quizId],
+    );
+    const totalQuestions = parseInt(questionsCountResult.rows[0].total) || 0;
+
     const enrollmentRow = enrollmentResult.rows[0];
     const lockedUntilIso = enrollmentRow.locked_until ? new Date(enrollmentRow.locked_until).toISOString() : null;
     const lockedSeconds = enrollmentRow.locked_until ? Math.max(0, Math.ceil((new Date(enrollmentRow.locked_until).getTime() - Date.now()) / 1000)) : 0;
@@ -486,6 +498,9 @@ export class QuizService {
     return {
       quizTitle: quizResult.rows[0].title,
       startsInSeconds,
+      quizEndsAtIso,
+      durationMinutes,
+      totalQuestions,
       rules: [
         'Read each question carefully',
         'You have limited time per question',
@@ -517,13 +532,19 @@ export class QuizService {
   ): Promise<QuizQuestionPayload> {
     const pool = this.databaseService.getPool();
     // Ensure quiz has started
-    const quizStartRes = await pool.query(`SELECT starts_at, duration_minutes FROM quizzes WHERE id = $1`, [quizId]);
+    const quizStartRes = await pool.query(`SELECT title, starts_at, duration_minutes FROM quizzes WHERE id = $1`, [quizId]);
     if (!quizStartRes.rows[0]) throw new NotFoundException('Quiz not found');
     const startsAt = new Date(quizStartRes.rows[0].starts_at).getTime();
     const durationMinutes: number = parseInt(quizStartRes.rows[0].duration_minutes) || 30;
+    const quizEndsAt = startsAt + durationMinutes * 60 * 1000;
+    const quizEndsAtIso = new Date(quizEndsAt).toISOString();
+    const quizTitle: string = quizStartRes.rows[0].title ?? '';
     const now = Date.now();
     if (now < startsAt) {
       throw new ForbiddenException('Quiz has not started yet');
+    }
+    if (now > quizEndsAt) {
+      throw new ForbiddenException('Quiz window has closed');
     }
     // Block completed users from fetching questions
     const completedCheck = await pool.query(
@@ -572,6 +593,9 @@ export class QuizService {
       total,
       timerSeconds,
       highPoints: q.points > 5,
+      quizTitle,
+      quizEndsAtIso,
+      durationMinutes,
     };
   }
 
@@ -583,23 +607,36 @@ export class QuizService {
   ): Promise<QuizSubmitPayload> {
     const pool = this.databaseService.getPool();
 
-    // Compute time taken from client-supplied startedAt (clamped 0–120 min)
     const submittedAt = Date.now();
-    let timeTakenMinutes = 0;
-    if (startedAtIso) {
-      const startedAt = new Date(startedAtIso).getTime();
-      if (!isNaN(startedAt) && startedAt < submittedAt) {
-        timeTakenMinutes = Math.min(120, Math.round((submittedAt - startedAt) / 60_000));
-      }
-    }
 
-    // Ensure quiz has started before accepting submissions
-    const quizStartRes = await pool.query(`SELECT starts_at FROM quizzes WHERE id = $1`, [quizId]);
+    // Ensure quiz has started and is within window
+    const quizStartRes = await pool.query(`SELECT starts_at, duration_minutes FROM quizzes WHERE id = $1`, [quizId]);
     if (!quizStartRes.rows[0]) throw new NotFoundException('Quiz not found');
     const startsAt = new Date(quizStartRes.rows[0].starts_at).getTime();
+    const durationMinutes: number = parseInt(quizStartRes.rows[0].duration_minutes) || 30;
+    const quizEndsAt = startsAt + durationMinutes * 60 * 1000;
     const now = Date.now();
     if (now < startsAt) {
       throw new ForbiddenException('Quiz has not started yet');
+    }
+    if (now > quizEndsAt) {
+      throw new ForbiddenException('Quiz window has closed');
+    }
+
+    // Compute time taken server-side from quiz start, not client clock
+    // Use client-supplied startedAt only as a fallback when it is within the valid window
+    let timeTakenMinutes = 0;
+    if (startedAtIso) {
+      const clientStartedAt = new Date(startedAtIso).getTime();
+      // Accept client time only if it falls within the quiz window
+      if (!isNaN(clientStartedAt) && clientStartedAt >= startsAt && clientStartedAt < submittedAt) {
+        timeTakenMinutes = Math.min(durationMinutes, Math.round((submittedAt - clientStartedAt) / 60_000));
+      } else {
+        // Fall back to quiz start time
+        timeTakenMinutes = Math.min(durationMinutes, Math.round((submittedAt - startsAt) / 60_000));
+      }
+    } else {
+      timeTakenMinutes = Math.min(durationMinutes, Math.round((submittedAt - startsAt) / 60_000));
     }
 
     // Check enrollment attempt counts and lockout
@@ -614,6 +651,7 @@ export class QuizService {
     const enrollment = enrolRes.rows[0];
     const MAX_ATTEMPTS = 2;
     const LOCK_MINUTES = 15;
+    const BETWEEN_ATTEMPT_LOCK_MINUTES = 5;
 
     // Block permanently completed users
     if (enrollment.is_completed) {
@@ -628,9 +666,6 @@ export class QuizService {
         throw new ForbiddenException(`Too many attempts. Locked for ${remainingSeconds} seconds.`);
       }
     }
-
-
-    // Get all questions for the quiz
     const questionsResult = await pool.query(
       `SELECT * FROM quiz_questions WHERE quiz_id = $1 ORDER BY question_index ASC`,
       [quizId],
@@ -681,7 +716,8 @@ export class QuizService {
       [userId, quizId],
     );
 
-    // If attempts reached limit, permanently mark as completed (and set a short lockout as belt-and-suspenders)
+    // If attempts reached limit, permanently mark as completed (and set a lockout as belt-and-suspenders).
+    // Otherwise, apply a cooldown between attempts so users cannot re-attempt immediately.
     const attemptsRow = await pool.query(
       `SELECT attempts_count FROM quiz_enrollments WHERE user_id = $1 AND quiz_id = $2`,
       [userId, quizId],
@@ -694,6 +730,14 @@ export class QuizService {
              locked_until = NOW() + ($1 || ' minutes')::interval
          WHERE user_id = $2 AND quiz_id = $3`,
         [String(LOCK_MINUTES), userId, quizId],
+      );
+    } else {
+      // Apply between-attempt cooldown
+      await pool.query(
+        `UPDATE quiz_enrollments
+         SET locked_until = NOW() + ($1 || ' minutes')::interval
+         WHERE user_id = $2 AND quiz_id = $3`,
+        [String(BETWEEN_ATTEMPT_LOCK_MINUTES), userId, quizId],
       );
     }
 

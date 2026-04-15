@@ -46,8 +46,14 @@ export default function QuizDetailScreen() {
                 setData(detail);
 
                 try {
-                    await fetchQuizLobby(quizId);
+                    const lobby = await fetchQuizLobby(quizId);
                     if (!cancelled) {
+                        // If already completed, show completed state instead of redirecting
+                        if (lobby?.enrollment?.isCompleted) {
+                            setAlreadyCompleted(true);
+                            setLoading(false);
+                            return;
+                        }
                         router.replace({ pathname: "/quiz/[id]/lobby", params: { id: quizId } } as any);
                         return;
                     }
@@ -232,6 +238,11 @@ export default function QuizDetailScreen() {
                 <Text style={[styles.meta, { color: theme.textSecondary }]}>
                     {data?.category} • {new Date(data?.startsAtIso).toLocaleString()}
                 </Text>
+                {data?.startsAtIso && data?.durationMinutes && (
+                    <Text style={[styles.meta, { color: theme.textMuted, fontSize: 13 }]}>
+                        Quiz window: {new Date(data.startsAtIso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} – {new Date(new Date(data.startsAtIso).getTime() + data.durationMinutes * 60 * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} • {data.durationMinutes} min
+                    </Text>
+                )}
                 <Pressable onPress={shareQuizUrl} style={{ alignSelf: 'flex-start', marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <Ionicons name="share-social-outline" size={16} color={theme.primary} />
                     <Text style={{ color: theme.primary, fontWeight: '700' }}>Share</Text>

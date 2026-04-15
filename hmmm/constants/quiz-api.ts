@@ -52,6 +52,8 @@ export type QuizQuestionPayload = {
   total: number;
   timerSeconds: number;
   highPoints: boolean;
+  quizEndsAtIso: string;
+  durationMinutes: number;
   question: {
     id: string;
     text: string;

@@ -20,6 +20,7 @@ export default function LobbyScreen() {
     const [data, setData] = useState<any>(null);
     const [seconds, setSeconds] = useState(0);
     const [lockedSeconds, setLockedSeconds] = useState(0);
+    const [windowSecondsLeft, setWindowSecondsLeft] = useState<number | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [rulesExpanded, setRulesExpanded] = useState(true);
 
@@ -32,6 +33,11 @@ export default function LobbyScreen() {
             setData(payload);
             setSeconds(payload.startsInSeconds ?? 0);
             setLockedSeconds(payload.enrollment?.lockedSeconds ?? 0);
+            // Compute remaining window from quizEndsAtIso if available
+            if (payload.quizEndsAtIso) {
+                const remaining = Math.max(0, Math.floor((new Date(payload.quizEndsAtIso).getTime() - Date.now()) / 1000));
+                setWindowSecondsLeft(remaining);
+            }
             setError(null);
         } catch (err: any) {
             setError(err?.message || 'Failed to load lobby');
@@ -73,6 +79,12 @@ export default function LobbyScreen() {
         return () => clearInterval(timer);
     }, [lockedSeconds]);
 
+    useEffect(() => {
+        if (windowSecondsLeft === null || windowSecondsLeft <= 0) return;
+        const timer = setInterval(() => setWindowSecondsLeft((prev) => (prev !== null ? Math.max(0, prev - 1) : null)), 1000);
+        return () => clearInterval(timer);
+    }, [windowSecondsLeft]);
+
     if (!data) {
         return (
             <View style={[styles.center, { backgroundColor: theme.background }]}>
@@ -102,6 +114,10 @@ export default function LobbyScreen() {
 
     const countdownParts = formatCountdown(seconds);
     const lockoutParts = formatCountdown(lockedSeconds);
+
+    const quizEndsAtIso: string | undefined = data?.quizEndsAtIso;
+    const windowClosed = quizEndsAtIso ? Date.now() > new Date(quizEndsAtIso).getTime() : false;
+    const fmtDeadline = quizEndsAtIso ? new Date(quizEndsAtIso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : null;
 
     const renderTimeChip = (value: number, label: string, keyName: string) => (
         <View key={keyName} style={[styles.timeChip, { backgroundColor: theme.surfaceLight, borderColor: theme.primary }]}>
@@ -134,7 +150,31 @@ export default function LobbyScreen() {
             </Pressable>
 
             <Text style={[styles.subtitle, { color: theme.textSecondary }]}>{data.quizTitle}</Text>
-            <Text style={[styles.title, { color: theme.textPrimary }]}>Starting Soon</Text>
+            <Text style={[styles.title, { color: theme.textPrimary }]}>{seconds > 0 ? "Starting Soon" : windowClosed ? "Ended" : "Ready"}</Text>
+
+            {/* Quiz window deadline info */}
+            {fmtDeadline && !windowClosed && (
+                <View style={[styles.deadlineBanner, { backgroundColor: theme.warningMuted, borderColor: theme.warning }]}>
+                    <Ionicons name="time-outline" size={15} color={theme.textPrimary} />
+                    <Text style={[styles.deadlineText, { color: theme.textPrimary }]}>
+                        Must complete by <Text style={{ fontWeight: "800" }}>{fmtDeadline}</Text>
+                        {windowSecondsLeft !== null && windowSecondsLeft < 3600 && (
+                            <Text style={{ color: windowSecondsLeft < 300 ? theme.error : theme.textPrimary }}>
+                                {" "}({Math.floor(windowSecondsLeft / 60)}m left)
+                            </Text>
+                        )}
+                    </Text>
+                </View>
+            )}
+
+            {windowClosed && (
+                <View style={[styles.deadlineBanner, { backgroundColor: theme.errorMuted, borderColor: theme.error }]}>
+                    <Ionicons name="alert-circle-outline" size={15} color={theme.error} />
+                    <Text style={[styles.deadlineText, { color: theme.error }]}>
+                        The quiz window has closed. Submissions are no longer accepted.
+                    </Text>
+                </View>
+            )}
 
             <View style={styles.timerRow}>
                 {renderCountdown(countdownParts)}
@@ -190,6 +230,10 @@ export default function LobbyScreen() {
                     <Text style={[styles.startText, { color: theme.textSecondary }]}>You are temporarily locked out from attempting this quiz.</Text>
                     <View style={[styles.lockoutRow, { marginTop: 10 }]}>{renderCountdown(lockoutParts)}</View>
                 </View>
+            ) : windowClosed ? (
+                <View style={[styles.startBtn, { backgroundColor: theme.buttonDisabled, alignItems: 'center' }]}>
+                    <Text style={[styles.startText, { color: theme.textInverse }]}>Quiz Window Closed</Text>
+                </View>
             ) : (
                 <Pressable
                     style={({ pressed }) => [
@@ -202,7 +246,7 @@ export default function LobbyScreen() {
                     disabled={seconds > 0}
                     onPress={() =>
                         quizId &&
-                        router.replace({ pathname: "/quiz/[id]/question/[index]", params: { id: quizId, index: "1" } } as any)
+                        router.replace({ pathname: "/quiz/[id]/summary", params: { id: quizId } } as any)
                     }
                 >
                     <Text style={[styles.startText, { color: theme.textInverse }]}>{seconds > 0 ? 'Starting Soon' : 'Start Quiz'}</Text>
@@ -223,11 +267,13 @@ const styles = StyleSheet.create({
     brand: { fontSize: 20, fontWeight: "800" },
     subtitle: { marginTop: 12, fontSize: 15, letterSpacing: 2, textTransform: "uppercase" },
     title: { marginTop: 8, fontSize: 58, lineHeight: 60, fontWeight: "800" },
-    timerRow: { marginTop: 16, flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: 8 },
-    timeChip: { borderWidth: 1, borderRadius: 16, minWidth: 74, alignItems: "center", paddingVertical: 10, paddingHorizontal: 12 },
-    timeValue: { fontSize: 30, fontWeight: "800", lineHeight: 34 },
-    timeLabel: { fontSize: 11, fontWeight: "700", marginTop: 2 },
+    timerRow: { marginTop: 16, flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: 10 },
+    timeChip: { borderWidth: 2, borderRadius: 18, minWidth: 82, alignItems: "center", paddingVertical: 14, paddingHorizontal: 16 },
+    timeValue: { fontSize: 36, fontWeight: "800", lineHeight: 40 },
+    timeLabel: { fontSize: 11, fontWeight: "800", marginTop: 2, letterSpacing: 1 },
     lockoutRow: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 8 },
+    deadlineBanner: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderRadius: 12, padding: 12, marginTop: 12 },
+    deadlineText: { flex: 1, fontSize: 14, fontWeight: "600" },
     card: { marginTop: 16, borderWidth: 1, borderRadius: 16, padding: 14 },
     cardTitle: { fontSize: 34, fontWeight: "800", marginBottom: 8 },
     rule: { fontSize: 16, lineHeight: 26, marginBottom: 6 },
