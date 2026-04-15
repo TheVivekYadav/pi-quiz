@@ -41,6 +41,7 @@ export default function QuestionScreen() {
 
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
     const [timeLeft, setTimeLeft] = useState(0);
     const [totalElapsed, setTotalElapsed] = useState(0);
@@ -69,6 +70,7 @@ export default function QuestionScreen() {
     useEffect(() => {
         if (!quizId || !currentIndex) return;
         setLoading(true);
+        setLoadError(null);
 
         const run = async () => {
             try {
@@ -82,6 +84,8 @@ export default function QuestionScreen() {
                 }
                 // Track which index maps to which questionId
                 setVisitedQuestion(quizId, currentIndex, payload.question.id);
+            } catch (err: unknown) {
+                setLoadError(err instanceof Error ? err.message : 'Failed to load question');
             } finally {
                 setLoading(false);
             }
@@ -130,10 +134,26 @@ export default function QuestionScreen() {
         return clearTotalTimer;
     }, [quizId]);
 
-    if (loading || !data) {
+    if (loading) {
         return (
             <View style={[styles.center, { backgroundColor: theme.background }]}>
                 <ActivityIndicator size="large" color={theme.primary} />
+            </View>
+        );
+    }
+
+    if (!data) {
+        return (
+            <View style={[styles.center, { backgroundColor: theme.background, padding: 24 }]}>
+                <Text style={{ fontSize: 15, color: theme.error, textAlign: 'center', marginBottom: 16 }}>
+                    {loadError || 'Unable to load question'}
+                </Text>
+                <Pressable
+                    onPress={() => quizId && router.replace({ pathname: '/quiz/[id]/lobby', params: { id: quizId } } as any)}
+                    style={{ backgroundColor: theme.buttonPrimary, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 }}
+                >
+                    <Text style={{ color: theme.textInverse, fontWeight: '700', fontSize: 15 }}>Back to Lobby</Text>
+                </Pressable>
             </View>
         );
     }
