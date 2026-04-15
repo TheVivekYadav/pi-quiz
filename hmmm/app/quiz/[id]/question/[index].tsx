@@ -25,6 +25,7 @@ import {
     StyleSheet,
     Text,
     View,
+    useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -214,12 +215,14 @@ export default function QuestionScreen() {
         : theme.primaryMuted;
     const timerFg = timerExpired || timerUrgent ? theme.textInverse : theme.textPrimary;
 
-    const isWeb = Platform.OS === "web";
+    const { width: windowWidth } = useWindowDimensions();
+    // Use sidebar layout only on wide screens (desktop/tablet web); mobile web uses collapsible layout
+    const isWide = Platform.OS === "web" && windowWidth >= 768;
 
     return (
         <View style={[styles.root, { backgroundColor: theme.background }]}>
             {/* ── Web sidebar layout ─────────────────────────────────── */}
-            {isWeb ? (
+            {isWide ? (
                 <View style={styles.webLayout}>
                     {/* Sidebar */}
                     <View style={[styles.sidebar, { backgroundColor: theme.surface, borderColor: theme.border }]}>
