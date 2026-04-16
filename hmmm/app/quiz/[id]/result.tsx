@@ -28,17 +28,23 @@ export default function ResultScreen() {
 
     const [leaderboard, setLeaderboard] = useState<any[]>([]);
     const [resultDeclared, setResultDeclared] = useState<boolean | null>(null);
+    const [declarationError, setDeclarationError] = useState(false);
     const result = quizId ? getQuizResult(quizId) : null;
 
     useEffect(() => {
         if (!quizId) return;
         const run = async () => {
-            const [lb, winners] = await Promise.all([
+            const [lb, winnersResult] = await Promise.allSettled([
                 fetchQuizLeaderboard(quizId),
-                fetchQuizWinners(quizId).catch(() => ({ declared: false })),
+                fetchQuizWinners(quizId),
             ]);
-            setLeaderboard(lb);
-            setResultDeclared(!!(winners as any).declared);
+            if (lb.status === "fulfilled") setLeaderboard(lb.value);
+            if (winnersResult.status === "fulfilled") {
+                setResultDeclared(!!(winnersResult.value as any).declared);
+            } else {
+                setDeclarationError(true);
+                setResultDeclared(false);
+            }
         };
         run();
     }, [quizId]);
@@ -69,16 +75,18 @@ export default function ResultScreen() {
         );
     }
 
-    // Results not yet officially declared by the organiser
+    // Results not yet officially declared by the organiser (or declaration status could not be fetched)
     if (!resultDeclared) {
         return (
             <View style={[styles.center, { backgroundColor: theme.background }]}>
-                <Text style={{ fontSize: 40, marginBottom: 12 }}>⏳</Text>
+                <Text style={{ fontSize: 40, marginBottom: 12 }}>{declarationError ? "⚠️" : "⏳"}</Text>
                 <Text style={{ color: theme.textPrimary, fontSize: 20, fontWeight: "800", textAlign: "center", marginBottom: 8 }}>
-                    Results Pending
+                    {declarationError ? "Could Not Load Status" : "Results Pending"}
                 </Text>
                 <Text style={{ color: theme.textSecondary, fontSize: 15, textAlign: "center", marginBottom: 24 }}>
-                    The quiz organiser has not yet declared the results. Please check back soon.
+                    {declarationError
+                        ? "We couldn't check whether results have been declared. Please check your connection and try again."
+                        : "The quiz organiser has not yet declared the results. Please check back soon."}
                 </Text>
                 <Pressable
                     style={[styles.ctaPrimary, { backgroundColor: theme.buttonPrimary }]}

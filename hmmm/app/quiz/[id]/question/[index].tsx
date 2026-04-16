@@ -199,7 +199,7 @@ export default function QuestionScreen() {
         const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
             Alert.alert(
                 "Leave Quiz?",
-                "The timer keeps running while you are away. Your answered questions are saved, but your per-question timer will continue. Are you sure you want to leave?",
+                "The total quiz timer keeps running while you are away. Your answered questions are saved. Are you sure you want to leave?",
                 [
                     { text: "Stay in Quiz", style: "cancel" },
                     {
