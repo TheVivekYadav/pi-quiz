@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
-import { APP_FILTER, APP_GUARD } from '@nestjs/core';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { APP_FILTER } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
@@ -10,11 +9,8 @@ import { FormsModule } from './forms/forms.module';
 import { QuizModule } from './quiz/quiz.module';
 import { ResponsesModule } from './response/responses.module';
 
-const disableRateLimitForTests = process.env.NODE_ENV === 'test';
-
 @Module({
   imports: [
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 60 }]),
     DatabaseModule,
     AuthModule,
     FormsModule,
@@ -24,7 +20,6 @@ const disableRateLimitForTests = process.env.NODE_ENV === 'test';
   controllers: [AppController],
   providers: [
     AppService,
-    ...(disableRateLimitForTests ? [] : [{ provide: APP_GUARD, useClass: ThrottlerGuard }]),
     { provide: APP_FILTER, useClass: ApiErrorLoggingFilter },
   ],
 })
