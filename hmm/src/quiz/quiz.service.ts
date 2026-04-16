@@ -546,12 +546,15 @@ export class QuizService {
     if (now > quizEndsAt) {
       throw new ForbiddenException('Quiz window has closed');
     }
-    // Block completed users from fetching questions
+    // Block completed users from fetching questions; also require enrollment
     const completedCheck = await pool.query(
       `SELECT is_completed FROM quiz_enrollments WHERE user_id = $1 AND quiz_id = $2`,
       [userId, quizId],
     );
-    if (completedCheck.rows[0]?.is_completed) {
+    if (!completedCheck.rows[0]) {
+      throw new ForbiddenException('You are not enrolled in this quiz');
+    }
+    if (completedCheck.rows[0].is_completed) {
       throw new ForbiddenException('You have already completed this quiz');
     }
     // Get total questions

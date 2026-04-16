@@ -7,6 +7,8 @@ type SessionState = {
   visitedQuestions: Record<string, Record<number, string>>;
   /** quizId → ISO string when the first question was loaded */
   examStartedAt: Record<string, string>;
+  /** quizId → { questionIndex → epoch ms when that question timer was first started } */
+  questionTimerStartedAt: Record<string, Record<number, number>>;
 };
 
 const session: SessionState = {
@@ -14,6 +16,7 @@ const session: SessionState = {
   results: {},
   visitedQuestions: {},
   examStartedAt: {},
+  questionTimerStartedAt: {},
 };
 
 const RESULTS_STORAGE_KEY = 'pi_quiz_results';
@@ -56,6 +59,35 @@ export const setExamStartedAt = (quizId: string) => {
 /** Returns the ISO start time for the exam, or null if not started. */
 export const getExamStartedAt = (quizId: string): string | null =>
   session.examStartedAt[quizId] ?? null;
+
+/**
+ * Record that the timer for a specific question has started.
+ * Only records the first call — subsequent calls for the same question are no-ops
+ * so the timer is not reset if the user navigates away and returns.
+ */
+export const markQuestionStarted = (quizId: string, questionIndex: number): void => {
+  if (!session.questionTimerStartedAt[quizId]) {
+    session.questionTimerStartedAt[quizId] = {};
+  }
+  if (!session.questionTimerStartedAt[quizId][questionIndex]) {
+    session.questionTimerStartedAt[quizId][questionIndex] = Date.now();
+  }
+};
+
+/**
+ * Returns how many seconds remain for a given question's per-question timer.
+ * Uses the stored start time so the countdown is preserved across navigation.
+ */
+export const getQuestionRemainingTime = (
+  quizId: string,
+  questionIndex: number,
+  timerSeconds: number,
+): number => {
+  const startedAt = session.questionTimerStartedAt[quizId]?.[questionIndex];
+  if (!startedAt) return timerSeconds;
+  const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+  return Math.max(0, timerSeconds - elapsed);
+};
 
 export const setQuizResult = (quizId: string, result: any) => {
   session.results[quizId] = result;
