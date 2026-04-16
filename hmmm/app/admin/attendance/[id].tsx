@@ -170,7 +170,10 @@ export default function AttendanceQRScreen() {
                             <View style={[styles.expiryBadge, { backgroundColor: theme.primaryMuted }]}>
                                 <Ionicons name="time-outline" size={13} color={theme.primary} />
                                 <Text style={[styles.expiryText, { color: theme.primary }]}>
-                                    Expires: {expiresAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                    Expires: {expiresAt.toLocaleString([], {
+                                        month: "short", day: "numeric",
+                                        hour: "2-digit", minute: "2-digit",
+                                    })}
                                 </Text>
                             </View>
                         )}

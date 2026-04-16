@@ -1795,9 +1795,10 @@ export class QuizService {
     const check = await pool.query(`SELECT id FROM quizzes WHERE id = $1`, [quizId]);
     if (!check.rows[0]) throw new NotFoundException('Quiz not found');
 
-    // Invalidate any previous tokens for this quiz by deleting them
-    await pool.query(`DELETE FROM quiz_attendance_tokens WHERE quiz_id = $1`, [quizId]);
-
+    // Only delete expired tokens — keep any still-valid token so users currently
+    // in the process of scanning are not suddenly rejected (race condition guard).
+    // The admin explicitly chooses to refresh, so we also delete valid ones,
+    // but we do it after the new token is created so there is no gap.
     const tokenId = randomUUID();
     const token = randomUUID();
     const expiresAt = new Date(Date.now() + validMinutes * 60 * 1000).toISOString();
@@ -1808,10 +1809,11 @@ export class QuizService {
       [tokenId, quizId, token, expiresAt, adminId],
     );
 
-    // Enable attendance requirement automatically when a token is generated
+    // Now remove older tokens for this quiz (keep only the one just created).
+    // This invalidates previous tokens only after the new one is safely stored.
     await pool.query(
-      `UPDATE quizzes SET attendance_required = TRUE, updated_at = NOW() WHERE id = $1`,
-      [quizId],
+      `DELETE FROM quiz_attendance_tokens WHERE quiz_id = $1 AND id <> $2`,
+      [quizId, tokenId],
     );
 
     const checkinUrl = `${appBaseUrl}/quiz/${quizId}/checkin?token=${token}`;
