@@ -3,7 +3,9 @@ import {
     getAnswer,
     getExamStartedAt,
     getQuizAnswers,
+    getQuestionRemainingTime,
     getVisitedQuestions,
+    markQuestionStarted,
     setAnswer,
     setExamStartedAt,
     setQuizResult,
@@ -17,6 +19,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
+    BackHandler,
     Image,
     Modal,
     Platform,
@@ -44,6 +47,7 @@ export default function QuestionScreen() {
     const [timeLeft, setTimeLeft] = useState(0);
     const [totalRemaining, setTotalRemaining] = useState(0);
     const [navigatorVisible, setNavigatorVisible] = useState(false);
+    const [webNavigatorVisible, setWebNavigatorVisible] = useState(false);
     // Re-render trigger so navigator reflects latest answers
     const [answerTick, setAnswerTick] = useState(0);
 
@@ -81,12 +85,15 @@ export default function QuestionScreen() {
             try {
                 const payload = await fetchQuizQuestion(quizId, currentIndex);
                 setData(payload);
-                setTimeLeft(payload.timerSeconds ?? 30);
 
                 // Record exam start time (only once, on question 1)
                 if (currentIndex === 1) {
                     setExamStartedAt(quizId);
                 }
+                // Mark timer start for this question (no-op if already marked)
+                markQuestionStarted(quizId, currentIndex);
+                // Initialise timer from stored start time so it is preserved across navigation
+                setTimeLeft(getQuestionRemainingTime(quizId, currentIndex, payload.timerSeconds ?? 30));
                 // Track which index maps to which questionId
                 setVisitedQuestion(quizId, currentIndex, payload.question.id);
             } finally {
@@ -172,6 +179,42 @@ export default function QuestionScreen() {
         run();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [totalRemaining]);
+
+    // ── Navigation prevention ────────────────────────────────────────────────
+    // Web: warn before browser close / refresh / tab navigation
+    useEffect(() => {
+        if (Platform.OS !== "web") return;
+        const handler = (e: BeforeUnloadEvent) => {
+            e.preventDefault();
+            // Modern browsers show their own generic message; returnValue is required for older ones
+            e.returnValue = "You are in the middle of a quiz. Leaving will not pause the timer.";
+        };
+        window.addEventListener("beforeunload", handler);
+        return () => window.removeEventListener("beforeunload", handler);
+    }, []);
+
+    // Native (Android): intercept hardware back button
+    useEffect(() => {
+        if (Platform.OS === "web") return;
+        const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+            Alert.alert(
+                "Leave Quiz?",
+                "The total quiz timer keeps running in the background. Your answered questions are saved. Are you sure you want to leave?",
+                [
+                    { text: "Stay in Quiz", style: "cancel" },
+                    {
+                        text: "Leave",
+                        style: "destructive",
+                        onPress: () => quizId && router.replace({ pathname: "/quiz/[id]/lobby", params: { id: quizId } } as any),
+                    },
+                ],
+            );
+            return true; // prevent default back action
+        });
+        return () => subscription.remove();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [quizId]);
+    // ────────────────────────────────────────────────────────────────────────
 
     if (loading || !data) {
         return (
@@ -264,81 +307,99 @@ export default function QuestionScreen() {
 
     return (
         <View style={[styles.root, { backgroundColor: theme.background }]}>
-            {/* ── Web sidebar layout ─────────────────────────────────── */}
+            {/* ── Web layout (top info bar + full-width content) ─────── */}
             {isWeb ? (
                 <View style={styles.webLayout}>
-                    {/* Sidebar */}
-                    <View style={[styles.sidebar, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                        <Text style={[styles.sidebarTitle, { color: theme.textPrimary }]}>Questions</Text>
-                        <View style={styles.sidebarStats}>
+                    {/* Top info bar */}
+                    <View style={[styles.topInfoBar, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                        <View style={styles.topInfoLeft}>
                             <View style={[styles.statChip, { backgroundColor: theme.successMuted }]}>
                                 <Text style={[styles.statChipText, { color: theme.success }]}>{answeredCount} Done</Text>
+                            </View>
+                            <View style={[styles.statChip, { backgroundColor: theme.warningMuted }]}>
+                                <Text style={[styles.statChipText, { color: theme.textPrimary }]}>{attemptedCount - answeredCount} Visited</Text>
                             </View>
                             <View style={[styles.statChip, { backgroundColor: theme.errorMuted }]}>
                                 <Text style={[styles.statChipText, { color: theme.error }]}>{unattemptedCount} Left</Text>
                             </View>
                         </View>
-                        <ScrollView style={styles.sidebarGrid} contentContainerStyle={styles.sidebarGridContent}>
-                            {Array.from({ length: data.total }, (_, i) => {
-                                const qi = i + 1;
-                                const qId = visitedMap[qi];
-                                const isAnswered = qId ? !!answers[qId] : false;
-                                const isVisited = !!qId;
-                                const isCurrent = qi === currentIndex;
-                                return (
-                                    <Pressable
-                                        key={qi}
-                                        onPress={() => goTo(qi)}
-                                        style={[
-                                            styles.sidebarCell,
-                                            {
-                                                backgroundColor: isCurrent
-                                                    ? theme.primary
-                                                    : isAnswered
-                                                    ? theme.successMuted
-                                                    : isVisited
-                                                    ? theme.warningMuted
-                                                    : theme.surfaceLight,
-                                                borderColor: isCurrent ? theme.primary : theme.border,
-                                            },
-                                        ]}
-                                    >
-                                        <Text
+                        <View style={styles.topInfoRight}>
+                            {/* Total quiz countdown */}
+                            <View style={[styles.statChip, { backgroundColor: totalRemaining <= 60 ? theme.errorMuted : theme.primaryMuted }]}>
+                                <Ionicons name="time-outline" size={13} color={totalRemaining <= 60 ? theme.error : theme.primary} />
+                                <Text style={[styles.statChipText, { color: totalRemaining <= 60 ? theme.error : theme.primary }]}>
+                                    {fmtTime(totalRemaining)}
+                                </Text>
+                            </View>
+                            {/* Toggle question navigator */}
+                            <Pressable
+                                onPress={() => setWebNavigatorVisible((v) => !v)}
+                                style={[styles.statChip, { backgroundColor: webNavigatorVisible ? theme.primaryMuted : theme.surfaceLight, borderColor: theme.border, borderWidth: 1 }]}
+                            >
+                                <Ionicons name="grid-outline" size={13} color={theme.textPrimary} />
+                                <Text style={[styles.statChipText, { color: theme.textPrimary }]}>
+                                    {webNavigatorVisible ? "Hide" : "Questions"}
+                                </Text>
+                            </Pressable>
+                        </View>
+                    </View>
+
+                    {/* Collapsible question navigator */}
+                    {webNavigatorVisible && (
+                        <View style={[styles.webNavigator, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                            <View style={styles.webNavigatorGrid}>
+                                {Array.from({ length: data.total }, (_, i) => {
+                                    const qi = i + 1;
+                                    const qId = visitedMap[qi];
+                                    const isAnswered = qId ? !!answers[qId] : false;
+                                    const isVisited = !!qId;
+                                    const isCurrent = qi === currentIndex;
+                                    return (
+                                        <Pressable
+                                            key={qi}
+                                            onPress={() => goTo(qi)}
                                             style={[
-                                                styles.sidebarCellText,
+                                                styles.sidebarCell,
                                                 {
-                                                    color: isCurrent
-                                                        ? theme.textInverse
+                                                    backgroundColor: isCurrent
+                                                        ? theme.primary
                                                         : isAnswered
-                                                        ? theme.success
+                                                        ? theme.successMuted
                                                         : isVisited
-                                                        ? theme.textPrimary
-                                                        : theme.textMuted,
+                                                        ? theme.warningMuted
+                                                        : theme.surfaceLight,
+                                                    borderColor: isCurrent ? theme.primary : theme.border,
                                                 },
                                             ]}
                                         >
-                                            {qi}
-                                        </Text>
-                                    </Pressable>
-                                );
-                            })}
-                        </ScrollView>
-                        {/* Total quiz countdown */}
-                        <View style={[styles.totalTimerBox, {
-                            backgroundColor: totalRemaining <= 60 ? theme.errorMuted : theme.primaryMuted,
-                        }]}>
-                            <Ionicons name="time-outline" size={14} color={totalRemaining <= 60 ? theme.error : theme.primary} />
-                            <Text style={[styles.totalTimerLabel, { color: totalRemaining <= 60 ? theme.error : theme.primary }]}>
-                                Left: {fmtTime(totalRemaining)}
-                            </Text>
+                                            <Text
+                                                style={[
+                                                    styles.sidebarCellText,
+                                                    {
+                                                        color: isCurrent
+                                                            ? theme.textInverse
+                                                            : isAnswered
+                                                            ? theme.success
+                                                            : isVisited
+                                                            ? theme.textPrimary
+                                                            : theme.textMuted,
+                                                    },
+                                                ]}
+                                            >
+                                                {qi}
+                                            </Text>
+                                        </Pressable>
+                                    );
+                                })}
+                            </View>
                         </View>
-                    </View>
+                    )}
 
                     {/* Main content */}
                     <ScrollView
                         style={styles.mainContent}
                         contentContainerStyle={{
-                            paddingTop: insets.top + 8,
+                            paddingTop: 8,
                             paddingBottom: insets.bottom + 24,
                             paddingHorizontal: 24,
                         }}
@@ -450,10 +511,10 @@ export default function QuestionScreen() {
                                 onPress={(e) => e.stopPropagation()}
                             >
                                 <View style={[styles.modalHandle, { backgroundColor: theme.divider }]} />
-                                <Text style={[styles.sidebarTitle, { color: theme.textPrimary, marginBottom: 8 }]}>
+                                <Text style={[styles.modalTitle, { color: theme.textPrimary, marginBottom: 8 }]}>
                                     All Questions
                                 </Text>
-                                <View style={[styles.sidebarStats, { marginBottom: 12 }]}>
+                                <View style={[styles.modalStatsRow, { marginBottom: 12 }]}>
                                     <View style={[styles.statChip, { backgroundColor: theme.successMuted }]}>
                                         <Text style={[styles.statChipText, { color: theme.success }]}>
                                             {answeredCount} Answered
@@ -738,18 +799,24 @@ const styles = StyleSheet.create({
     totalBarFill: { height: 4 },
 
     /* Web layout */
-    webLayout: { flex: 1, flexDirection: "row" },
-    sidebar: {
-        width: 200,
-        borderRightWidth: 1,
-        paddingTop: 20,
-        paddingHorizontal: 12,
-        paddingBottom: 12,
+    webLayout: { flex: 1, flexDirection: "column" },
+    topInfoBar: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        borderBottomWidth: 1,
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        gap: 8,
     },
-    sidebarTitle: { fontSize: 14, fontWeight: "800", marginBottom: 10 },
-    sidebarStats: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 10 },
-    sidebarGrid: { flex: 1 },
-    sidebarGridContent: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+    topInfoLeft: { flexDirection: "row", gap: 6, flexWrap: "wrap", alignItems: "center" },
+    topInfoRight: { flexDirection: "row", gap: 6, alignItems: "center" },
+    webNavigator: {
+        borderBottomWidth: 1,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+    },
+    webNavigatorGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
     sidebarCell: {
         width: 36,
         height: 36,
@@ -759,16 +826,6 @@ const styles = StyleSheet.create({
         justifyContent: "center",
     },
     sidebarCellText: { fontSize: 13, fontWeight: "700" },
-    totalTimerBox: {
-        marginTop: 10,
-        borderRadius: 10,
-        paddingHorizontal: 10,
-        paddingVertical: 8,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 5,
-    },
-    totalTimerLabel: { fontSize: 12, fontWeight: "700" },
     mainContent: { flex: 1 },
 
     /* Mobile bottom bar */
@@ -816,6 +873,8 @@ const styles = StyleSheet.create({
         padding: 16,
         maxHeight: "70%",
     },
+    modalTitle: { fontSize: 14, fontWeight: "800" },
+    modalStatsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
     modalHandle: {
         width: 40,
         height: 4,

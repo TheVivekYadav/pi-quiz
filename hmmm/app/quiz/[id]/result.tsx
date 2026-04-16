@@ -1,4 +1,4 @@
-import { fetchQuizLeaderboard } from "@/constants/quiz-api";
+import { fetchQuizLeaderboard, fetchQuizWinners } from "@/constants/quiz-api";
 import { getQuizResult } from "@/constants/quiz-session";
 import { formatOrdinalRank } from "@/constants/rank-format";
 import { useTheme } from "@/hook/theme";
@@ -6,7 +6,7 @@ import { useRequireAuth } from "@/hook/useRequireAuth";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const RANK_MEDALS: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
@@ -27,17 +27,29 @@ export default function ResultScreen() {
     useRequireAuth();
 
     const [leaderboard, setLeaderboard] = useState<any[]>([]);
+    const [resultDeclared, setResultDeclared] = useState<boolean | null>(null);
+    const [declarationError, setDeclarationError] = useState(false);
     const result = quizId ? getQuizResult(quizId) : null;
 
     useEffect(() => {
         if (!quizId) return;
         const run = async () => {
-            const lb = await fetchQuizLeaderboard(quizId);
-            setLeaderboard(lb);
+            const [lb, winnersResult] = await Promise.allSettled([
+                fetchQuizLeaderboard(quizId),
+                fetchQuizWinners(quizId),
+            ]);
+            if (lb.status === "fulfilled") setLeaderboard(lb.value);
+            if (winnersResult.status === "fulfilled") {
+                setResultDeclared(!!(winnersResult.value as any).declared);
+            } else {
+                setDeclarationError(true);
+                setResultDeclared(false);
+            }
         };
         run();
     }, [quizId]);
 
+    // Redirect to lobby if there is no local quiz session (e.g. direct URL access)
     if (!result) {
         return (
             <View style={[styles.center, { backgroundColor: theme.background }]}>
@@ -48,6 +60,39 @@ export default function ResultScreen() {
                     style={[styles.ctaPrimary, { backgroundColor: theme.buttonPrimary }]}
                     onPress={() => router.replace("/(tabs)/index" as any)}
                 >
+                    <Text style={[styles.ctaText, { color: theme.textInverse }]}>Back to Dashboard</Text>
+                </Pressable>
+            </View>
+        );
+    }
+
+    // Show spinner while we check whether results have been declared
+    if (resultDeclared === null) {
+        return (
+            <View style={[styles.center, { backgroundColor: theme.background }]}>
+                <ActivityIndicator size="large" color={theme.primary} />
+            </View>
+        );
+    }
+
+    // Results not yet officially declared by the organiser (or declaration status could not be fetched)
+    if (!resultDeclared) {
+        return (
+            <View style={[styles.center, { backgroundColor: theme.background }]}>
+                <Text style={{ fontSize: 40, marginBottom: 12 }}>{declarationError ? "⚠️" : "⏳"}</Text>
+                <Text style={{ color: theme.textPrimary, fontSize: 20, fontWeight: "800", textAlign: "center", marginBottom: 8 }}>
+                    {declarationError ? "Could Not Load Status" : "Results Pending"}
+                </Text>
+                <Text style={{ color: theme.textSecondary, fontSize: 15, textAlign: "center", marginBottom: 24 }}>
+                    {declarationError
+                        ? "We couldn't check whether results have been declared. Please check your connection and try again."
+                        : "The quiz organiser has not yet declared the results. Please check back soon."}
+                </Text>
+                <Pressable
+                    style={[styles.ctaPrimary, { backgroundColor: theme.buttonPrimary }]}
+                    onPress={() => router.replace("/(tabs)/index" as any)}
+                >
+                    <Ionicons name="home-outline" size={18} color={theme.textInverse} />
                     <Text style={[styles.ctaText, { color: theme.textInverse }]}>Back to Dashboard</Text>
                 </Pressable>
             </View>

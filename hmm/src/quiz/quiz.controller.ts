@@ -477,6 +477,64 @@ export class QuizController {
     return this.quizService.adminDeclareWinners(resolvedQuizId, adminId);
   }
 
+  // ─── Attendance / QR code endpoints ─────────────────────────────────────
+
+  /** Admin: generate (or refresh) an attendance QR token for a quiz. */
+  @Post(':quizId/admin/attendance-token')
+  async generateAttendanceToken(
+    @Param('quizId') quizId: string,
+    @Headers('Authorization') authHeader: string,
+    @Req() req: any,
+  ) {
+    const adminId = await this.requireAdmin(authHeader);
+    const resolvedQuizId = await this.resolveQuizRef(quizId);
+    const appBaseUrl = this.getPublicBaseUrl(req);
+    return this.quizService.generateAttendanceToken(resolvedQuizId, adminId, 240, appBaseUrl);
+  }
+
+  /** Admin: get the current active attendance token + QR for a quiz. */
+  @Get(':quizId/admin/attendance-token')
+  async getAttendanceToken(
+    @Param('quizId') quizId: string,
+    @Headers('Authorization') authHeader: string,
+    @Req() req: any,
+  ) {
+    await this.requireAdmin(authHeader);
+    const resolvedQuizId = await this.resolveQuizRef(quizId);
+    const appBaseUrl = this.getPublicBaseUrl(req);
+    return this.quizService.getAttendanceToken(resolvedQuizId, appBaseUrl);
+  }
+
+  /** Admin: toggle attendance requirement for a quiz. */
+  @Post(':quizId/admin/attendance-required')
+  async setAttendanceRequired(
+    @Param('quizId') quizId: string,
+    @Body() body: any,
+    @Headers('Authorization') authHeader: string,
+  ) {
+    await this.requireAdmin(authHeader);
+    if (typeof body?.required !== 'boolean') {
+      throw new BadRequestException('required must be boolean');
+    }
+    const resolvedQuizId = await this.resolveQuizRef(quizId);
+    return this.quizService.setAttendanceRequired(resolvedQuizId, body.required);
+  }
+
+  /** User: check in with attendance token (scanned from QR). */
+  @Post(':quizId/checkin')
+  async checkin(
+    @Param('quizId') quizId: string,
+    @Body() body: any,
+    @Headers('Authorization') authHeader: string,
+  ) {
+    const userId = await this.getUserId(authHeader);
+    if (!body?.token) throw new BadRequestException('token is required');
+    const resolvedQuizId = await this.resolveQuizRef(quizId);
+    return this.quizService.checkinWithToken(resolvedQuizId, userId, String(body.token));
+  }
+
+  // ────────────────────────────────────────────────────────────────────────
+
   // Any authenticated user: get declared winners
   @Get(':quizId/winners')
   async getWinners(
