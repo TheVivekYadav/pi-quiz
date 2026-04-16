@@ -20,6 +20,7 @@ const session: SessionState = {
 };
 
 const RESULTS_STORAGE_KEY = 'pi_quiz_results';
+const TIMER_STARTED_STORAGE_KEY = 'pi_quiz_timer_started_at';
 
 export const setAnswer = (quizId: string, questionId: string, optionId: string) => {
   if (!session.answers[quizId]) {
@@ -71,6 +72,16 @@ export const markQuestionStarted = (quizId: string, questionIndex: number): void
   }
   if (!session.questionTimerStartedAt[quizId][questionIndex]) {
     session.questionTimerStartedAt[quizId][questionIndex] = Date.now();
+    // Persist so the timer survives app restarts / page refreshes
+    try {
+      const updated = { ...session.questionTimerStartedAt };
+      AsyncStorage.setItem(TIMER_STARTED_STORAGE_KEY, JSON.stringify(updated)).catch(() => {});
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(TIMER_STARTED_STORAGE_KEY, JSON.stringify(updated));
+      }
+    } catch {
+      // ignore storage errors
+    }
   }
 };
 
@@ -124,6 +135,32 @@ export async function loadPersistedResults(): Promise<void> {
       if (raw) {
         const parsed = JSON.parse(raw);
         Object.assign(session.results, parsed);
+      }
+    }
+  } catch {
+    // ignore
+  }
+}
+
+/** Call once at app startup to rehydrate persisted question timer start times. */
+export async function loadPersistedTimers(): Promise<void> {
+  try {
+    const raw = await AsyncStorage.getItem(TIMER_STARTED_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      Object.assign(session.questionTimerStartedAt, parsed);
+      return;
+    }
+  } catch {
+    // ignore
+  }
+  // Web fallback
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const raw = window.localStorage.getItem(TIMER_STARTED_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        Object.assign(session.questionTimerStartedAt, parsed);
       }
     }
   } catch {

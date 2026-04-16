@@ -1,6 +1,6 @@
 import { getCurrentUser } from "@/constants/auth-api";
 import { clearAuth, loadPersistedAuth, setAuthToken } from "@/constants/auth-session";
-import { loadPersistedResults } from "@/constants/quiz-session";
+import { loadPersistedResults, loadPersistedTimers } from "@/constants/quiz-session";
 import { Stack } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
@@ -12,6 +12,7 @@ export default function RootLayout() {
     const init = async () => {
       await loadPersistedAuth().catch((err) => console.error('Auth load error:', err));
       await loadPersistedResults().catch(() => { });
+      await loadPersistedTimers().catch(() => { });
 
       // Re-verify token and sync role from server so a tampered localStorage
       // cannot grant stale admin privileges.

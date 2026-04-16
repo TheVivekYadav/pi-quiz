@@ -65,7 +65,11 @@ export default function QuizzesTab() {
             {loading && <ActivityIndicator color={theme.primary} size="large" />}
 
             {!loading && items.map((quiz) => {
-                const isPast = adminView && new Date(quiz.startsAtIso) < new Date();
+                const quizStartsAt = new Date(quiz.startsAtIso);
+                const quizEndsAt = new Date(quizStartsAt.getTime() + (quiz.durationMinutes || 0) * 60 * 1000);
+                const now = new Date();
+                const isPast = adminView && quizEndsAt < now;
+                const isLive = adminView && quizStartsAt <= now && quizEndsAt >= now;
                 return (
                 <Pressable
                     key={quiz.id}
@@ -74,7 +78,7 @@ export default function QuizzesTab() {
                         styles.card,
                         {
                             backgroundColor: theme.surfaceLight,
-                            borderColor: theme.border,
+                            borderColor: isLive ? theme.success : theme.border,
                             opacity: pressed ? 0.9 : 1,
                         },
                     ]}
@@ -82,6 +86,11 @@ export default function QuizzesTab() {
                     <View style={styles.row}>
                         <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{quiz.title}</Text>
                         <View style={styles.badges}>
+                            {isLive && (
+                                <View style={[styles.liveBadge, { backgroundColor: theme.successMuted, borderColor: theme.success }]}>
+                                    <Text style={[styles.liveBadgeText, { color: theme.success }]}>● Live</Text>
+                                </View>
+                            )}
                             {isPast && (
                                 <View style={[styles.pastBadge, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                                     <Text style={[styles.pastBadgeText, { color: theme.textSecondary }]}>Past</Text>
@@ -119,6 +128,8 @@ const styles = StyleSheet.create({
     row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
     cardTitle: { fontSize: 21, fontWeight: "700", flex: 1 },
     badges: { flexDirection: "row", alignItems: "center", gap: 6 },
+    liveBadge: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+    liveBadgeText: { fontSize: 10, fontWeight: "700" },
     pastBadge: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
     pastBadgeText: { fontSize: 10, fontWeight: "700", textTransform: "uppercase" },
     level: { fontSize: 12, fontWeight: "700", textTransform: "uppercase" },
