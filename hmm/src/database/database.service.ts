@@ -271,7 +271,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       CREATE TABLE IF NOT EXISTS quiz_attendance_tokens (
         id TEXT PRIMARY KEY,
         quiz_id TEXT NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
-        token TEXT NOT NULL,
+        token TEXT NOT NULL UNIQUE,
         expires_at TIMESTAMPTZ NOT NULL,
         created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
