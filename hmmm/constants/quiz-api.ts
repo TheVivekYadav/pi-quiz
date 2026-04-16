@@ -533,3 +533,49 @@ export const adminExecuteQuery = (query: string, params?: any[]) =>
       body: JSON.stringify({ query, params }),
     })
   );
+
+// ─── Attendance / QR code ────────────────────────────────────────────────────
+
+export type AttendanceTokenPayload = {
+  token: string;
+  expiresAt: string;
+  qrDataUrl: string;
+  attendanceRequired?: boolean;
+};
+
+/** Admin: generate (or refresh) the attendance QR token for a quiz. */
+export const adminGenerateAttendanceToken = (quizId: string) =>
+  json<AttendanceTokenPayload>(
+    fetch(apiUrl(`/quiz/${quizId}/admin/attendance-token`), {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    })
+  );
+
+/** Admin: get the current active attendance token + QR for a quiz. */
+export const adminGetAttendanceToken = (quizId: string) =>
+  json<AttendanceTokenPayload>(
+    fetch(apiUrl(`/quiz/${quizId}/admin/attendance-token`), {
+      headers: getAuthHeaders(),
+    })
+  );
+
+/** Admin: enable or disable attendance verification for a quiz. */
+export const adminSetAttendanceRequired = (quizId: string, required: boolean) =>
+  json<{ success: boolean }>(
+    fetch(apiUrl(`/quiz/${quizId}/admin/attendance-required`), {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ required }),
+    })
+  );
+
+/** User: submit an attendance check-in token (from scanned QR). */
+export const submitCheckin = (quizId: string, token: string) =>
+  json<{ success: boolean; message: string }>(
+    fetch(apiUrl(`/quiz/${quizId}/checkin`), {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ token }),
+    })
+  );

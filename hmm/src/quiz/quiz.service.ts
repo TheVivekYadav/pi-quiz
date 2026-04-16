@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
+import * as QRCode from 'qrcode';
 import { DatabaseService } from '../database/database.service.js';
 
 export interface QuizQuestion {
@@ -454,7 +455,7 @@ export class QuizService {
     }
 
     const quizResult = await pool.query(
-      `SELECT title, starts_at, duration_minutes FROM quizzes WHERE id = $1`,
+      `SELECT title, starts_at, duration_minutes, attendance_required FROM quizzes WHERE id = $1`,
       [quizId],
     );
 
@@ -467,6 +468,14 @@ export class QuizService {
     const now = Date.now();
     const startsInSeconds = Math.max(0, Math.floor((startsAt - now) / 1000));
     const quizEndsAtIso = new Date(startsAt + durationMinutes * 60 * 1000).toISOString();
+    const attendanceRequired: boolean = !!quizResult.rows[0].attendance_required;
+
+    // Check attendance check-in status
+    const checkinResult = await pool.query(
+      `SELECT id FROM quiz_checkins WHERE quiz_id = $1 AND user_id = $2`,
+      [quizId, userId],
+    );
+    const isCheckedIn = checkinResult.rows.length > 0;
 
     // Get sample waiting users
     const usersResult = await pool.query(
@@ -501,6 +510,8 @@ export class QuizService {
       quizEndsAtIso,
       durationMinutes,
       totalQuestions,
+      attendanceRequired,
+      isCheckedIn,
       rules: [
         'Read each question carefully',
         'You have limited time per question',
@@ -532,7 +543,7 @@ export class QuizService {
   ): Promise<QuizQuestionPayload> {
     const pool = this.databaseService.getPool();
     // Ensure quiz has started
-    const quizStartRes = await pool.query(`SELECT title, starts_at, duration_minutes FROM quizzes WHERE id = $1`, [quizId]);
+    const quizStartRes = await pool.query(`SELECT title, starts_at, duration_minutes, attendance_required FROM quizzes WHERE id = $1`, [quizId]);
     if (!quizStartRes.rows[0]) throw new NotFoundException('Quiz not found');
     const startsAt = new Date(quizStartRes.rows[0].starts_at).getTime();
     const durationMinutes: number = parseInt(quizStartRes.rows[0].duration_minutes) || 30;
@@ -556,6 +567,16 @@ export class QuizService {
     }
     if (completedCheck.rows[0].is_completed) {
       throw new ForbiddenException('You have already completed this quiz');
+    }
+    // If attendance is required, check that the user has scanned the QR code
+    if (quizStartRes.rows[0].attendance_required) {
+      const checkinCheck = await pool.query(
+        `SELECT id FROM quiz_checkins WHERE quiz_id = $1 AND user_id = $2`,
+        [quizId, userId],
+      );
+      if (!checkinCheck.rows[0]) {
+        throw new ForbiddenException('Attendance verification required. Please scan the QR code shown by your admin.');
+      }
     }
     // Get total questions
     const countResult = await pool.query(
@@ -1754,6 +1775,160 @@ export class QuizService {
       formId: result.rows[0].form_id,
       fields: result.rows[0].fields ?? [],
     };
+  }
+
+  // ─── Attendance / QR code ────────────────────────────────────────────────
+
+  /**
+   * Admin: generate (or refresh) an attendance token for a quiz.
+   * The token is valid for `validMinutes` (default 4 h) and is embedded
+   * in the returned QR code image (data URL) so the admin can display it.
+   */
+  async generateAttendanceToken(
+    quizId: string,
+    adminId: number,
+    validMinutes = 240,
+    appBaseUrl = 'https://pit.engineer',
+  ): Promise<{ token: string; expiresAt: string; qrDataUrl: string }> {
+    const pool = this.databaseService.getPool();
+
+    const check = await pool.query(`SELECT id FROM quizzes WHERE id = $1`, [quizId]);
+    if (!check.rows[0]) throw new NotFoundException('Quiz not found');
+
+    // Invalidate any previous tokens for this quiz by deleting them
+    await pool.query(`DELETE FROM quiz_attendance_tokens WHERE quiz_id = $1`, [quizId]);
+
+    const tokenId = randomUUID();
+    const token = randomUUID();
+    const expiresAt = new Date(Date.now() + validMinutes * 60 * 1000).toISOString();
+
+    await pool.query(
+      `INSERT INTO quiz_attendance_tokens (id, quiz_id, token, expires_at, created_by)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [tokenId, quizId, token, expiresAt, adminId],
+    );
+
+    // Enable attendance requirement automatically when a token is generated
+    await pool.query(
+      `UPDATE quizzes SET attendance_required = TRUE, updated_at = NOW() WHERE id = $1`,
+      [quizId],
+    );
+
+    const checkinUrl = `${appBaseUrl}/quiz/${quizId}/checkin?token=${token}`;
+    const qrDataUrl: string = await QRCode.toDataURL(checkinUrl, { width: 320, margin: 2 });
+
+    return { token, expiresAt, qrDataUrl };
+  }
+
+  /** Admin: get the current active attendance token for a quiz (no QR regen). */
+  async getAttendanceToken(
+    quizId: string,
+    appBaseUrl = 'https://pit.engineer',
+  ): Promise<{ token: string; expiresAt: string; qrDataUrl: string; attendanceRequired: boolean } | null> {
+    const pool = this.databaseService.getPool();
+
+    const quizRow = await pool.query(
+      `SELECT attendance_required FROM quizzes WHERE id = $1`,
+      [quizId],
+    );
+    if (!quizRow.rows[0]) throw new NotFoundException('Quiz not found');
+
+    const tokenRow = await pool.query(
+      `SELECT id, token, expires_at FROM quiz_attendance_tokens
+       WHERE quiz_id = $1 AND expires_at > NOW()
+       ORDER BY created_at DESC LIMIT 1`,
+      [quizId],
+    );
+
+    if (!tokenRow.rows[0]) {
+      return { token: '', expiresAt: '', qrDataUrl: '', attendanceRequired: !!quizRow.rows[0].attendance_required };
+    }
+
+    const { token, expires_at } = tokenRow.rows[0];
+    const checkinUrl = `${appBaseUrl}/quiz/${quizId}/checkin?token=${token}`;
+    const qrDataUrl: string = await QRCode.toDataURL(checkinUrl, { width: 320, margin: 2 });
+
+    return {
+      token,
+      expiresAt: new Date(expires_at).toISOString(),
+      qrDataUrl,
+      attendanceRequired: !!quizRow.rows[0].attendance_required,
+    };
+  }
+
+  /** Admin: toggle attendance requirement for a quiz. */
+  async setAttendanceRequired(quizId: string, required: boolean): Promise<{ success: boolean }> {
+    const pool = this.databaseService.getPool();
+    const check = await pool.query(`SELECT id FROM quizzes WHERE id = $1`, [quizId]);
+    if (!check.rows[0]) throw new NotFoundException('Quiz not found');
+
+    await pool.query(
+      `UPDATE quizzes SET attendance_required = $2, updated_at = NOW() WHERE id = $1`,
+      [quizId, required],
+    );
+    return { success: true };
+  }
+
+  /** User: validate an attendance token and record the check-in. */
+  async checkinWithToken(
+    quizId: string,
+    userId: number,
+    token: string,
+  ): Promise<{ success: boolean; message: string }> {
+    const pool = this.databaseService.getPool();
+
+    // Verify quiz exists and attendance is required
+    const quizRow = await pool.query(
+      `SELECT id, attendance_required FROM quizzes WHERE id = $1`,
+      [quizId],
+    );
+    if (!quizRow.rows[0]) throw new NotFoundException('Quiz not found');
+
+    // Verify enrollment
+    const enrolRow = await pool.query(
+      `SELECT id FROM quiz_enrollments WHERE quiz_id = $1 AND user_id = $2`,
+      [quizId, userId],
+    );
+    if (!enrolRow.rows[0]) throw new ForbiddenException('You are not enrolled in this quiz');
+
+    // Check if already checked in
+    const existingCheckin = await pool.query(
+      `SELECT id FROM quiz_checkins WHERE quiz_id = $1 AND user_id = $2`,
+      [quizId, userId],
+    );
+    if (existingCheckin.rows[0]) {
+      return { success: true, message: 'Already checked in' };
+    }
+
+    // Validate the token
+    const tokenRow = await pool.query(
+      `SELECT id FROM quiz_attendance_tokens
+       WHERE quiz_id = $1 AND token = $2 AND expires_at > NOW()`,
+      [quizId, token],
+    );
+    if (!tokenRow.rows[0]) {
+      throw new BadRequestException('Invalid or expired attendance QR code. Please ask the admin to refresh it.');
+    }
+
+    // Record the check-in
+    await pool.query(
+      `INSERT INTO quiz_checkins (id, quiz_id, user_id, token_id)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (quiz_id, user_id) DO NOTHING`,
+      [randomUUID(), quizId, userId, tokenRow.rows[0].id],
+    );
+
+    return { success: true, message: 'Checked in successfully! You may now start the quiz.' };
+  }
+
+  /** Check whether a user has checked in for a quiz. */
+  async isUserCheckedIn(quizId: string, userId: number): Promise<boolean> {
+    const pool = this.databaseService.getPool();
+    const result = await pool.query(
+      `SELECT id FROM quiz_checkins WHERE quiz_id = $1 AND user_id = $2`,
+      [quizId, userId],
+    );
+    return result.rows.length > 0;
   }
 
   async getApiErrorLogs(limit = 50, includeResolved = false) {

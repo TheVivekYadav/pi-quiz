@@ -24,6 +24,10 @@ export default function LobbyScreen() {
     const [error, setError] = useState<string | null>(null);
     const [rulesExpanded, setRulesExpanded] = useState(true);
 
+    // Attendance check-in state (server-sourced from lobby payload)
+    const attendanceRequired: boolean = !!data?.attendanceRequired;
+    const isCheckedIn: boolean = !!data?.isCheckedIn;
+
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const loadLobby = async () => {
@@ -234,6 +238,32 @@ export default function LobbyScreen() {
                 <View style={[styles.startBtn, { backgroundColor: theme.buttonDisabled, alignItems: 'center' }]}>
                     <Text style={[styles.startText, { color: theme.textInverse }]}>Quiz Window Closed</Text>
                 </View>
+            ) : attendanceRequired && !isCheckedIn ? (
+                /* ── Attendance gate ── */
+                <View style={[styles.card, { backgroundColor: theme.warningMuted, borderColor: theme.warning, marginTop: 16 }]}>
+                    <View style={styles.attendanceHeader}>
+                        <Ionicons name="qr-code-outline" size={28} color={theme.textPrimary} />
+                        <Text style={[styles.cardTitle, { color: theme.textPrimary, marginBottom: 0, flex: 1 }]}>
+                            Attendance Required
+                        </Text>
+                    </View>
+                    <Text style={[styles.rule, { color: theme.textSecondary, marginTop: 8 }]}>
+                        Your admin requires you to verify your on-site presence before you can start the quiz.
+                        Please scan the QR code displayed by your admin.
+                    </Text>
+                    <Text style={[styles.rule, { color: theme.textSecondary, fontSize: 13 }]}>
+                        After scanning the QR code this screen will automatically update. You can also refresh the lobby manually.
+                    </Text>
+                    <Pressable
+                        style={({ pressed }) => [
+                            styles.startBtn,
+                            { backgroundColor: theme.buttonPrimary, marginTop: 12, opacity: pressed ? 0.9 : 1 },
+                        ]}
+                        onPress={loadLobby}
+                    >
+                        <Text style={[styles.startText, { color: theme.textInverse }]}>↻ Refresh After Scanning</Text>
+                    </Pressable>
+                </View>
             ) : (
                 <Pressable
                     style={({ pressed }) => [
@@ -297,4 +327,5 @@ const styles = StyleSheet.create({
         alignItems: "center",
     },
     startText: { fontSize: 17, fontWeight: "700" },
+    attendanceHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
 });

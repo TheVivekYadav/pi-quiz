@@ -618,6 +618,10 @@ export default function AdminTab() {
                                     <Ionicons name="list-outline" size={16} color={theme.primary} />
                                     <Text style={[styles.menuText, { color: theme.textPrimary }]}>Manage Questions</Text>
                                 </Pressable>
+                                <Pressable onPress={() => { setOpenMenuQuizId(null); router.push({ pathname: "/admin/attendance/[id]", params: { id: quiz.id } } as any); }} style={styles.menuItem}>
+                                    <Ionicons name="qr-code-outline" size={16} color={theme.primary} />
+                                    <Text style={[styles.menuText, { color: theme.textPrimary }]}>Attendance QR</Text>
+                                </Pressable>
                                 {isPast && (
                                     <Pressable onPress={() => { setOpenMenuQuizId(null); handleDeclareWinners(quiz); }} style={styles.menuItem}>
                                         <Ionicons name="trophy-outline" size={16} color={theme.warning} />
